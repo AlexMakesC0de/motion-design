@@ -34,8 +34,15 @@ Corollary: **the CLI refuses an unknown model rather than forwarding it.**
 | `lib/run.mjs` | Run directories, artifact numbering |
 | `lib/presets.mjs` | Preset lookup and native-vs-adaptation routing |
 | `lib/errors.mjs` | The exit-code contract |
+| `lib/ffmpeg.mjs` | Binary detection, probe, loudness measurement, ratio table |
+| `lib/assemble.mjs` | Crossfade timing, the ad audio mix, two-pass loudness |
+| `lib/caption.mjs` | SRT parsing/validation, alpha-overlay compositing |
+| `lib/variants.mjs` | Aspect reframing and the caption-order guard |
+| `lib/render.mjs` | Bridge to the Remotion project in `render/` |
 
-Zero dependencies, so there is nothing to install in any host.
+Zero npm dependencies. Two optional binaries, and the CLI says which commands
+need them: **ffmpeg** for finishing, and `render/`'s own `npm install` for
+graphic motion. Generation needs neither.
 
 ## Exit codes are the contract
 
@@ -87,6 +94,24 @@ money; a ledger that records only successes under-reports spend systematically.
 
 **The key is never a flag.** `KIE_API_KEY` → `./.env` → `~/.config/kie/key`. A
 key in argv lands in shell history *and* in the agent transcript.
+
+**Captions are rendered, not `subtitles`-filtered.** That ffmpeg filter needs
+libass, and common builds lack it — Homebrew's 8.1.1 has neither `subtitles` nor
+`drawtext`, and the failure reads as a filter-syntax error rather than a missing
+feature. Captions are drawn by the render engine on alpha and composited with
+`overlay`, which every build has. Better typography and the same brand kit as
+every other template, for free.
+
+**Loudness is two-pass and the delivered value is measured.** Single-pass
+`loudnorm` is a dynamic normaliser: on this project's own test mix it landed at
+−19.3 LUFS against a stated −16. The mix is now rendered, measured, and
+re-normalised with the measured values fed back in — and then the *output* is
+measured again, so `assembly.json` records what was delivered rather than what
+was aimed at. Same rule as estimates versus credits.
+
+**Reframe before captioning.** Captions burned in at 16:9 land mid-frame after a
+9:16 reframe, and blur mode ghosts them into the letterbox band. `kie variants`
+detects it via the run's `captions.json` and warns.
 
 ## Keeping `models.json` honest
 

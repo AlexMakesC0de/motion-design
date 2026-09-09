@@ -19,3 +19,7 @@ node_modules/
 # costs are private campaign material, and ATTRIBUTION.md is explicit that
 # private campaign files stay out of the repository.
 /runs/
+
+# Remotion's own dependency tree (React + a headless browser). Installed on
+# demand by `cd render && npm install`; nothing else in the project needs it.
+/render/node_modules/

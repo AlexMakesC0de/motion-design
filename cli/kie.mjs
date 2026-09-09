@@ -6,8 +6,8 @@
 // no kie.ai model id, endpoint or price lives in the skill. See cli/README.md.
 
 import { parseArgs } from "node:util";
-import { readFileSync, existsSync } from "node:fs";
-import { basename, join } from "node:path";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
 import { loadCatalog, resolveModel, validateVideoRequest, parseRef, isStale, catalogAgeDays } from "./lib/models.mjs";
@@ -15,9 +15,14 @@ import { apiKey, createTask, credits, redact } from "./lib/client.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
 import { preflight, creditsAfter } from "./lib/budget.mjs";
-import { runDir, nextArtifact, extFromUrl, writeRecord, REPO_ROOT } from "./lib/run.mjs";
+import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
+import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
+import { assemble } from "./lib/assemble.mjs";
+import { burnCaptions } from "./lib/caption.mjs";
+import { makeVariants, captionOrderWarning } from "./lib/variants.mjs";
+import { render, TEMPLATES, BRAND_DIR } from "./lib/render.mjs";
 
 const HELP = `kie -- motion-design execution layer
 
@@ -37,6 +42,19 @@ const HELP = `kie -- motion-design execution layer
 
   kie job        <taskId> [--family jobs|veo] [--run SLUG]
   kie spend      [--today] [--run SLUG] [--since YYYY-MM-DD] [--json]
+
+Finishing (local ffmpeg — no key, no spend):
+  kie probe      <file>
+  kie assemble   --run SLUG --shot A.mp4 [--shot B.mp4]... [--music M] [--vo V]
+                 [--transition fade:0.5] [--ratio 16:9] [--shot-audio auto|keep|drop]
+                 [--out film.mp4]
+  kie caption    --run SLUG --video F --srt S [--style social|subtle] [--out C.mp4]
+  kie variants   --run SLUG --video F --ratios 9:16,1:1 [--mode blur|crop|pad]
+
+Graphic motion (code-rendered — no key, no spend):
+  kie templates
+  kie render     --run SLUG --template T [--props P.json] [--ratio R] [--duration N]
+                 [--brand NAME] [--alpha] [--out X.mp4]
 
 Exit codes: 0 ok · 1 usage · 2 budget refused (nothing spent) · 3 unknown model
             4 provider error · 5 uncertain -- rejoin with \`kie job <id>\`, never resubmit
@@ -58,10 +76,36 @@ const OPTS = {
   budget: { type: "string" },
   resolution: { type: "string" },
   quality: { type: "string" },
+  // `--music` is a prompt in `kie audio` and a file in `kie assemble`. Both
+  // read naturally in their own command and the two never co-occur.
   music: { type: "string" },
+  vo: { type: "string" },
   "tts-file": { type: "string" },
   voice: { type: "string" },
   family: { type: "string" },
+  shot: { type: "string", multiple: true, default: [] },
+  video: { type: "string" },
+  srt: { type: "string" },
+  style: { type: "string" },
+  transition: { type: "string" },
+  "shot-audio": { type: "string" },
+  "music-gain": { type: "string" },
+  "no-duck": { type: "boolean", default: false },
+  // `--ar` is the generation-side name (it mirrors the provider field) and
+  // `--ratio` reads better for finishing. Both accepted everywhere rather than
+  // making the user remember which half of the tool they are in.
+  ratio: { type: "string" },
+  ratios: { type: "string" },
+  mode: { type: "string" },
+  fps: { type: "string" },
+  out: { type: "string" },
+  "out-dir": { type: "string" },
+  template: { type: "string" },
+  props: { type: "string" },
+  brand: { type: "string" },
+  alpha: { type: "boolean", default: false },
+  font: { type: "string" },
+  "font-size": { type: "string" },
   today: { type: "boolean", default: false },
   since: { type: "string" },
   "no-wait": { type: "boolean", default: false },
@@ -575,6 +619,194 @@ async function cmdJob(catalog, args, taskId) {
   return EXIT.OK;
 }
 
+// --------------------------------------------------- finishing (local, free)
+
+const tick = (line) => {
+  const m = String(line).match(/time=(\d+:\d+:\d+\.\d+)/);
+  if (m) process.stderr.write(`\r  encoding ${m[1]}   `);
+};
+
+async function cmdProbe(positionals) {
+  if (!positionals[0]) throw usage("kie probe <file>");
+  const info = await probe(positionals[0]);
+  const loud = info.hasAudio ? await measureLoudness(positionals[0]) : null;
+
+  say(`${info.path}`);
+  say(`  duration  ${info.durationS?.toFixed(2)}s`);
+  say(`  video     ${info.width}×${info.height} @ ${info.fps}fps (${info.videoCodec})`);
+  say(
+    info.hasAudio
+      ? `  audio     ${info.audioCodec} ${info.sampleRate}Hz` +
+          (loud ? `  ${loud.inputI.toFixed(1)} LUFS, peak ${loud.inputTp.toFixed(1)} dBTP` : "")
+      : `  audio     none`,
+  );
+  say(`  size      ${(info.sizeBytes / 1e6).toFixed(2)}MB`);
+  if (loud && loud.inputI > -12) {
+    say(`\n  ! ${loud.inputI.toFixed(1)} LUFS is hot. Social platforms normalise to about -16;`);
+    say(`    deliver hotter and they turn it down, unevenly. \`kie assemble\` corrects this.`);
+  }
+  return EXIT.OK;
+}
+
+async function cmdAssemble(args) {
+  const dir = runDir(args.run);
+  const shots = args.shot.map((s) => inPath(dir, s));
+  for (const s of shots) if (!existsSync(s)) throw usage(`No such shot: ${s}`);
+
+  let transitionKind = "fade";
+  let transitionS = 0;
+  if (args.transition) {
+    const [kind, secs] = args.transition.split(":");
+    transitionKind = kind || "fade";
+    transitionS = Number(secs ?? 0.5);
+    if (!Number.isFinite(transitionS) || transitionS <= 0) {
+      throw usage(`--transition wants "<kind>:<seconds>", e.g. fade:0.5 — got "${args.transition}".`);
+    }
+  }
+
+  const ratio = args.ar ?? "16:9";
+  const [width, height] = dimsFor(ratio);
+  const out = outPath(dir, args.out, "film", ".mp4");
+
+  if (shots.length > 1) {
+    warn(
+      `! Assembling ${shots.length} shots. production.md treats a film as ONE generation — ` +
+        `if these came from separate jobs to work around a duration limit, say so in the review.`,
+    );
+  }
+
+  const result = await assemble({
+    shots,
+    music: inPath(dir, args.music),
+    vo: inPath(dir, args.vo),
+    out,
+    transitionS,
+    transition: transitionKind,
+    ratio,
+    width,
+    height,
+    fps: Number(args.fps ?? 30),
+    shotAudio: args["shot-audio"] ?? "auto",
+    musicGainDb: Number(args["music-gain"] ?? -14),
+    duck: !args["no-duck"],
+    onLine: tick,
+  });
+  process.stderr.write("\n");
+
+  await writeRecord(dir, "assembly.json", result);
+  say(`  → ${result.out}  (${result.totalS}s, ${width}×${height})`);
+  if (result.audio.loudnessTarget) {
+    const d = result.audio.loudnessDelivered;
+    say(
+      `  ${result.audio.ducked ? "music ducked under VO, " : ""}` +
+        `normalised toward -16 LUFS` +
+        (d ? ` — delivered ${d.lufs} LUFS, peak ${d.truePeakDb} dBTP` : ""),
+    );
+  }
+  return EXIT.OK;
+}
+
+async function cmdCaption(args) {
+  const dir = runDir(args.run);
+  if (!args.video || !args.srt) throw usage("kie caption --run SLUG --video F.mp4 --srt F.srt");
+
+  const video = inPath(dir, args.video);
+  const srt = inPath(dir, args.srt);
+  if (!existsSync(video)) throw usage(`No such video: ${args.video}`);
+  if (!existsSync(srt)) throw usage(`No such SRT: ${args.srt}`);
+
+  const out = outPath(dir, args.out, "captioned", ".mp4");
+  const result = await burnCaptions({
+    video,
+    srt,
+    out,
+    style: args.style ?? "social",
+    brand: args.brand,
+    onLine: tick,
+  });
+  process.stderr.write("\n");
+
+  for (const w of result.warnings) warn(`  ! ${w}`);
+  await writeRecord(dir, "captions.json", result);
+  say(`  → ${result.out}  (${result.cues} cues, ${result.style})`);
+  return EXIT.OK;
+}
+
+async function cmdVariants(args) {
+  const dir = runDir(args.run);
+  if (!args.video) throw usage("kie variants --run SLUG --video F.mp4 --ratios 9:16,1:1");
+  const video = inPath(dir, args.video);
+  if (!existsSync(video)) throw usage(`No such video: ${args.video}`);
+
+  const orderWarning = captionOrderWarning(video, dir, (p) => {
+    try {
+      return JSON.parse(readFileSync(p, "utf8"));
+    } catch {
+      return null;
+    }
+  });
+  if (orderWarning) warn(`! ${orderWarning}`);
+
+  const ratios = (args.ratios ?? "9:16,1:1").split(",").map((r) => r.trim()).filter(Boolean);
+  const outDir = args["out-dir"] ? join(dir, args["out-dir"]) : dir;
+  mkdirSync(outDir, { recursive: true });
+
+  const result = await makeVariants({
+    video,
+    ratios,
+    outDir,
+    mode: args.mode ?? "blur",
+    onLine: tick,
+  });
+  process.stderr.write("\n");
+
+  await writeRecord(dir, "variants.json", result);
+  for (const v of result.variants) say(`  → ${v.out}  (${v.width}×${v.height}, ${v.mode})`);
+  return EXIT.OK;
+}
+
+// ----------------------------------------- graphic motion (code-rendered)
+
+function cmdTemplates() {
+  say(`Code-rendered graphic motion. No key, no spend, pixel-exact, re-renderable.\n`);
+  for (const [id, desc] of Object.entries(TEMPLATES)) say(`  ${id.padEnd(14)} ${desc}`);
+  say(`\nBrand kits: ${BRAND_DIR}/<name>.json  (--brand <name>)`);
+  say(`Props:      a JSON file matching the template's props (--props p.json)`);
+  say(`\nUse these instead of a video model whenever the copy, a logo, or a number`);
+  say(`must land exactly — generated video draws a picture of text and gets it wrong.`);
+  return EXIT.OK;
+}
+
+async function cmdRender(args) {
+  if (!args.template) {
+    throw usage(`kie render --run SLUG --template <id>. See: kie templates`);
+  }
+  const dir = runDir(args.run);
+  const ext = args.alpha ? ".mov" : ".mp4";
+  const out = outPath(dir, args.out, args.template, ext);
+
+  say(`rendering ${args.template} …`);
+  const result = await render({
+    template: args.template,
+    propsPath: args.props,
+    out,
+    ratio: args.ar ?? "16:9",
+    fps: Number(args.fps ?? 30),
+    durationS: args.duration ? Number(args.duration) : undefined,
+    brand: args.brand,
+    alpha: args.alpha,
+    onLine: (l) => {
+      const m = String(l).match(/(\d+)\/(\d+)/);
+      if (m) process.stderr.write(`\r  frame ${m[1]}/${m[2]}   `);
+    },
+  });
+  process.stderr.write("\n");
+
+  await writeRecord(dir, `render-${args.template}.json`, result);
+  say(`  → ${result.out}  (${result.width}×${result.height}${result.alpha ? ", alpha" : ""})`);
+  return EXIT.OK;
+}
+
 // -------------------------------------------------------------------- main
 
 async function main(argv) {
@@ -598,6 +830,9 @@ async function main(argv) {
     say(HELP);
     return EXIT.OK;
   }
+
+  args.ar ??= args.ratio;
+  args.ratio ??= args.ar;
 
   const catalog = loadCatalog();
 
@@ -628,6 +863,18 @@ async function main(argv) {
       return cmdJob(catalog, args, positionals[0]);
     case "spend":
       return cmdSpend(args) ?? EXIT.OK;
+    case "probe":
+      return cmdProbe(positionals);
+    case "assemble":
+      return cmdAssemble(args);
+    case "caption":
+      return cmdCaption(args);
+    case "variants":
+      return cmdVariants(args);
+    case "templates":
+      return cmdTemplates();
+    case "render":
+      return cmdRender(args);
     default:
       throw usage(`Unknown command "${command}".\n\n${HELP}`);
   }

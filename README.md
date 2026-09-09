@@ -46,13 +46,36 @@ such by the tooling rather than by hope.
 **It also unlocks Kimi.** The CLI is shell, not MCP, so all three hosts get
 identical capability.
 
+### Three engines
+
+| | Command | Needs |
+|---|---|---|
+| **Generate** — photographic film from a preset or prompt | `kie video` `image` `audio` | a kie.ai key |
+| **Render** — graphic motion drawn exactly: copy, logos, numbers, screenshots | `kie render` | `cd render && npm install` |
+| **Finish** — music bed, ducked VO, loudness, captions, aspect variants | `kie assemble` `caption` `variants` `probe` | ffmpeg |
+
+Each is independent. Generation never needs ffmpeg or npm; finishing and
+rendering never spend money.
+
+**The choice between the first two is the important one.** Generative video is
+photographic — it invents plausible pixels and is very good at that. Anything
+that has to be *correct* rather than plausible (a headline, your logo, a price,
+a chart value, a real screenshot) is a code render, because a model draws a
+*picture of* text and misspells it in ways no retry fixes. They are designed to
+meet: `--alpha` composites a rendered strap or end card onto a generated film.
+See [graphic-motion.md](skills/motion-design/references/graphic-motion.md).
+
 ```bash
 node install.mjs                                  # symlink skill + kie into every host
-printf '%s' 'YOUR_KEY' > ~/.config/kie/key        # chmod 600; never a CLI flag
-chmod 600 ~/.config/kie/key
+printf '%s' 'YOUR_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
 kie doctor                                        # key, balance, catalog age, routing
 kie presets                                       # which presets are native vs adaptation
-kie video --run entri-hero --preset kinetic-typography --duration 10
+
+kie video    --run entri-hero --preset kinetic-typography --duration 10
+kie render   --run entri-hero --template logo-reveal --props brand.json
+kie assemble --run entri-hero --shot out.mp4 --shot logo-reveal.mp4 --transition fade:0.5
+kie variants --run entri-hero --video film.mp4 --ratios 9:16,1:1   # reframe BEFORE
+kie caption  --run entri-hero --video film-9x16.mp4 --srt cap.srt  # …then caption
 ```
 
 `kie preflight` and `kie doctor` are read-only: they answer cost and access

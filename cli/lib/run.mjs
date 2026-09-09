@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, join, extname } from "node:path";
+import { dirname, join, extname, isAbsolute, resolve } from "node:path";
 import { usage } from "./errors.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -41,6 +41,30 @@ export function nextArtifact(dir, base, ext) {
     candidate = join(dir, `${base}-${n}${e}`);
   }
   return { path: candidate, take: n };
+}
+
+/**
+ * Resolve a user-supplied `--out`.
+ *
+ * A bare name belongs to the run directory -- `--out film.mp4` must not write
+ * to whatever directory the agent happened to be standing in, or the run record
+ * points at a file that is not there. A name carrying a separator, or an
+ * absolute path, is an explicit location and is honoured. With no `--out` at
+ * all, fall through to non-destructive numbering.
+ */
+export function outPath(dir, out, base, ext) {
+  if (!out) return nextArtifact(dir, base, ext).path;
+  if (isAbsolute(out)) return out;
+  if (out.includes("/")) return resolve(out);
+  return join(dir, out);
+}
+
+/** Same rule for inputs: a bare name is looked for in the run directory first. */
+export function inPath(dir, name) {
+  if (!name) return null;
+  if (isAbsolute(name) || name.includes("/")) return resolve(name);
+  const inRun = join(dir, name);
+  return existsSync(inRun) ? inRun : resolve(name);
 }
 
 export function extFromUrl(url, fallback) {

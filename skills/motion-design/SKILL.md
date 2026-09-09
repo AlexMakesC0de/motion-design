@@ -15,6 +15,8 @@ For gallery adaptation, start from the closest example's complete original promp
 - **Images:** Create only requested or necessary references. Use `kie image` in every host, preferring GPT Image 2. Read [tool-routing.md](references/tool-routing.md) for capability checks and asset handoff. An image request does not commission video.
 - **Production:** Follow [production.md](references/production.md) through generation and inspection, within the user's authorization. Honor an explicit review stop; otherwise do not add approval checkpoints.
 - **Original concept:** Use [creative-brief.md](references/creative-brief.md). Offer a few relevant ideas when asked, then develop the selected one.
+- **Graphic motion:** Copy, a logo, prices, chart values or a real screenshot must be *correct*, not plausible, so they are a code render rather than a generation — a model draws a picture of text and misspells it in ways no retry fixes. Read [graphic-motion.md](references/graphic-motion.md) and use `kie render`. The two engines are meant to meet: `--alpha` composites a rendered strap or end card onto a generated film.
+- **Finishing:** `kie assemble` (music bed, voiceover, loudness, joining takes), `kie variants` (reframe), `kie caption` (burn captions) — local, free, in that order. Reframing a captioned film moves the captions out of the safe area.
 
 ## Source-based templates
 

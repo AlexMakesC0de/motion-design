@@ -14,6 +14,11 @@ MCP to connect and no capability that exists in one client and not another.
 | Bring a local asset in | `kie upload <path>` |
 | Generate the complete film | `kie video --run SLUG --preset P` |
 | Rejoin an uncertain or long job | `kie job <taskId> --run SLUG` |
+| Draw text, a logo, numbers or a screenshot | `kie render --template T` |
+| Read a file's real duration, size and loudness | `kie probe <file>` |
+| Add a music bed, a voiceover, or join takes | `kie assemble --run SLUG` |
+| Burn captions | `kie caption --run SLUG` |
+| Reframe to another aspect ratio | `kie variants --run SLUG` |
 | Inspect and finish | Read the run directory; play the artifact |
 
 Explicit user choices override defaults. The CLI is the only generation route:
@@ -53,6 +58,39 @@ default to 15s while their native model tops out at 10s. The CLI refuses and
 prints both routes with what each costs in fidelity. Choosing between a retime
 and a model change is the user's decision, and a retime needs an explicit
 retiming map (see [production.md](production.md)); do not pick silently.
+
+## Two engines, and when not to generate
+
+`kie video` is photographic; `kie render` is graphic and draws exactly what it
+is told. **Anything that must be *correct* rather than plausible — copy, a logo,
+prices, chart values, a real screenshot — is a code render**, because a model
+draws a picture of text and gets it wrong in ways no retry fixes. Read
+[graphic-motion.md](graphic-motion.md) before choosing, and note that the two
+are designed to meet: `--alpha` renders a strap or end card that composites onto
+a generated film.
+
+## Finishing order, which is not obvious and does show
+
+Finishing is local ffmpeg: no key, no spend, no budget check.
+
+```
+generate/render → assemble (audio, joins) → variants (reframe) → caption
+```
+
+**Reframe before captioning, never after.** A caption burned into a 16:9 film
+and then reframed to 9:16 lands mid-frame instead of the vertical safe area, and
+`blur` mode reproduces it as a ghost in the letterbox band. Each ratio needs its
+own captions anyway. `kie variants` detects the mistake and says so, but the
+order is the fix.
+
+`kie assemble` normalises loudness in two passes and reports what it actually
+delivered rather than what it aimed at. It also warns when given more than one
+shot — joining takes is finishing, not a licence to generate a film piecemeal.
+
+Captions are drawn by the render engine and composited with `overlay`, **not**
+by ffmpeg's `subtitles` filter, which needs libass that common builds lack. That
+means `kie caption` needs `render/` installed; `assemble`, `variants` and
+`probe` do not.
 
 ## Reference images
 

@@ -1,0 +1,13 @@
+{
+  "_comment": "Brand kits are read by every render template. Copy this to <name>.json and pass --brand <name>. The point of code-rendered motion is that these values land exactly; a video model cannot hold a hex or a letterform steady.",
+  "name": "Default",
+  "colors": {
+    "bg": "#0B0B0F",
+    "fg": "#FFFFFF",
+    "accent": "#6E56CF",
+    "muted": "#8A8A99"
+  },
+  "fontFamily": "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Segoe UI', Arial, sans-serif",
+  "logo": null,
+  "radius": 16
+}
