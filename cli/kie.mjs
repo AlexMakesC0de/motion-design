@@ -10,7 +10,7 @@ import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
-import { loadCatalog, resolveModel, validateVideoRequest, parseRef, isStale, catalogAgeDays } from "./lib/models.mjs";
+import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, isStale, catalogAgeDays } from "./lib/models.mjs";
 import { apiKey, createTask, credits, redact } from "./lib/client.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
@@ -33,7 +33,7 @@ const HELP = `kie -- motion-design execution layer
   kie upload     <path>
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
-                 [--duration N] [--ar R] [--ref URL:ROLE]... [--budget U]
+                 [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]... [--budget U]
                  [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--budget U] [--dry-run]
@@ -127,6 +127,12 @@ function warnIfStale(catalog) {
 }
 
 function warnIfUnverified(model) {
+  if (model.schemaVerified === false) {
+    warn(
+      `! ${model.id}'s request contract in models.json was never captured from its doc page. ` +
+        `The body being sent is a guess and may be rejected. Verified schemas: seedance-2-fast, wan-2-6, seedream-5-pro.`,
+    );
+  }
   if (!model.verified) {
     warn(
       `! ${model.id} is unverified: no job has succeeded on it from this machine, so its ` +
@@ -506,13 +512,20 @@ async function cmdVideo(catalog, args) {
   });
 
   const hasFirstFrame = refs.find((r) => r.role === "first_frame");
-  const input = {
+  const built = buildInput(model, {
     prompt,
-    ...(durationS ? { duration: durationS } : {}),
-    ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
-    ...(hasFirstFrame ? { image_url: hasFirstFrame.url } : {}),
-    ...(refs.length ? { references: refs.map((r) => ({ url: r.url, role: r.role })) } : {}),
-  };
+    duration: durationS,
+    aspect_ratio: aspectRatio,
+    resolution: args.resolution,
+    refs,
+  });
+  if (built.problems.length) {
+    throw unknown(
+      `Refused before submitting — nothing was spent:\n` +
+        built.problems.map((p) => `  · ${p}`).join("\n"),
+    );
+  }
+  const input = built.input;
 
   // A first-frame reference makes this image-to-video on models that split the two.
   const effective = hasFirstFrame && model.i2vModel ? { ...model, model: model.i2vModel } : model;
@@ -540,15 +553,23 @@ async function cmdImage(catalog, args) {
   const dir = runDir(args.run);
   await writeRecord(dir, "image-prompt.txt", args.prompt);
 
+  const built = buildInput(model, {
+    prompt: args.prompt,
+    resolution: args.resolution,
+    quality: args.quality,
+    aspect_ratio: args.ar,
+  });
+  if (built.problems.length) {
+    throw unknown(
+      `Refused before submitting — nothing was spent:\n` +
+        built.problems.map((p) => `  · ${p}`).join("\n"),
+    );
+  }
+
   return generate(catalog, {
     capability: "image",
     model,
-    input: {
-      prompt: args.prompt,
-      ...(args.resolution ? { resolution: args.resolution } : {}),
-      ...(args.quality ? { quality: args.quality } : {}),
-      ...(args.ar ? { aspect_ratio: args.ar } : {}),
-    },
+    input: built.input,
     args,
     artifactBase: "ref",
   });

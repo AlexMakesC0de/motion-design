@@ -125,11 +125,19 @@ export async function createTask(catalog, family, payload, { key, attempts = 3 }
       throw provider(`kie.ai rate limited the request after ${attempts} attempts.`);
     }
 
-    if (!res.ok) {
-      throw provider(
-        `kie.ai returned ${res.status}: ${redact(res.json?.msg ?? res.json?.message ?? res.text ?? "(no body)")}`,
-        { status: res.status },
-      );
+    // kie.ai reports failures in the BODY, not the HTTP status: a rejected
+    // request comes back 200 OK carrying {"code":500,"msg":"..."}. Checking
+    // res.ok alone reads that as success and then fails confusingly later on a
+    // missing task id. The body code is authoritative.
+    const bodyCode = res.json?.code;
+    const failed = !res.ok || (typeof bodyCode === "number" && bodyCode !== 200);
+
+    if (failed) {
+      const msg = redact(res.json?.msg ?? res.json?.message ?? res.text ?? "(no body)");
+      throw provider(`kie.ai rejected the request (code ${bodyCode ?? res.status}): ${msg}`, {
+        status: res.status,
+        bodyCode,
+      });
     }
 
     const taskId =

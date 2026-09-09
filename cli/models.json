@@ -9,11 +9,12 @@
     "",
     "Prices are USD per generation and are ESTIMATES used for budget refusal. kie.ai",
     "exposes no cost-estimate endpoint -- only an account credit balance -- so every",
-    "number here was entered by hand and must be reconciled against `kie spend`."
+    "number here was entered by hand and must be reconciled against `kie spend`.",
+    "`input` carries the model's REAL request contract, captured from its own doc page: required fields, defaults, types (wan wants duration as a string, seedance as an integer -- this bites) and the per-model names for reference inputs. schemaVerified:false means the contract here is still a guess and the CLI says so before spending.",
+    "measuredCredits is a FACT from a real job (see runs/.ledger.jsonl); priceUsd remains an estimate. A 4s 480p video cost 46.8 credits against a 7-credit image -- video is ~7x an image here, so budget in credits, not in the USD guesses."
   ],
   "captured": "2026-09-10",
   "staleAfterDays": 30,
-
   "api": {
     "baseUrl": "https://api.kie.ai",
     "families": {
@@ -40,150 +41,391 @@
       "note": "Upload runs on a separate host. `kie doctor` probes both."
     }
   },
-
   "defaultBudgetUsd": {
     "video": 3.0,
     "image": 0.5,
     "audio": 1.0
   },
-
-  "roles": ["identity", "style", "first_frame", "last_frame", "motion"],
-
+  "roles": [
+    "identity",
+    "style",
+    "first_frame",
+    "last_frame",
+    "motion"
+  ],
   "models": {
     "minimax-h3": {
       "capability": "video",
       "family": "jobs",
       "model": "minimax/hailuo-h3-t2v",
       "i2vModel": "minimax/hailuo-h3-i2v",
-      "durationsS": [6, 10],
-      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "durationsS": [
+        6,
+        10
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
       "nativeAudio": false,
-      "refs": ["identity", "first_frame"],
+      "refs": [
+        "identity",
+        "first_frame"
+      ],
       "priceUsd": 0.45,
       "verified": false,
-      "notes": "Source model for kinetic-typography and editorial-collage. Running those two presets here is a native route, not an adaptation."
+      "notes": "Source model for kinetic-typography and editorial-collage. Running those two presets here is a native route, not an adaptation.",
+      "schemaVerified": false
     },
     "minimax-h3-max": {
       "capability": "video",
       "family": "jobs",
       "model": "minimax/hailuo-h3-max-t2v",
       "i2vModel": "minimax/hailuo-h3-max-i2v",
-      "durationsS": [6, 10],
-      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "durationsS": [
+        6,
+        10
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
       "nativeAudio": false,
-      "refs": ["identity", "first_frame"],
+      "refs": [
+        "identity",
+        "first_frame"
+      ],
       "priceUsd": 0.9,
       "verified": false,
-      "notes": "Source model for footage-overlays."
+      "notes": "Source model for footage-overlays.",
+      "schemaVerified": false
     },
     "seedance-2": {
       "capability": "video",
       "family": "jobs",
       "model": "bytedance/seedance-2",
-      "durationsS": [5, 10, 15],
-      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "durationsS": [
+        5,
+        10,
+        15
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3"
+      ],
       "nativeAudio": true,
-      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "refs": [
+        "identity",
+        "style",
+        "first_frame",
+        "last_frame"
+      ],
       "priceUsd": 1.2,
       "verified": false,
-      "notes": "Skill's preferred general route. Claims 15s single-shot -- verify before trusting the one-film rule."
+      "notes": "Skill's preferred general route. Claims 15s single-shot -- verify before trusting the one-film rule.",
+      "schemaVerified": false
     },
     "seedance-2-fast": {
       "capability": "video",
       "family": "jobs",
       "model": "bytedance/seedance-2-fast",
-      "durationsS": [5, 10],
-      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "durationsS": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "aspectRatios": [
+        "1:1",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16",
+        "21:9"
+      ],
       "nativeAudio": true,
-      "refs": ["identity", "first_frame"],
+      "refs": [
+        "identity",
+        "first_frame"
+      ],
       "priceUsd": 0.4,
-      "verified": false,
-      "notes": "Draft tier. Use for blocking out a look before committing to a full-price take."
+      "verified": true,
+      "notes": "Draft tier and the cheapest video route. VERIFIED: 46.8 credits for 4s/480p/16:9, ~111s, returned 864x496 @24fps WITH native audio. 480p is a request, not a promise -- the model picks the actual frame size.",
+      "input": {
+        "required": [
+          "prompt",
+          "aspect_ratio",
+          "duration",
+          "resolution"
+        ],
+        "defaults": {
+          "aspect_ratio": "16:9",
+          "duration": 5,
+          "resolution": "720p"
+        },
+        "types": {
+          "duration": "integer"
+        },
+        "enums": {
+          "aspect_ratio": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16",
+            "21:9",
+            "adaptive"
+          ],
+          "resolution": [
+            "480p",
+            "720p"
+          ]
+        },
+        "durationRange": [
+          4,
+          15
+        ],
+        "refFields": {
+          "first_frame": "first_frame_url",
+          "last_frame": "last_frame_url",
+          "identity": "reference_image_urls",
+          "motion": "reference_video_urls"
+        }
+      },
+      "schemaVerified": true,
+      "measuredCredits": 46.8
     },
     "seedance-2-5": {
       "capability": "video",
       "family": "jobs",
       "model": "bytedance/seedance-2-5",
-      "durationsS": [5, 10, 15],
-      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "21:9"],
+      "durationsS": [
+        5,
+        10,
+        15
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "21:9"
+      ],
       "nativeAudio": true,
-      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "refs": [
+        "identity",
+        "style",
+        "first_frame",
+        "last_frame"
+      ],
       "priceUsd": 1.6,
       "verified": false,
-      "notes": "Newest Seedance."
+      "notes": "Newest Seedance.",
+      "schemaVerified": false
     },
     "kling-3-0": {
       "capability": "video",
       "family": "jobs",
       "model": "kling/kling-3-0",
-      "durationsS": [5, 10],
-      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "durationsS": [
+        5,
+        10
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
       "nativeAudio": false,
-      "refs": ["identity", "first_frame", "last_frame", "motion"],
+      "refs": [
+        "identity",
+        "first_frame",
+        "last_frame",
+        "motion"
+      ],
       "priceUsd": 1.4,
       "verified": false,
-      "notes": "Strongest camera-motion adherence of the set. Good for preset recipes built on a named camera move."
+      "notes": "Strongest camera-motion adherence of the set. Good for preset recipes built on a named camera move.",
+      "schemaVerified": false
     },
     "wan-2-6": {
       "capability": "video",
       "family": "jobs",
-      "model": "wan/wan-2-6-t2v",
-      "i2vModel": "wan/wan-2-6-i2v",
-      "durationsS": [5, 10],
-      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "model": "wan/2-6-text-to-video",
+      "i2vModel": "wan/2-6-image-to-video",
+      "durationsS": [
+        5,
+        10,
+        15
+      ],
+      "aspectRatios": [],
       "nativeAudio": false,
-      "refs": ["identity", "first_frame"],
+      "refs": [
+        "identity",
+        "first_frame"
+      ],
       "priceUsd": 0.35,
       "verified": false,
-      "notes": "Cheapest usable video tier."
+      "notes": "Cheapest usable video tier. No aspect-ratio control -- reframe afterwards with kie variants.",
+      "input": {
+        "required": [
+          "prompt",
+          "duration",
+          "resolution"
+        ],
+        "defaults": {
+          "duration": "5",
+          "resolution": "720p"
+        },
+        "types": {
+          "duration": "string"
+        },
+        "enums": {
+          "duration": [
+            "5",
+            "10",
+            "15"
+          ],
+          "resolution": [
+            "720p",
+            "1080p"
+          ]
+        },
+        "refFields": {},
+        "note": "No aspect_ratio parameter exists on this model."
+      },
+      "schemaVerified": true
     },
     "veo-3-1": {
       "capability": "video",
       "family": "veo",
       "model": "veo3_1",
-      "durationsS": [8],
-      "aspectRatios": ["16:9", "9:16"],
+      "durationsS": [
+        8
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16"
+      ],
       "nativeAudio": true,
-      "refs": ["first_frame"],
+      "refs": [
+        "first_frame"
+      ],
       "priceUsd": 2.0,
       "verified": false,
-      "notes": "Native dialogue/SFX audio. Own API family and an extend route -- the escape hatch if 15s single-shot proves unavailable elsewhere."
+      "notes": "Native dialogue/SFX audio. Own API family and an extend route -- the escape hatch if 15s single-shot proves unavailable elsewhere.",
+      "schemaVerified": false
     },
-
     "gpt-image-2": {
       "capability": "image",
       "family": "jobs",
       "model": "gpt/gpt-image-2-text-to-image",
       "i2vModel": "gpt/gpt-image-2-image-to-image",
-      "resolutions": ["1k", "2k", "4k"],
-      "qualities": ["low", "medium", "high"],
-      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:2"],
+      "resolutions": [
+        "1k",
+        "2k",
+        "4k"
+      ],
+      "qualities": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3",
+        "3:2"
+      ],
       "priceUsd": 0.12,
       "verified": false,
-      "notes": "Skill's preferred reference-image model."
+      "notes": "Skill's preferred reference-image model.",
+      "schemaVerified": false
     },
     "nano-banana-2": {
       "capability": "image",
       "family": "jobs",
       "model": "google/nanobanana2",
-      "resolutions": ["1k", "2k", "4k"],
-      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "resolutions": [
+        "1k",
+        "2k",
+        "4k"
+      ],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3"
+      ],
       "priceUsd": 0.08,
       "verified": false,
-      "notes": "Strong at text-in-image, which matters for typography presets."
+      "notes": "Strong at text-in-image, which matters for typography presets.",
+      "schemaVerified": false
     },
     "seedream-5-pro": {
       "capability": "image",
       "family": "jobs",
       "model": "seedream/5-pro-text-to-image",
       "i2vModel": "seedream/5-pro-image-to-image",
-      "resolutions": ["1k", "2k", "4k"],
-      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "aspectRatios": [
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:3"
+      ],
       "priceUsd": 0.06,
-      "verified": false,
-      "notes": "Cheap style frames."
+      "verified": true,
+      "notes": "Cheap style frames. VERIFIED: 7 credits for quality=basic, 1:1, ~66s.",
+      "input": {
+        "required": [
+          "prompt",
+          "aspect_ratio",
+          "quality"
+        ],
+        "defaults": {
+          "aspect_ratio": "1:1",
+          "quality": "basic",
+          "output_format": "png"
+        },
+        "types": {},
+        "enums": {
+          "aspect_ratio": [
+            "1:1",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16",
+            "2:3",
+            "3:2",
+            "21:9"
+          ],
+          "quality": [
+            "basic",
+            "high"
+          ]
+        },
+        "refFields": {}
+      },
+      "schemaVerified": true,
+      "qualities": [
+        "basic",
+        "high"
+      ],
+      "measuredCredits": 7
     },
-
     "elevenlabs-tts": {
       "capability": "audio",
       "family": "jobs",
@@ -191,7 +433,8 @@
       "kind": "tts",
       "priceUsd": 0.1,
       "verified": false,
-      "notes": "Narration. Presets default to no narration -- see SKILL.md production defaults."
+      "notes": "Narration. Presets default to no narration -- see SKILL.md production defaults.",
+      "schemaVerified": false
     },
     "suno-music": {
       "capability": "audio",
@@ -200,7 +443,8 @@
       "kind": "music",
       "priceUsd": 0.25,
       "verified": false,
-      "notes": "Instrumental bed. The skill's default campaign audio is music plus effects, no narration."
+      "notes": "Instrumental bed. The skill's default campaign audio is music plus effects, no narration.",
+      "schemaVerified": false
     }
   }
 }

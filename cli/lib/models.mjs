@@ -99,6 +99,92 @@ export function validateVideoRequest(catalog, model, { durationS, aspectRatio, r
   return problems;
 }
 
+/**
+ * Build the `input` object kie.ai actually wants for THIS model.
+ *
+ * Every model has its own contract and they disagree in ways that fail at
+ * submit time with an unhelpful "This field is required": wan takes `duration`
+ * as a string and has no aspect ratio at all, seedance takes it as an integer
+ * and requires `resolution`, seedream requires `quality` with values
+ * basic|high rather than the low|medium|high its sibling models use. Encoding
+ * the contract in models.json and building from it here is the only way a
+ * single `kie video` can serve all of them.
+ */
+export function buildInput(model, values = {}) {
+  const schema = model.input;
+  if (!schema) {
+    // No captured contract: send what we were given and say so loudly. This is
+    // the schemaVerified:false path -- a guess, not a claim.
+    return {
+      input: Object.fromEntries(Object.entries(values).filter(([, v]) => v != null)),
+      unverified: true,
+      problems: [],
+    };
+  }
+
+  const out = { ...(schema.defaults ?? {}) };
+  const problems = [];
+
+  const coerce = (key, v) => {
+    const type = schema.types?.[key];
+    if (type === "string") return String(v);
+    if (type === "integer") return Math.round(Number(v));
+    return v;
+  };
+
+  for (const [key, v] of Object.entries(values)) {
+    if (v == null) continue;
+    if (key === "refs") continue;
+    out[key] = coerce(key, v);
+  }
+
+  // A model with no aspect-ratio parameter must not be sent one.
+  for (const key of Object.keys(out)) {
+    if (schema.enums && !(key in schema.enums)) continue;
+  }
+  if (!schema.enums?.aspect_ratio && !schema.defaults?.aspect_ratio) delete out.aspect_ratio;
+
+  for (const [key, allowed] of Object.entries(schema.enums ?? {})) {
+    if (out[key] == null) continue;
+    if (!allowed.map(String).includes(String(out[key]))) {
+      problems.push(
+        `${model.id}: ${key}="${out[key]}" is not allowed. Allowed: ${allowed.join(", ")}.`,
+      );
+    }
+  }
+
+  if (schema.durationRange && out.duration != null) {
+    const [lo, hi] = schema.durationRange;
+    const n = Number(out.duration);
+    if (n < lo || n > hi) {
+      problems.push(`${model.id}: duration ${n}s is outside its ${lo}-${hi}s range.`);
+    }
+  }
+
+  for (const key of schema.required ?? []) {
+    if (out[key] == null || out[key] === "") {
+      problems.push(`${model.id}: "${key}" is required and was not supplied.`);
+    }
+  }
+
+  // Reference roles map to per-model field names; array-valued fields collect.
+  for (const ref of values.refs ?? []) {
+    const field = schema.refFields?.[ref.role];
+    if (!field) {
+      problems.push(
+        `${model.id} has no input for role "${ref.role}". It accepts: ${
+          Object.keys(schema.refFields ?? {}).join(", ") || "no references"
+        }.`,
+      );
+      continue;
+    }
+    if (field.endsWith("_urls")) (out[field] ??= []).push(ref.url);
+    else out[field] = ref.url;
+  }
+
+  return { input: out, unverified: false, problems };
+}
+
 /** `--ref <url>:<role>` -- refuses a local path by design. See parseRef tests. */
 export function parseRef(spec) {
   const idx = spec.lastIndexOf(":");
