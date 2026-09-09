@@ -1,0 +1,21 @@
+# Local runtime and campaign outputs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+work/
+outputs/
+campaigns/
+*.log
+.DS_Store
+Thumbs.db
+.playwright-cli/
+node_modules/
+
+# Run artifacts: generated media, job records, the spend ledger. Films and their
+# costs are private campaign material, and ATTRIBUTION.md is explicit that
+# private campaign files stay out of the repository.
+/runs/

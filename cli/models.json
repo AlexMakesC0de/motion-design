@@ -1,0 +1,206 @@
+{
+  "_comment": [
+    "The ONLY place kie.ai knowledge lives. Skill prose must never carry a model id,",
+    "endpoint or price -- see cli/README.md.",
+    "",
+    "`verified` is false until a real job has succeeded on that model. `kie video` warns",
+    "loudly on an unverified model and `kie doctor` reports the count. Flip it by hand",
+    "(or let `kie video` flip it on first success) once you've seen output.",
+    "",
+    "Prices are USD per generation and are ESTIMATES used for budget refusal. kie.ai",
+    "exposes no cost-estimate endpoint -- only an account credit balance -- so every",
+    "number here was entered by hand and must be reconciled against `kie spend`."
+  ],
+  "captured": "2026-09-10",
+  "staleAfterDays": 30,
+
+  "api": {
+    "baseUrl": "https://api.kie.ai",
+    "families": {
+      "jobs": {
+        "create": "/api/v1/jobs/createTask",
+        "query": "/api/v1/jobs/recordInfo",
+        "queryParam": "taskId",
+        "bodyShape": "unified",
+        "note": "Unified market API: { model, input, callBackUrl }. Used by all /market/* models."
+      },
+      "veo": {
+        "create": "/api/v1/veo/generate",
+        "query": "/api/v1/veo/record-info",
+        "queryParam": "taskId",
+        "bodyShape": "flat",
+        "note": "Veo has its own routes; input fields sit at the top level, not under `input`."
+      }
+    },
+    "credits": "/api/v1/chat/credit",
+    "upload": {
+      "stream": "/api/file-stream-upload",
+      "base64": "/api/file-base64-upload",
+      "host": "https://kieai.redpandaai.co",
+      "note": "Upload runs on a separate host. `kie doctor` probes both."
+    }
+  },
+
+  "defaultBudgetUsd": {
+    "video": 3.0,
+    "image": 0.5,
+    "audio": 1.0
+  },
+
+  "roles": ["identity", "style", "first_frame", "last_frame", "motion"],
+
+  "models": {
+    "minimax-h3": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "minimax/hailuo-h3-t2v",
+      "i2vModel": "minimax/hailuo-h3-i2v",
+      "durationsS": [6, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": false,
+      "refs": ["identity", "first_frame"],
+      "priceUsd": 0.45,
+      "verified": false,
+      "notes": "Source model for kinetic-typography and editorial-collage. Running those two presets here is a native route, not an adaptation."
+    },
+    "minimax-h3-max": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "minimax/hailuo-h3-max-t2v",
+      "i2vModel": "minimax/hailuo-h3-max-i2v",
+      "durationsS": [6, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": false,
+      "refs": ["identity", "first_frame"],
+      "priceUsd": 0.9,
+      "verified": false,
+      "notes": "Source model for footage-overlays."
+    },
+    "seedance-2": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "bytedance/seedance-2",
+      "durationsS": [5, 10, 15],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "nativeAudio": true,
+      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "priceUsd": 1.2,
+      "verified": false,
+      "notes": "Skill's preferred general route. Claims 15s single-shot -- verify before trusting the one-film rule."
+    },
+    "seedance-2-fast": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "bytedance/seedance-2-fast",
+      "durationsS": [5, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": true,
+      "refs": ["identity", "first_frame"],
+      "priceUsd": 0.4,
+      "verified": false,
+      "notes": "Draft tier. Use for blocking out a look before committing to a full-price take."
+    },
+    "seedance-2-5": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "bytedance/seedance-2-5",
+      "durationsS": [5, 10, 15],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "21:9"],
+      "nativeAudio": true,
+      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "priceUsd": 1.6,
+      "verified": false,
+      "notes": "Newest Seedance."
+    },
+    "kling-3-0": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "kling/kling-3-0",
+      "durationsS": [5, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": false,
+      "refs": ["identity", "first_frame", "last_frame", "motion"],
+      "priceUsd": 1.4,
+      "verified": false,
+      "notes": "Strongest camera-motion adherence of the set. Good for preset recipes built on a named camera move."
+    },
+    "wan-2-6": {
+      "capability": "video",
+      "family": "jobs",
+      "model": "wan/wan-2-6-t2v",
+      "i2vModel": "wan/wan-2-6-i2v",
+      "durationsS": [5, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": false,
+      "refs": ["identity", "first_frame"],
+      "priceUsd": 0.35,
+      "verified": false,
+      "notes": "Cheapest usable video tier."
+    },
+    "veo-3-1": {
+      "capability": "video",
+      "family": "veo",
+      "model": "veo3_1",
+      "durationsS": [8],
+      "aspectRatios": ["16:9", "9:16"],
+      "nativeAudio": true,
+      "refs": ["first_frame"],
+      "priceUsd": 2.0,
+      "verified": false,
+      "notes": "Native dialogue/SFX audio. Own API family and an extend route -- the escape hatch if 15s single-shot proves unavailable elsewhere."
+    },
+
+    "gpt-image-2": {
+      "capability": "image",
+      "family": "jobs",
+      "model": "gpt/gpt-image-2-text-to-image",
+      "i2vModel": "gpt/gpt-image-2-image-to-image",
+      "resolutions": ["1k", "2k", "4k"],
+      "qualities": ["low", "medium", "high"],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:2"],
+      "priceUsd": 0.12,
+      "verified": false,
+      "notes": "Skill's preferred reference-image model."
+    },
+    "nano-banana-2": {
+      "capability": "image",
+      "family": "jobs",
+      "model": "google/nanobanana2",
+      "resolutions": ["1k", "2k", "4k"],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "priceUsd": 0.08,
+      "verified": false,
+      "notes": "Strong at text-in-image, which matters for typography presets."
+    },
+    "seedream-5-pro": {
+      "capability": "image",
+      "family": "jobs",
+      "model": "seedream/5-pro-text-to-image",
+      "i2vModel": "seedream/5-pro-image-to-image",
+      "resolutions": ["1k", "2k", "4k"],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "priceUsd": 0.06,
+      "verified": false,
+      "notes": "Cheap style frames."
+    },
+
+    "elevenlabs-tts": {
+      "capability": "audio",
+      "family": "jobs",
+      "model": "elevenlabs/text-to-speech-multilingual-v2",
+      "kind": "tts",
+      "priceUsd": 0.1,
+      "verified": false,
+      "notes": "Narration. Presets default to no narration -- see SKILL.md production defaults."
+    },
+    "suno-music": {
+      "capability": "audio",
+      "family": "jobs",
+      "model": "suno/generate-music",
+      "kind": "music",
+      "priceUsd": 0.25,
+      "verified": false,
+      "notes": "Instrumental bed. The skill's default campaign audio is music plus effects, no narration."
+    }
+  }
+}

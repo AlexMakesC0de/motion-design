@@ -1,0 +1,19 @@
+{
+  "name": "motion-design",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Motion-design skill with a kie.ai execution layer. Creative direction stays upstream; generation, budget and records are ours.",
+  "bin": {
+    "kie": "./cli/kie.mjs"
+  },
+  "scripts": {
+    "test": "node --test 'tests/*.test.mjs'",
+    "doctor": "node cli/kie.mjs doctor",
+    "validate": "python3 skills/motion-design/scripts/build_gallery.py",
+    "install-skill": "node install.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
