@@ -38,12 +38,37 @@ describe("model resolution refuses rather than forwards", () => {
     assert.throws(() => resolveModel(catalog, "gpt-image-2", "video"), { code: EXIT.UNKNOWN });
   });
 
-  test("every model declares a capability, family and price", () => {
+  test("every model declares a capability and at least one usable-looking route", () => {
     for (const m of catalog.list) {
       assert.ok(["video", "image", "audio"].includes(m.capability), `${m.id} capability`);
-      assert.ok(catalog.api.families[m.family], `${m.id} family "${m.family}" is defined`);
-      assert.equal(typeof m.priceUsd, "number", `${m.id} price`);
-      assert.ok(m.priceUsd > 0, `${m.id} price is positive`);
+      assert.ok(m.routes?.length, `${m.id} has at least one route`);
+      for (const r of m.routes) {
+        assert.ok(catalog.providers[r.provider], `${m.id}: provider "${r.provider}" is configured`);
+        const fam = catalog.providers[r.provider].families[r.family];
+        assert.ok(fam, `${m.id}: ${r.provider} family "${r.family}" is defined`);
+        assert.equal(typeof r.priceUsd, "number", `${m.id}/${r.provider} price`);
+        assert.ok(r.priceUsd > 0, `${m.id}/${r.provider} price is positive`);
+        assert.equal(typeof r.model, "string", `${m.id}/${r.provider} model string`);
+      }
+    }
+  });
+
+  test("a fallback route is always the SAME model at another reseller", () => {
+    // Failing over to a different model would silently change the film. The
+    // guard is that every route of a model names a recognisably matching
+    // provider model string.
+    for (const m of catalog.list) {
+      if (m.routes.length < 2) continue;
+      const stems = m.routes.map((r) =>
+        r.model.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/texttovideo|texttoimage|t2v|v\d+$/g, ""),
+      );
+      const family = m.id.replace(/-/g, "").replace(/\d.*$/, "");
+      for (const stem of stems) {
+        assert.ok(
+          stem.includes(family.slice(0, 5)),
+          `${m.id}: route "${stem}" does not look like the same model family as "${family}"`,
+        );
+      }
     }
   });
 
@@ -57,12 +82,13 @@ describe("model resolution refuses rather than forwards", () => {
 });
 
 describe("request validation happens before anything is spent", () => {
-  const h3 = resolveModel(catalog, "minimax-h3", "video");
+  const h3 = resolveModel(catalog, "minimax-h3-max", "video");
 
   test("an unsupported duration names the models that can do it", () => {
-    const [problem] = validateVideoRequest(catalog, h3, { durationS: 15 });
-    assert.match(problem, /generates 6\/10s, not 15s/);
-    assert.match(problem, /seedance-2/);
+    const wan = resolveModel(catalog, "wan-2-6", "video");
+    const [problem] = validateVideoRequest(catalog, wan, { durationS: 7 });
+    assert.match(problem, /not 7s/);
+    assert.match(problem, /seedance-2-fast/);
   });
 
   test("a supported duration passes clean", () => {
@@ -70,7 +96,8 @@ describe("request validation happens before anything is spent", () => {
   });
 
   test("an unsupported aspect ratio is caught", () => {
-    const [problem] = validateVideoRequest(catalog, h3, { aspectRatio: "21:9" });
+    const kling = resolveModel(catalog, "kling-3-0", "video");
+    const [problem] = validateVideoRequest(catalog, kling, { aspectRatio: "21:9" });
     assert.match(problem, /supports 16:9, 9:16, 1:1/);
   });
 

@@ -38,6 +38,7 @@ export function read() {
 
 export function summarise(entries) {
   const byModel = new Map();
+  const byProvider = new Map();
   let estimated = 0;
   let jobs = 0;
   let failures = 0;
@@ -51,6 +52,14 @@ export function summarise(entries) {
     cur.jobs += 1;
     cur.estimated += est;
     byModel.set(e.model, cur);
+
+    // A failed-over run is charged by both providers, so per-provider totals
+    // are the only way to see what a fallback actually cost.
+    const pk = e.provider ?? "(unrecorded)";
+    const pv = byProvider.get(pk) ?? { jobs: 0, estimated: 0 };
+    pv.jobs += 1;
+    pv.estimated += est;
+    byProvider.set(pk, pv);
   }
 
   // Credit deltas are only meaningful when jobs ran sequentially, which the CLI
@@ -69,6 +78,10 @@ export function summarise(entries) {
     estimatedUsd: Math.round(estimated * 100) / 100,
     creditsUsed: withCredits.length ? creditsUsed : null,
     creditSamples: withCredits.length,
+    failovers: entries.filter((e) => e.failedOver).length,
+    byProvider: [...byProvider.entries()]
+      .map(([provider, v]) => ({ provider, ...v, estimated: Math.round(v.estimated * 100) / 100 }))
+      .sort((a, b) => b.estimated - a.estimated),
     byModel: [...byModel.entries()]
       .map(([model, v]) => ({ model, ...v, estimated: Math.round(v.estimated * 100) / 100 }))
       .sort((a, b) => b.estimated - a.estimated),

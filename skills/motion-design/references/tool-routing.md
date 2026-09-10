@@ -25,6 +25,26 @@ Explicit user choices override defaults. The CLI is the only generation route:
 if it cannot run, finish the prompt and asset plan and explain what is missing.
 Do not substitute a different provider, an MCP tool or a local renderer.
 
+## Two resellers, automatic fallback
+
+The same models are reached through kie.ai (primary, cheapest) and WaveSpeed
+(fallback). `kie models` shows every route with its price and whether it is
+verified; an arrow marks the primary. A route whose provider has no key on this
+machine is **skipped with the reason**, not an error, so one key is enough.
+
+A fallback fires only when a provider genuinely errors. It does **not** fire on
+a budget refusal, on an invalid request, or — most importantly — on an
+**uncertain** result, because that job may exist and paying twice is worse than
+failing. Rejoin with `kie job <id> --provider <p>` instead.
+
+A fallback is always the same model at another reseller; a different model is a
+different entry. Output may still differ slightly between resellers, and the CLI
+says so when it falls back. Report it if it happened — it is a route change, and
+`production.md` asks for material route changes to be disclosed.
+
+`--provider kie|wavespeed` pins one reseller and explains why the others were
+skipped. `kie providers` shows what is configured.
+
 ## Never state a capability from memory
 
 `kie models` prints each model's real durations, aspect ratios, reference roles,

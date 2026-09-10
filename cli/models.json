@@ -1,450 +1,429 @@
 {
   "_comment": [
-    "The ONLY place kie.ai knowledge lives. Skill prose must never carry a model id,",
+    "The ONLY place provider knowledge lives. Skill prose must never carry a model id,",
     "endpoint or price -- see cli/README.md.",
     "",
-    "`verified` is false until a real job has succeeded on that model. `kie video` warns",
-    "loudly on an unverified model and `kie doctor` reports the count. Flip it by hand",
-    "(or let `kie video` flip it on first success) once you've seen output.",
+    "A model has one or more ROUTES, tried in order. A route is the same underlying model",
+    "at a different reseller. Failing over from minimax-h3 to seedance would silently",
+    "change the film, so a different model is a different entry here, never a fallback.",
     "",
-    "Prices are USD per generation and are ESTIMATES used for budget refusal. kie.ai",
-    "exposes no cost-estimate endpoint -- only an account credit balance -- so every",
-    "number here was entered by hand and must be reconciled against `kie spend`.",
-    "`input` carries the model's REAL request contract, captured from its own doc page: required fields, defaults, types (wan wants duration as a string, seedance as an integer -- this bites) and the per-model names for reference inputs. schemaVerified:false means the contract here is still a guess and the CLI says so before spending.",
-    "measuredCredits is a FACT from a real job (see runs/.ledger.jsonl); priceUsd remains an estimate. A 4s 480p video cost 46.8 credits against a 7-credit image -- video is ~7x an image here, so budget in credits, not in the USD guesses."
+    "`input` is the route's REAL request contract captured from its own doc page: required",
+    "fields, defaults, types and per-role reference field names. Providers disagree in ways",
+    "that fail at submit -- kie's wan wants duration as a string, seedance as an integer;",
+    "wavespeed puts the model in the URL path and has no `input` wrapper at all.",
+    "",
+    "`schemaVerified:false` means the contract is still a guess and the CLI says so before",
+    "spending. `verified:false` means no job has ever succeeded on that route.",
+    "`measuredCredits` is a FACT from a real job (see runs/.ledger.jsonl); `priceUsd` is an",
+    "estimate.",
+    "",
+    "Measured 2026-09-10 on kie: seedream-5-pro basic 1:1 = 7 credits; seedance-2-fast",
+    "4s/480p/16:9 = 46.8 credits, returned 864x496 @24fps with native audio. Video is ~7x",
+    "an image there, so budget in credits rather than in the USD guesses."
   ],
   "captured": "2026-09-10",
   "staleAfterDays": 30,
-  "api": {
-    "baseUrl": "https://api.kie.ai",
-    "families": {
-      "jobs": {
-        "create": "/api/v1/jobs/createTask",
-        "query": "/api/v1/jobs/recordInfo",
-        "queryParam": "taskId",
-        "bodyShape": "unified",
-        "note": "Unified market API: { model, input, callBackUrl }. Used by all /market/* models."
+
+  "providers": {
+    "kie": {
+      "label": "kie.ai",
+      "baseUrl": "https://api.kie.ai",
+      "keyEnv": "KIE_API_KEY",
+      "keyFile": ".config/kie/key",
+      "signup": "https://kie.ai/api-key",
+      "errorInBody": true,
+      "bodyOkCode": 200,
+      "credits": "/api/v1/chat/credit",
+      "creditUnit": "credits",
+      "upload": {
+        "host": "https://kieai.redpandaai.co",
+        "base64": "/api/file-base64-upload",
+        "stream": "/api/file-stream-upload"
       },
-      "veo": {
-        "create": "/api/v1/veo/generate",
-        "query": "/api/v1/veo/record-info",
-        "queryParam": "taskId",
-        "bodyShape": "flat",
-        "note": "Veo has its own routes; input fields sit at the top level, not under `input`."
+      "families": {
+        "jobs": {
+          "create": "/api/v1/jobs/createTask",
+          "query": "/api/v1/jobs/recordInfo",
+          "queryParam": "taskId",
+          "bodyShape": "wrapped",
+          "note": "{ model, input, callBackUrl }. Errors arrive as HTTP 200 with body code 500."
+        },
+        "veo": {
+          "create": "/api/v1/veo/generate",
+          "query": "/api/v1/veo/record-info",
+          "queryParam": "taskId",
+          "bodyShape": "flat"
+        }
       }
     },
-    "credits": "/api/v1/chat/credit",
-    "upload": {
-      "stream": "/api/file-stream-upload",
-      "base64": "/api/file-base64-upload",
-      "host": "https://kieai.redpandaai.co",
-      "note": "Upload runs on a separate host. `kie doctor` probes both."
+    "wavespeed": {
+      "label": "WaveSpeed",
+      "baseUrl": "https://api.wavespeed.ai",
+      "keyEnv": "WAVESPEED_API_KEY",
+      "keyFile": ".config/wavespeed/key",
+      "signup": "https://wavespeed.ai",
+      "errorInBody": false,
+      "credits": null,
+      "creditUnit": null,
+      "upload": null,
+      "families": {
+        "v3": {
+          "create": "/api/v3/{model}",
+          "query": "/api/v3/predictions/{id}/result",
+          "modelInPath": true,
+          "idInPath": true,
+          "bodyShape": "bare",
+          "note": "Model is the URL path; the body IS the input object. Errors use HTTP status. Their docs warn against blindly retrying a POST -- a disconnected response may still be an accepted prediction, which is exactly the exit-5 rule."
+        }
+      }
     }
   },
-  "defaultBudgetUsd": {
-    "video": 3.0,
-    "image": 0.5,
-    "audio": 1.0
-  },
-  "roles": [
-    "identity",
-    "style",
-    "first_frame",
-    "last_frame",
-    "motion"
-  ],
+
+  "defaultBudgetUsd": { "video": 3.0, "image": 0.5, "audio": 1.0 },
+  "roles": ["identity", "style", "first_frame", "last_frame", "motion"],
+
   "models": {
     "minimax-h3": {
       "capability": "video",
-      "family": "jobs",
-      "model": "minimax/hailuo-h3-t2v",
-      "i2vModel": "minimax/hailuo-h3-i2v",
-      "durationsS": [
-        6,
-        10
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1"
-      ],
+      "durationsS": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"],
       "nativeAudio": false,
-      "refs": [
-        "identity",
-        "first_frame"
-      ],
-      "priceUsd": 0.45,
-      "verified": false,
-      "notes": "Source model for kinetic-typography and editorial-collage. Running those two presets here is a native route, not an adaptation.",
-      "schemaVerified": false
+      "refs": ["identity", "first_frame"],
+      "notes": "Source model for kinetic-typography and editorial-collage. Running those two presets here is a native route, not an adaptation. WaveSpeed lists it at $0.10/run, well under the kie estimate, so WaveSpeed leads.",
+      "routes": [
+        {
+          "provider": "wavespeed",
+          "family": "v3",
+          "model": "wavespeed-ai/minimax-h3/text-to-video",
+          "i2vModel": "wavespeed-ai/minimax-h3/image-to-video",
+          "priceUsd": 0.1,
+          "verified": false,
+          "schemaVerified": true,
+          "input": {
+            "required": ["prompt"],
+            "defaults": { "aspect_ratio": "16:9", "resolution": "480p", "duration": 5 },
+            "types": { "duration": "integer" },
+            "enums": {
+              "aspect_ratio": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"],
+              "resolution": ["480p", "540p", "768p", "1080p"]
+            },
+            "durationRange": [3, 15],
+            "refFields": { "first_frame": "image" }
+          }
+        },
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "minimax/hailuo-h3-t2v",
+          "i2vModel": "minimax/hailuo-h3-i2v",
+          "priceUsd": 0.45,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "minimax-h3-max": {
       "capability": "video",
-      "family": "jobs",
-      "model": "minimax/hailuo-h3-max-t2v",
-      "i2vModel": "minimax/hailuo-h3-max-i2v",
-      "durationsS": [
-        6,
-        10
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1"
-      ],
+      "durationsS": [6, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
       "nativeAudio": false,
-      "refs": [
-        "identity",
-        "first_frame"
-      ],
-      "priceUsd": 0.9,
-      "verified": false,
+      "refs": ["identity", "first_frame"],
       "notes": "Source model for footage-overlays.",
-      "schemaVerified": false
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "minimax/hailuo-h3-max-t2v",
+          "i2vModel": "minimax/hailuo-h3-max-i2v",
+          "priceUsd": 0.9,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "seedance-2": {
       "capability": "video",
-      "family": "jobs",
-      "model": "bytedance/seedance-2",
-      "durationsS": [
-        5,
-        10,
-        15
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1",
-        "4:3"
-      ],
+      "durationsS": [5, 10, 15],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
       "nativeAudio": true,
-      "refs": [
-        "identity",
-        "style",
-        "first_frame",
-        "last_frame"
-      ],
-      "priceUsd": 1.2,
-      "verified": false,
-      "notes": "Skill's preferred general route. Claims 15s single-shot -- verify before trusting the one-film rule.",
-      "schemaVerified": false
+      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "notes": "The skill's preferred general route where a preset has no native model.",
+      "routes": [
+        {
+          "provider": "wavespeed",
+          "family": "v3",
+          "model": "bytedance/seedance-2.0/text-to-video",
+          "i2vModel": "bytedance/seedance-2.0/image-to-video",
+          "priceUsd": 0.54,
+          "verified": false,
+          "schemaVerified": false
+        },
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "bytedance/seedance-2",
+          "priceUsd": 1.2,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "seedance-2-fast": {
       "capability": "video",
-      "family": "jobs",
-      "model": "bytedance/seedance-2-fast",
-      "durationsS": [
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15
-      ],
-      "aspectRatios": [
-        "1:1",
-        "4:3",
-        "3:4",
-        "16:9",
-        "9:16",
-        "21:9"
-      ],
+      "durationsS": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"],
       "nativeAudio": true,
-      "refs": [
-        "identity",
-        "first_frame"
-      ],
-      "priceUsd": 0.4,
-      "verified": true,
-      "notes": "Draft tier and the cheapest video route. VERIFIED: 46.8 credits for 4s/480p/16:9, ~111s, returned 864x496 @24fps WITH native audio. 480p is a request, not a promise -- the model picks the actual frame size.",
-      "input": {
-        "required": [
-          "prompt",
-          "aspect_ratio",
-          "duration",
-          "resolution"
-        ],
-        "defaults": {
-          "aspect_ratio": "16:9",
-          "duration": 5,
-          "resolution": "720p"
-        },
-        "types": {
-          "duration": "integer"
-        },
-        "enums": {
-          "aspect_ratio": [
-            "1:1",
-            "4:3",
-            "3:4",
-            "16:9",
-            "9:16",
-            "21:9",
-            "adaptive"
-          ],
-          "resolution": [
-            "480p",
-            "720p"
-          ]
-        },
-        "durationRange": [
-          4,
-          15
-        ],
-        "refFields": {
-          "first_frame": "first_frame_url",
-          "last_frame": "last_frame_url",
-          "identity": "reference_image_urls",
-          "motion": "reference_video_urls"
+      "refs": ["identity", "first_frame", "last_frame", "motion"],
+      "notes": "Draft tier and the cheapest verified video route. WaveSpeed lists no `fast` variant, so this has no fallback.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "bytedance/seedance-2-fast",
+          "priceUsd": 0.4,
+          "verified": true,
+          "schemaVerified": true,
+          "measuredCredits": 46.8,
+          "measuredNote": "4s/480p/16:9 in ~111s, returned 864x496 @24fps with native audio. 480p is a request, not a promise.",
+          "input": {
+            "required": ["prompt", "aspect_ratio", "duration", "resolution"],
+            "defaults": { "aspect_ratio": "16:9", "duration": 5, "resolution": "720p" },
+            "types": { "duration": "integer" },
+            "enums": {
+              "aspect_ratio": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+              "resolution": ["480p", "720p"]
+            },
+            "durationRange": [4, 15],
+            "refFields": {
+              "first_frame": "first_frame_url",
+              "last_frame": "last_frame_url",
+              "identity": "reference_image_urls",
+              "motion": "reference_video_urls"
+            }
+          }
         }
-      },
-      "schemaVerified": true,
-      "measuredCredits": 46.8
+      ]
     },
+
     "seedance-2-5": {
       "capability": "video",
-      "family": "jobs",
-      "model": "bytedance/seedance-2-5",
-      "durationsS": [
-        5,
-        10,
-        15
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1",
-        "4:3",
-        "21:9"
-      ],
+      "durationsS": [5, 10, 15],
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "21:9"],
       "nativeAudio": true,
-      "refs": [
-        "identity",
-        "style",
-        "first_frame",
-        "last_frame"
-      ],
-      "priceUsd": 1.6,
-      "verified": false,
-      "notes": "Newest Seedance.",
-      "schemaVerified": false
+      "refs": ["identity", "style", "first_frame", "last_frame"],
+      "notes": "Newest Seedance. The most expensive route in the table on either provider.",
+      "routes": [
+        {
+          "provider": "wavespeed",
+          "family": "v3",
+          "model": "bytedance/seedance-2.5/text-to-video",
+          "i2vModel": "bytedance/seedance-2.5/image-to-video",
+          "priceUsd": 0.81,
+          "verified": false,
+          "schemaVerified": false
+        },
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "bytedance/seedance-2-5",
+          "priceUsd": 1.6,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "kling-3-0": {
       "capability": "video",
-      "family": "jobs",
-      "model": "kling/kling-3-0",
-      "durationsS": [
-        5,
-        10
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1"
-      ],
+      "durationsS": [5, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
       "nativeAudio": false,
-      "refs": [
-        "identity",
-        "first_frame",
-        "last_frame",
-        "motion"
-      ],
-      "priceUsd": 1.4,
-      "verified": false,
+      "refs": ["identity", "first_frame", "last_frame", "motion"],
       "notes": "Strongest camera-motion adherence of the set. Good for preset recipes built on a named camera move.",
-      "schemaVerified": false
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "kling/kling-3-0",
+          "priceUsd": 1.4,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "wan-2-6": {
       "capability": "video",
-      "family": "jobs",
-      "model": "wan/2-6-text-to-video",
-      "i2vModel": "wan/2-6-image-to-video",
-      "durationsS": [
-        5,
-        10,
-        15
-      ],
+      "durationsS": [5, 10, 15],
       "aspectRatios": [],
       "nativeAudio": false,
-      "refs": [
-        "identity",
-        "first_frame"
-      ],
-      "priceUsd": 0.35,
-      "verified": false,
-      "notes": "Cheapest usable video tier. No aspect-ratio control -- reframe afterwards with kie variants.",
-      "input": {
-        "required": [
-          "prompt",
-          "duration",
-          "resolution"
-        ],
-        "defaults": {
-          "duration": "5",
-          "resolution": "720p"
-        },
-        "types": {
-          "duration": "string"
-        },
-        "enums": {
-          "duration": [
-            "5",
-            "10",
-            "15"
-          ],
-          "resolution": [
-            "720p",
-            "1080p"
-          ]
-        },
-        "refFields": {},
-        "note": "No aspect_ratio parameter exists on this model."
-      },
-      "schemaVerified": true
+      "refs": ["identity", "first_frame"],
+      "notes": "Cheap tier. No aspect-ratio control at all -- reframe afterwards with kie variants. WaveSpeed carries Wan 3.0, a DIFFERENT model, so that is a separate entry rather than a fallback.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "wan/2-6-text-to-video",
+          "i2vModel": "wan/2-6-image-to-video",
+          "priceUsd": 0.35,
+          "verified": false,
+          "schemaVerified": true,
+          "input": {
+            "required": ["prompt", "duration", "resolution"],
+            "defaults": { "duration": "5", "resolution": "720p" },
+            "types": { "duration": "string" },
+            "enums": { "duration": ["5", "10", "15"], "resolution": ["720p", "1080p"] },
+            "refFields": {},
+            "note": "No aspect_ratio parameter exists on this model."
+          }
+        }
+      ]
     },
+
+    "wan-3-0": {
+      "capability": "video",
+      "durationsS": [5, 10],
+      "aspectRatios": ["16:9", "9:16", "1:1"],
+      "nativeAudio": false,
+      "refs": ["identity", "first_frame"],
+      "notes": "A different model from wan-2-6, not a newer route to it. WaveSpeed only.",
+      "routes": [
+        {
+          "provider": "wavespeed",
+          "family": "v3",
+          "model": "alibaba/wan-3.0/text-to-video",
+          "i2vModel": "alibaba/wan-3.0/image-to-video",
+          "priceUsd": 0.475,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
+    },
+
     "veo-3-1": {
       "capability": "video",
-      "family": "veo",
-      "model": "veo3_1",
-      "durationsS": [
-        8
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16"
-      ],
+      "durationsS": [8],
+      "aspectRatios": ["16:9", "9:16"],
       "nativeAudio": true,
-      "refs": [
-        "first_frame"
-      ],
-      "priceUsd": 2.0,
-      "verified": false,
-      "notes": "Native dialogue/SFX audio. Own API family and an extend route -- the escape hatch if 15s single-shot proves unavailable elsewhere.",
-      "schemaVerified": false
+      "refs": ["first_frame"],
+      "notes": "Native dialogue and SFX audio. Its own API family on kie, plus an extend route -- the escape hatch when one job cannot reach the length a preset wants.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "veo",
+          "model": "veo3_1",
+          "priceUsd": 2.0,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
-    "gpt-image-2": {
-      "capability": "image",
-      "family": "jobs",
-      "model": "gpt/gpt-image-2-text-to-image",
-      "i2vModel": "gpt/gpt-image-2-image-to-image",
-      "resolutions": [
-        "1k",
-        "2k",
-        "4k"
-      ],
-      "qualities": [
-        "low",
-        "medium",
-        "high"
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1",
-        "4:3",
-        "3:2"
-      ],
-      "priceUsd": 0.12,
-      "verified": false,
-      "notes": "Skill's preferred reference-image model.",
-      "schemaVerified": false
-    },
-    "nano-banana-2": {
-      "capability": "image",
-      "family": "jobs",
-      "model": "google/nanobanana2",
-      "resolutions": [
-        "1k",
-        "2k",
-        "4k"
-      ],
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1",
-        "4:3"
-      ],
-      "priceUsd": 0.08,
-      "verified": false,
-      "notes": "Strong at text-in-image, which matters for typography presets.",
-      "schemaVerified": false
-    },
+
     "seedream-5-pro": {
       "capability": "image",
-      "family": "jobs",
-      "model": "seedream/5-pro-text-to-image",
-      "i2vModel": "seedream/5-pro-image-to-image",
-      "aspectRatios": [
-        "16:9",
-        "9:16",
-        "1:1",
-        "4:3"
-      ],
-      "priceUsd": 0.06,
-      "verified": true,
-      "notes": "Cheap style frames. VERIFIED: 7 credits for quality=basic, 1:1, ~66s.",
-      "input": {
-        "required": [
-          "prompt",
-          "aspect_ratio",
-          "quality"
-        ],
-        "defaults": {
-          "aspect_ratio": "1:1",
-          "quality": "basic",
-          "output_format": "png"
+      "aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+      "qualities": ["basic", "high"],
+      "notes": "Cheap style frames, and the first route verified end to end here.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "seedream/5-pro-text-to-image",
+          "i2vModel": "seedream/5-pro-image-to-image",
+          "priceUsd": 0.06,
+          "verified": true,
+          "schemaVerified": true,
+          "measuredCredits": 7,
+          "measuredNote": "quality=basic, 1:1, ~66s.",
+          "input": {
+            "required": ["prompt", "aspect_ratio", "quality"],
+            "defaults": { "aspect_ratio": "1:1", "quality": "basic", "output_format": "png" },
+            "types": {},
+            "enums": {
+              "aspect_ratio": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+              "quality": ["basic", "high"]
+            },
+            "refFields": {}
+          }
         },
-        "types": {},
-        "enums": {
-          "aspect_ratio": [
-            "1:1",
-            "4:3",
-            "3:4",
-            "16:9",
-            "9:16",
-            "2:3",
-            "3:2",
-            "21:9"
-          ],
-          "quality": [
-            "basic",
-            "high"
-          ]
-        },
-        "refFields": {}
-      },
-      "schemaVerified": true,
-      "qualities": [
-        "basic",
-        "high"
-      ],
-      "measuredCredits": 7
+        {
+          "provider": "wavespeed",
+          "family": "v3",
+          "model": "bytedance/seedream-v5.0-pro",
+          "i2vModel": "bytedance/seedream-v5.0-pro/edit",
+          "priceUsd": 0.0405,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
+    "gpt-image-2": {
+      "capability": "image",
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:2"],
+      "notes": "The source workflow's preferred reference-image model. WaveSpeed carries GPT Image 2.5, a different version, so it is not a fallback here.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "gpt/gpt-image-2-text-to-image",
+          "i2vModel": "gpt/gpt-image-2-image-to-image",
+          "priceUsd": 0.12,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
+    },
+
+    "nano-banana-2": {
+      "capability": "image",
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3"],
+      "notes": "Strong at text inside the image, which matters for typography presets.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "google/nanobanana2",
+          "priceUsd": 0.08,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
+    },
+
     "elevenlabs-tts": {
       "capability": "audio",
-      "family": "jobs",
-      "model": "elevenlabs/text-to-speech-multilingual-v2",
       "kind": "tts",
-      "priceUsd": 0.1,
-      "verified": false,
       "notes": "Narration. Presets default to no narration -- see SKILL.md production defaults.",
-      "schemaVerified": false
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "elevenlabs/text-to-speech-multilingual-v2",
+          "priceUsd": 0.1,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     },
+
     "suno-music": {
       "capability": "audio",
-      "family": "jobs",
-      "model": "suno/generate-music",
       "kind": "music",
-      "priceUsd": 0.25,
-      "verified": false,
       "notes": "Instrumental bed. The skill's default campaign audio is music plus effects, no narration.",
-      "schemaVerified": false
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "suno/generate-music",
+          "priceUsd": 0.25,
+          "verified": false,
+          "schemaVerified": false
+        }
+      ]
     }
   }
 }

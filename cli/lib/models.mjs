@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { unknown, usage } from "./errors.mjs";
+import { getProvider, hasKey } from "./providers.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const MODELS_PATH = join(HERE, "..", "models.json");
@@ -110,15 +111,25 @@ export function validateVideoRequest(catalog, model, { durationS, aspectRatio, r
  * the contract in models.json and building from it here is the only way a
  * single `kie video` can serve all of them.
  */
-export function buildInput(model, values = {}) {
-  const schema = model.input;
+export function buildInput(route, values = {}) {
+  const schema = route.input;
   if (!schema) {
     // No captured contract: send what we were given and say so loudly. This is
     // the schemaVerified:false path -- a guess, not a claim.
+    // `refs` is our own vocabulary, not a provider field. Without a captured
+    // contract there is no field name to map it to, so it must be dropped
+    // rather than posted as a stray array the provider will reject.
+    const { refs, ...rest } = values;
     return {
-      input: Object.fromEntries(Object.entries(values).filter(([, v]) => v != null)),
+      input: Object.fromEntries(Object.entries(rest).filter(([, v]) => v != null)),
       unverified: true,
-      problems: [],
+      problems: refs?.length
+        ? [
+            `No captured contract for this route, so reference roles ` +
+              `(${refs.map((r) => r.role).join(", ")}) cannot be mapped to its input fields. ` +
+              `Use a route whose schema is verified, or capture this one's doc page.`,
+          ]
+        : [],
     };
   }
 
@@ -148,7 +159,7 @@ export function buildInput(model, values = {}) {
     if (out[key] == null) continue;
     if (!allowed.map(String).includes(String(out[key]))) {
       problems.push(
-        `${model.id}: ${key}="${out[key]}" is not allowed. Allowed: ${allowed.join(", ")}.`,
+        `${route.model}: ${key}="${out[key]}" is not allowed. Allowed: ${allowed.join(", ")}.`,
       );
     }
   }
@@ -157,13 +168,13 @@ export function buildInput(model, values = {}) {
     const [lo, hi] = schema.durationRange;
     const n = Number(out.duration);
     if (n < lo || n > hi) {
-      problems.push(`${model.id}: duration ${n}s is outside its ${lo}-${hi}s range.`);
+      problems.push(`${route.model}: duration ${n}s is outside its ${lo}-${hi}s range.`);
     }
   }
 
   for (const key of schema.required ?? []) {
     if (out[key] == null || out[key] === "") {
-      problems.push(`${model.id}: "${key}" is required and was not supplied.`);
+      problems.push(`${route.model}: "${key}" is required and was not supplied.`);
     }
   }
 
@@ -172,7 +183,7 @@ export function buildInput(model, values = {}) {
     const field = schema.refFields?.[ref.role];
     if (!field) {
       problems.push(
-        `${model.id} has no input for role "${ref.role}". It accepts: ${
+        `${route.model} has no input for role "${ref.role}". It accepts: ${
           Object.keys(schema.refFields ?? {}).join(", ") || "no references"
         }.`,
       );
@@ -201,4 +212,33 @@ export function parseRef(spec) {
     );
   }
   return { url, role };
+}
+
+/**
+ * The routes a model can actually be reached through, in preference order,
+ * annotated with their provider and whether a key for it exists on this
+ * machine. A route with no key is not an error -- it is simply skipped, so
+ * configuring one provider is enough to work.
+ */
+export function routesFor(catalog, model, { only } = {}) {
+  return (model.routes ?? []).map((r) => {
+    const prov = getProvider(catalog, r.provider);
+    return {
+      ...r,
+      prov,
+      usable: (!only || r.provider === only) && hasKey(prov),
+      skipReason: only && r.provider !== only
+        ? `--provider ${only} was requested`
+        : hasKey(prov)
+          ? null
+          : `no ${prov.label} key (set ${prov.keyEnv} or write ~/${prov.keyFile})`,
+    };
+  });
+}
+
+/** Cheapest ESTIMATED route, used only for display and budget pre-flight. */
+export function cheapestRoute(routes) {
+  const usable = routes.filter((r) => r.usable);
+  if (!usable.length) return null;
+  return usable.reduce((a, b) => ((b.priceUsd ?? Infinity) < (a.priceUsd ?? Infinity) ? b : a));
 }

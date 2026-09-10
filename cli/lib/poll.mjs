@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
-import { queryTask, redact } from "./client.mjs";
+import { queryTask } from "./client.mjs";
+import { redact } from "./redact.mjs";
 import { provider, uncertain } from "./errors.mjs";
 
 const SUCCESS = new Set(["success", "succeeded", "completed", "done", "finished"]);
@@ -11,6 +12,11 @@ const FAILURE = new Set([
   "generate_failed",
   "cancelled",
   "canceled",
+  // WaveSpeed's terminal set adds these two. Treating an unknown terminal state
+  // as "still running" would poll until the timeout and then report uncertain,
+  // sending the caller to rejoin a job that is already dead.
+  "timeout",
+  "deleted",
 ]);
 
 function stateOf(data) {
@@ -48,7 +54,13 @@ export function extractUrls(data) {
     }
   }
 
+  // WaveSpeed: { data: { outputs: { video: "https://..." } } }
+  if (result?.outputs && typeof result.outputs === "object") {
+    for (const v of Object.values(result.outputs)) push(v);
+  }
+
   for (const key of [
+    "outputs",
     "resultUrls",
     "result_urls",
     "resultUrl",
@@ -84,7 +96,7 @@ function failureReason(data) {
  * twice for one film.
  */
 export async function waitForTask(
-  catalog,
+  prov,
   family,
   taskId,
   { key, timeoutMs = 20 * 60_000, onTick } = {},
@@ -93,7 +105,7 @@ export async function waitForTask(
   let delay = 3000;
 
   for (;;) {
-    const data = await queryTask(catalog, family, taskId, { key });
+    const data = await queryTask(prov, family, taskId, { key });
     const state = stateOf(data);
     onTick?.(state, Math.round((Date.now() - started) / 1000));
 
@@ -101,7 +113,7 @@ export async function waitForTask(
       const urls = extractUrls(data);
       if (!urls.length) {
         throw provider(
-          `Task ${taskId} succeeded but no artifact URL was found in the response. ` +
+          `${prov.label}: task ${taskId} succeeded but no artifact URL was found. ` +
             `Raw payload saved to job.json -- the result shape may have changed.`,
           { data },
         );
@@ -110,14 +122,14 @@ export async function waitForTask(
     }
 
     if (FAILURE.has(state)) {
-      throw provider(`Task ${taskId} failed: ${redact(String(failureReason(data)))}`, {
+      throw provider(`${prov.label}: task ${taskId} failed: ${redact(String(failureReason(data)))}`, {
         data,
       });
     }
 
     if (Date.now() - started > timeoutMs) {
       throw uncertain(
-        `Task ${taskId} still "${state}" after ${Math.round(timeoutMs / 60_000)} min. ` +
+        `${prov.label}: task ${taskId} still "${state}" after ${Math.round(timeoutMs / 60_000)} min. ` +
           `It is probably still running -- rejoin with: kie job ${taskId}`,
         taskId,
         { data },

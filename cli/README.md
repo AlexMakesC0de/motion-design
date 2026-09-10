@@ -5,9 +5,9 @@ kie.ai, what it costs, and where the record lands.
 
 ## The one structural rule
 
-**No kie.ai model id, endpoint or price appears anywhere in the skill prose.**
-The skill says `kie video --preset kinetic-typography`; everything kie knows
-lives in `models.json`.
+**No provider model id, endpoint or price appears anywhere in the skill prose.**
+The skill says `kie video --preset kinetic-typography`; everything the providers
+know lives in `models.json`.
 
 This is not tidiness. kie.ai's catalog carries Seedance v1-lite through 2.5,
 Kling v2.1 through 3.0 and Wan 2.2 through 3.0 *simultaneously*, and it moves
@@ -25,7 +25,8 @@ Corollary: **the CLI refuses an unknown model rather than forwarding it.**
 |---|---|
 | `kie.mjs` | Arg parsing, command dispatch, the submit→poll→download→record path |
 | `models.json` | The only place kie.ai knowledge lives |
-| `lib/models.mjs` | Catalog load, model resolution, request validation, `--ref` parsing |
+| `lib/providers.mjs` | Provider config, per-provider keys, URL/body shapes, **the failover policy** |
+| `lib/models.mjs` | Catalog load, model resolution, route selection, per-route input building |
 | `lib/client.mjs` | Key resolution, HTTP, create-rate throttle, retry policy |
 | `lib/poll.mjs` | Task polling, result-shape extraction, download |
 | `lib/upload.mjs` | Local file → remote URL, the only sanctioned crossing |
@@ -128,3 +129,64 @@ Consequences:
 
 Adding a model is one entry: `capability`, `family`, provider `model` string,
 the real limits, a price, and a note saying what it is for.
+
+## Two providers, one interface
+
+kie.ai is primary and WaveSpeed is the fallback, because kie is cheap and
+correspondingly less reliable. They are not shaped alike, and pretending
+otherwise is what breaks:
+
+| | kie.ai | WaveSpeed |
+|---|---|---|
+| Create | `POST /api/v1/jobs/createTask` | `POST /api/v3/{model}` |
+| Model | a field in the body | **the URL path** |
+| Body | `{ model, input }` | the input object itself |
+| Poll | `?taskId=` query param | `/predictions/{id}/result` path |
+| Errors | **in the body** (HTTP 200 + `code: 500`) | in the HTTP status |
+| Balance | readable in credits | not exposed |
+| Uploads | supported | not supported |
+
+All of that is data in `models.json` under `providers`, so a third reseller is a
+data edit. What is deliberately **not** configuration is the failover policy.
+
+## When a fallback fires — and when it must not
+
+A model carries an ordered list of routes. `canFailOver` in `providers.mjs`
+allows a fallback on exactly one condition:
+
+| Exit | Meaning | Fail over? |
+|---|---|---|
+| `4` | provider error — rejected, or failed upstream | **yes** |
+| `2` | budget refused | no — our decision, not their outage. A fallback would spend what the cap just refused |
+| `3`/`1` | invalid request | no — our bug. The second provider rejects it too, for money, after a delay |
+| `5` | **uncertain** | **never** — the job may exist. Failing over pays twice *and* abandons the only rejoin handle |
+
+WaveSpeed's own documentation reaches the same conclusion independently: *"do
+not blindly retry POST submissions since disconnected responses may still
+represent accepted predictions."*
+
+**A fallback is always the same model at another reseller.** Falling over from
+`minimax-h3` to Seedance would silently change the film, so a different model is
+a separate entry in the table, never a route. Pinned by a test. Even a genuine
+same-model fallback may not look identical — different defaults, possibly
+different weights — and the CLI says so when it fires.
+
+**Both attempts land in the ledger**, and `kie spend` breaks totals down per
+provider, because a failed-over run may have been charged by both.
+
+## Per-route contracts
+
+`input` on each route is that route's real request shape, captured from its own
+doc page. They disagree in ways that fail at submit with an unhelpful "This
+field is required":
+
+- kie's `wan` wants `duration` as a **string** and has no `aspect_ratio` at all
+- kie's `seedance` wants it as an **integer** and requires `resolution`
+- kie's `seedream` wants `quality: basic|high`, not the `low|medium|high` its
+  siblings use
+- the `first_frame` role is `first_frame_url` on kie and `image` on WaveSpeed
+
+`buildInput` constructs the body from the route's contract and refuses locally
+when a value is out of range. A route with `schemaVerified: false` has no
+captured contract: the body is a guess, the CLI warns, and references are
+**refused** rather than dropped silently, since there is no field to map them to.

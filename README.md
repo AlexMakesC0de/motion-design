@@ -50,7 +50,7 @@ identical capability.
 
 | | Command | Needs |
 |---|---|---|
-| **Generate** — photographic film from a preset or prompt | `kie video` `image` `audio` | a kie.ai key |
+| **Generate** — photographic film from a preset or prompt | `kie video` `image` `audio` | a kie.ai and/or WaveSpeed key |
 | **Render** — graphic motion drawn exactly: copy, logos, numbers, screenshots | `kie render` | `cd render && npm install` |
 | **Finish** — music bed, ducked VO, loudness, captions, aspect variants | `kie assemble` `caption` `variants` `probe` | ffmpeg |
 
@@ -68,7 +68,8 @@ See [graphic-motion.md](skills/motion-design/references/graphic-motion.md).
 ```bash
 node install.mjs                                  # symlink skill + kie into every host
 printf '%s' 'YOUR_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
-kie doctor                                        # key, balance, catalog age, routing
+kie doctor                                        # keys, balances, catalog age, routing
+kie providers                                     # what's configured, and each one's shape
 kie presets                                       # which presets are native vs adaptation
 
 kie video    --run entri-hero --preset kinetic-typography --duration 10

@@ -10,8 +10,9 @@ import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
-import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, isStale, catalogAgeDays } from "./lib/models.mjs";
-import { apiKey, createTask, credits, redact } from "./lib/client.mjs";
+import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
+import { createTask, redact } from "./lib/client.mjs";
+import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
 import { preflight, creditsAfter } from "./lib/budget.mjs";
@@ -30,17 +31,18 @@ const HELP = `kie -- motion-design execution layer
   kie presets    [--json]
   kie preflight  --model M [--duration N] [--ar R] [--budget U]
   kie doctor
+  kie providers
   kie upload     <path>
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
                  [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]... [--budget U]
-                 [--no-wait] [--dry-run]
+                 [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--budget U] [--dry-run]
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
                  [--voice V] [--budget U] [--dry-run]
 
-  kie job        <taskId> [--family jobs|veo] [--run SLUG]
+  kie job        <taskId> [--provider P] [--family F] [--run SLUG]
   kie spend      [--today] [--run SLUG] [--since YYYY-MM-DD] [--json]
 
 Finishing (local ffmpeg — no key, no spend):
@@ -83,6 +85,7 @@ const OPTS = {
   "tts-file": { type: "string" },
   voice: { type: "string" },
   family: { type: "string" },
+  provider: { type: "string" },
   shot: { type: "string", multiple: true, default: [] },
   video: { type: "string" },
   srt: { type: "string" },
@@ -126,18 +129,12 @@ function warnIfStale(catalog) {
   }
 }
 
-function warnIfUnverified(model) {
-  if (model.schemaVerified === false) {
+function warnIfUnverified(route, model) {
+  if (!route.verified) {
     warn(
-      `! ${model.id}'s request contract in models.json was never captured from its doc page. ` +
-        `The body being sent is a guess and may be rejected. Verified schemas: seedance-2-fast, wan-2-6, seedream-5-pro.`,
-    );
-  }
-  if (!model.verified) {
-    warn(
-      `! ${model.id} is unverified: no job has succeeded on it from this machine, so its ` +
-        `price ($${model.priceUsd}) and schema in models.json are unconfirmed. ` +
-        `Set "verified": true once you've seen real output.`,
+      `! ${model.id} via ${route.prov.label} is unverified: no job has ever succeeded on this ` +
+        `route, so its price ($${route.priceUsd}) is unconfirmed. Flip "verified" in models.json ` +
+        `once you have seen real output.`,
     );
   }
 }
@@ -145,9 +142,7 @@ function warnIfUnverified(model) {
 // ---------------------------------------------------------------- read-only
 
 function cmdModels(catalog, args) {
-  const list = catalog.list.filter(
-    (m) => !args.capability || m.capability === args.capability,
-  );
+  const list = catalog.list.filter((m) => !args.capability || m.capability === args.capability);
   if (args.json) return say(JSON.stringify(list, null, 2));
 
   warnIfStale(catalog);
@@ -157,18 +152,27 @@ function cmdModels(catalog, args) {
     say(`\n${cap.toUpperCase()}`);
     for (const m of rows) {
       const spec = [
-        m.durationsS ? `${m.durationsS.join("/")}s` : null,
-        m.aspectRatios ? m.aspectRatios.join(" ") : null,
+        m.durationsS?.length ? `${m.durationsS[0]}-${m.durationsS.at(-1)}s` : null,
+        m.aspectRatios?.length ? m.aspectRatios.join(" ") : null,
         m.nativeAudio ? "native-audio" : null,
-        m.refs ? `refs: ${m.refs.join("/")}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      say(`  ${m.id.padEnd(18)} $${String(m.priceUsd).padEnd(6)} ${m.verified ? " " : "?"} ${spec}`);
-      if (m.notes) say(`  ${" ".repeat(18)} ${m.notes}`);
+        m.refs?.length ? `refs: ${m.refs.join("/")}` : null,
+      ].filter(Boolean).join(" · ");
+      say(`  ${m.id}`);
+      if (spec) say(`    ${spec}`);
+      for (const r of routesFor(catalog, m)) {
+        const flags = [
+          r.verified ? "verified" : "unverified",
+          r.schemaVerified === false ? "schema-guessed" : null,
+          r.measuredCredits != null ? `measured ${r.measuredCredits} cr` : null,
+          !r.usable ? `SKIPPED — ${r.skipReason}` : null,
+        ].filter(Boolean).join(", ");
+        say(`    ${r.provider === m.routes[0].provider ? "→" : " "} ${r.prov.label.padEnd(10)} $${String(r.priceUsd).padEnd(7)} ${flags}`);
+      }
+      if (m.notes) say(`    ${m.notes}`);
     }
   }
-  say(`\n  ? = unverified (no successful job recorded yet)`);
+  say(`\nArrow marks the primary route. Later routes are fallbacks, tried only when`);
+  say(`the provider errors — never after an uncertain result, which may already exist.`);
 }
 
 function cmdPresets(catalog, args) {
@@ -200,49 +204,51 @@ function cmdPresets(catalog, args) {
 async function cmdDoctor(catalog) {
   let failures = 0;
   const ok = (m) => say(`  ok    ${m}`);
-  const bad = (m) => {
-    failures += 1;
-    say(`  FAIL  ${m}`);
-  };
+  const bad = (m) => { failures += 1; say(`  FAIL  ${m}`); };
 
   say("kie doctor\n");
 
-  let key = null;
-  try {
-    key = apiKey();
-    ok(`API key found (${key.slice(0, 4)}…${key.slice(-2)})`);
-  } catch (e) {
-    bad(e.message.split("\n")[0]);
-  }
-
-  const age = catalogAgeDays(catalog);
-  (isStale(catalog) ? bad : ok)(
-    `models.json captured ${catalog.captured}${age != null ? ` (${age}d ago)` : ""}`,
-  );
-
-  const unverified = catalog.list.filter((m) => !m.verified);
-  say(
-    `  ${unverified.length ? "warn " : "ok   "} ${catalog.list.length - unverified.length}/${catalog.list.length} models verified` +
-      (unverified.length ? ` — unverified: ${unverified.map((m) => m.id).join(", ")}` : ""),
-  );
-
-  if (key) {
-    try {
-      const { credits: c, raw } = await credits(catalog, { key });
-      c == null
-        ? bad(`credit endpoint answered but no balance found: ${JSON.stringify(raw).slice(0, 200)}`)
-        : ok(`account credits: ${c}`);
-    } catch (e) {
-      bad(`credit check: ${e.message}`);
+  let anyKey = false;
+  for (const name of Object.keys(catalog.providers)) {
+    const prov = getProvider(catalog, name);
+    const key = providerKey(prov, { required: false });
+    if (!key) {
+      say(`  warn  ${prov.label}: no key (set ${prov.keyEnv} or write ~/${prov.keyFile}) — routes skipped`);
+      continue;
+    }
+    anyKey = true;
+    ok(`${prov.label}: key found (${key.slice(0, 4)}…${key.slice(-2)})`);
+    if (prov.credits) {
+      try {
+        const c = await providerCredits(prov, key);
+        c == null ? bad(`${prov.label}: credit endpoint gave no balance`) : ok(`${prov.label}: ${c} ${prov.creditUnit}`);
+      } catch (e) {
+        bad(`${prov.label}: credit check — ${e.message}`);
+      }
+    } else {
+      say(`  ok    ${prov.label}: no balance endpoint — spend is not readable from here`);
     }
   }
+  if (!anyKey) bad("No provider key configured at all — nothing can be generated.");
+
+  const age = catalogAgeDays(catalog);
+  (isStale(catalog) ? bad : ok)(`models.json captured ${catalog.captured}${age != null ? ` (${age}d ago)` : ""}`);
+
+  const routes = catalog.list.flatMap((m) => routesFor(catalog, m).map((r) => ({ m, r })));
+  const unverified = routes.filter(({ r }) => !r.verified);
+  say(`  ${unverified.length ? "warn " : "ok   "} ${routes.length - unverified.length}/${routes.length} routes verified by a real job`);
+
+  const noRoute = catalog.list.filter((m) => !routesFor(catalog, m).some((r) => r.usable));
+  if (noRoute.length) say(`  warn  unreachable with current keys: ${noRoute.map((m) => m.id).join(", ")}`);
+
+  const withFallback = catalog.list.filter((m) => routesFor(catalog, m).filter((r) => r.usable).length > 1);
+  ok(`${withFallback.length}/${catalog.list.length} models have a working fallback: ${withFallback.map((m) => m.id).join(", ") || "none"}`);
 
   try {
     const presets = loadPresets();
     const mapped = presets.filter((p) => p.kie?.native || p.kie?.route?.length);
-    ok(`presets: ${mapped.length}/${presets.length} routed to a kie model`);
-    const native = presets.filter((p) => p.kie?.native);
-    say(`        native-route presets: ${native.map((p) => p.id).join(", ") || "none"}`);
+    ok(`presets: ${mapped.length}/${presets.length} routed to a model`);
+    say(`        native-route presets: ${presets.filter((p) => p.kie?.native).map((p) => p.id).join(", ") || "none"}`);
   } catch (e) {
     bad(`presets.json: ${e.message}`);
   }
@@ -262,21 +268,32 @@ function cmdPreflight(catalog, args) {
         })
       : [];
 
+  const routes = routesFor(catalog, model, { only: args.provider });
   const cap = num(args.budget) ?? catalog.defaultBudgetUsd?.[model.capability];
-  say(`model:     ${model.id} (${model.capability}) ${model.verified ? "" : "[unverified]"}`);
-  say(`estimate:  $${(model.priceUsd ?? 0).toFixed(2)}   budget: $${Number(cap).toFixed(2)}`);
-  if (model.notes) say(`note:      ${model.notes}`);
+
+  say(`model:   ${model.id} (${model.capability})`);
+  say(`budget:  $${Number(cap).toFixed(2)}`);
+  say(`routes:`);
+  for (const r of routes) {
+    const verdict = !r.usable
+      ? `skipped — ${r.skipReason}`
+      : (r.priceUsd ?? 0) > cap
+        ? `WOULD REFUSE — over budget`
+        : `ok`;
+    say(`  ${r.prov.label.padEnd(10)} $${String(r.priceUsd).padEnd(7)} ${verdict}`);
+  }
 
   if (problems.length) {
     say(`\nWould be refused:`);
     for (const p of problems) say(`  · ${p}`);
     return EXIT.UNKNOWN;
   }
-  if ((model.priceUsd ?? 0) > cap) {
-    say(`\nWould be refused: over budget.`);
+  const affordable = routes.filter((r) => r.usable && (r.priceUsd ?? 0) <= cap);
+  if (!affordable.length) {
+    say(`\nWould be refused: no usable route within budget.`);
     return EXIT.BUDGET;
   }
-  say(`\nOK to submit. Nothing was sent to kie.ai.`);
+  say(`\nOK to submit via ${affordable[0].prov.label}. Nothing was sent to any provider.`);
   return EXIT.OK;
 }
 
@@ -296,6 +313,10 @@ function cmdSpend(args) {
       ? `credits used:   not sampled`
       : `credits used:   ${s.creditsUsed}   (measured across ${s.creditSamples} job(s) — a fact)`,
   );
+  if (s.byProvider?.length) {
+    say(`\nby provider`);
+    for (const p of s.byProvider) say(`  ${String(p.provider).padEnd(12)} ${String(p.jobs).padStart(3)}  $${p.estimated.toFixed(2)}`);
+  }
   if (s.byModel.length) {
     say(`\nby model`);
     for (const m of s.byModel) say(`  ${String(m.model).padEnd(18)} ${String(m.jobs).padStart(3)}  $${m.estimated.toFixed(2)}`);
@@ -304,112 +325,181 @@ function cmdSpend(args) {
 
 // -------------------------------------------------------------- generation
 
-/** Shared submit → poll → download → record path for every capability. */
-async function generate(catalog, { capability, model, input, args, artifactBase }) {
-  const key = apiKey();
+/**
+ * Shared submit -> poll -> download -> record path, with provider failover.
+ *
+ * Routes are tried in order. Falling over means paying twice if the first
+ * provider already did chargeable work, so it happens ONLY on a clean provider
+ * error (exit 4) -- see canFailOver in providers.mjs for why a budget refusal,
+ * an invalid request and especially an UNCERTAIN result must never trigger one.
+ */
+async function generate(catalog, { capability, model, values, args, artifactBase }) {
   const dir = runDir(args.run);
-
   warnIfStale(catalog);
-  warnIfUnverified(model);
 
-  const { estimatedUsd, cap, creditsBefore } = await preflight(catalog, model, {
-    budgetUsd: num(args.budget),
-    key,
-  });
+  const routes = routesFor(catalog, model, { only: args.provider });
+  const usable = routes.filter((r) => r.usable);
 
-  if (args["dry-run"]) {
-    say(`dry run — nothing submitted.`);
-    say(`  model:    ${model.id} → ${model.model}`);
-    say(`  estimate: $${estimatedUsd.toFixed(2)} (budget $${Number(cap).toFixed(2)})`);
-    say(`  input:    ${JSON.stringify(input).slice(0, 600)}`);
-    await writeRecord(dir, "planned.json", { model: model.id, input, estimatedUsd });
-    return EXIT.OK;
+  if (!usable.length) {
+    throw usage(
+      `No usable route for ${model.id}:\n` +
+        routes.map((r) => `  · ${r.provider}: ${r.skipReason}`).join("\n"),
+    );
+  }
+  for (const r of routes.filter((r) => !r.usable)) {
+    warn(`  (skipping ${r.provider}: ${r.skipReason})`);
   }
 
-  const fam = catalog.api.families[model.family];
-  const payload =
-    fam.bodyShape === "flat"
-      ? { model: model.model, ...input }
-      : { model: model.model, input };
+  const attempts = [];
+  let lastError = null;
 
-  const { taskId, raw: createRaw } = await createTask(catalog, model.family, payload, { key });
-  say(`submitted ${taskId} (${model.id})`);
+  for (const [i, route] of usable.entries()) {
+    const key = providerKey(route.prov);
+    const label = `${route.prov.label} · ${values._useI2v && route.i2vModel ? route.i2vModel : route.model}`;
 
-  const base = {
-    run: args.run,
-    capability,
-    model: model.id,
-    providerModel: model.model,
-    taskId,
-    estimatedUsd,
-    creditsBefore,
-  };
+    if (i > 0) {
+      warn(
+        `\n! ${lastError?.message?.split("\n")[0] ?? "previous route failed"}\n` +
+          `  Falling back to ${label}. Note this is a different reseller of the same model — ` +
+          `output may differ slightly from the primary route.`,
+      );
+    }
 
-  if (args["no-wait"]) {
-    ledger.append({ ...base, status: "submitted" });
-    await writeRecord(dir, "job.json", { ...base, create: createRaw, state: "submitted" });
-    say(`not waiting. Rejoin with: kie job ${taskId} --family ${model.family} --run ${args.run}`);
-    return EXIT.OK;
-  }
+    warnIfUnverified(route, model);
 
-  let result;
-  try {
-    result = await waitForTask(catalog, model.family, taskId, {
+    const effectiveRoute =
+      values._useI2v && route.i2vModel ? { ...route, model: route.i2vModel } : route;
+    const { _useI2v, ...inputValues } = values;
+    const built = buildInput(effectiveRoute, inputValues);
+    if (built.problems.length) {
+      // Our request is wrong for this route's contract. Not a provider fault,
+      // so it does not consume the failover budget -- but a sibling route may
+      // have a different contract that accepts it, so try the next one.
+      const err = unknown(
+        `${label} refused before submitting — nothing was spent:\n` +
+          built.problems.map((p) => `  · ${p}`).join("\n"),
+      );
+      attempts.push({ provider: route.provider, model: route.model, outcome: "invalid-request", error: err.message });
+      lastError = err;
+      if (i === usable.length - 1) throw err;
+      continue;
+    }
+    if (built.unverified) {
+      warn(
+        `! ${label}'s request contract was never captured from its doc page; ` +
+          `the body being sent is a guess and may be rejected.`,
+      );
+    }
+
+    const { estimatedUsd, cap, creditsBefore } = await preflight(catalog, route, {
+      budgetUsd: num(args.budget),
       key,
-      onTick: (state, s) => process.stderr.write(`\r  ${state} ${s}s   `),
+      modelId: model.id,
+      capability,
     });
-    process.stderr.write("\n");
-  } catch (err) {
-    process.stderr.write("\n");
-    ledger.append({
-      ...base,
-      status: err.code === EXIT.UNCERTAIN ? "uncertain" : "failed",
-      creditsAfter: await creditsAfter(catalog, { key }),
-      error: redact(err.message),
-    });
-    await writeRecord(dir, "job.json", {
-      ...base,
-      state: err.code === EXIT.UNCERTAIN ? "uncertain" : "failed",
-      error: redact(err.message),
-      raw: err.data ?? null,
-    });
-    throw err;
-  }
 
-  const saved = [];
-  for (const url of result.urls) {
-    const { path } = nextArtifact(dir, artifactBase, extFromUrl(url, ".bin"));
-    await download(url, path);
-    saved.push(path);
-    say(`  → ${path}`);
-  }
+    if (args["dry-run"]) {
+      say(`dry run — nothing submitted.`);
+      say(`  route:    ${label}`);
+      say(`  estimate: $${estimatedUsd.toFixed(2)} (budget $${Number(cap).toFixed(2)})`);
+      say(`  body:     ${JSON.stringify(built.input).slice(0, 600)}`);
+      await writeRecord(dir, "planned.json", {
+        model: model.id,
+        route: { provider: route.provider, model: route.model },
+        input: built.input,
+        estimatedUsd,
+        allRoutes: routes.map((r) => ({ provider: r.provider, usable: r.usable, skipReason: r.skipReason })),
+      });
+      return EXIT.OK;
+    }
 
-  const after = await creditsAfter(catalog, { key });
-  ledger.append({ ...base, status: "success", creditsAfter: after, elapsedS: result.elapsedS });
-  await writeRecord(dir, "job.json", {
-    ...base,
-    state: "success",
-    elapsedS: result.elapsedS,
-    urls: result.urls,
-    artifacts: saved.map((p) => basename(p)),
-    creditsAfter: after,
-    raw: result.data,
-  });
-  await writeRecord(dir, "cost.json", {
-    estimatedUsd,
-    creditsBefore,
-    creditsAfter: after,
-    creditsUsed:
-      typeof creditsBefore === "number" && typeof after === "number"
-        ? creditsBefore - after
-        : null,
-    note: "estimatedUsd is from cli/models.json and is a guess; credit figures are measured.",
-  });
+    const base = {
+      run: args.run,
+      capability,
+      model: model.id,
+      provider: route.provider,
+      providerModel: route.model,
+      estimatedUsd,
+      creditsBefore,
+    };
 
-  if (typeof creditsBefore === "number" && typeof after === "number") {
-    say(`cost: ${creditsBefore - after} credits (estimated $${estimatedUsd.toFixed(2)})`);
+    let taskId = null;
+    try {
+      const created = await createTask(route.prov, route.family, effectiveRoute.model, built.input, { key });
+      taskId = created.taskId;
+      say(`submitted ${taskId} (${label})`);
+
+      if (args["no-wait"]) {
+        ledger.append({ ...base, taskId, status: "submitted" });
+        await writeRecord(dir, "job.json", { ...base, taskId, create: created.raw, state: "submitted" });
+        say(`not waiting. Rejoin: kie job ${taskId} --provider ${route.provider} --family ${route.family} --run ${args.run}`);
+        return EXIT.OK;
+      }
+
+      const result = await waitForTask(route.prov, route.family, taskId, {
+        key,
+        onTick: (state, sec) => process.stderr.write(`\r  ${state} ${sec}s   `),
+      });
+      process.stderr.write("\n");
+
+      const saved = [];
+      for (const url of result.urls) {
+        const { path } = nextArtifact(dir, artifactBase, extFromUrl(url, ".bin"));
+        await download(url, path);
+        saved.push(path);
+        say(`  → ${path}`);
+      }
+
+      const after = await creditsAfter(route.prov, key);
+      attempts.push({ provider: route.provider, model: route.model, outcome: "success", taskId });
+      ledger.append({ ...base, taskId, status: "success", creditsAfter: after, elapsedS: result.elapsedS, failedOver: i > 0 });
+      await writeRecord(dir, "job.json", {
+        ...base,
+        taskId,
+        state: "success",
+        elapsedS: result.elapsedS,
+        urls: result.urls,
+        artifacts: saved.map((p) => basename(p)),
+        creditsAfter: after,
+        attempts,
+        raw: result.data,
+      });
+      await writeRecord(dir, "cost.json", {
+        estimatedUsd,
+        creditsBefore,
+        creditsAfter: after,
+        creditsUsed:
+          typeof creditsBefore === "number" && typeof after === "number" ? creditsBefore - after : null,
+        attempts,
+        note: "estimatedUsd is from cli/models.json and is a guess; credit figures are measured. A failed-over run may have been charged by BOTH providers.",
+      });
+
+      if (typeof creditsBefore === "number" && typeof after === "number") {
+        say(`cost: ${Math.round((creditsBefore - after) * 10) / 10} ${route.prov.creditUnit ?? "units"} (estimated $${estimatedUsd.toFixed(2)})`);
+      }
+      return EXIT.OK;
+    } catch (err) {
+      process.stderr.write("\n");
+      const after = await creditsAfter(route.prov, key);
+      const outcome = err.code === EXIT.UNCERTAIN ? "uncertain" : err.code === EXIT.PROVIDER ? "provider-error" : "refused";
+      attempts.push({ provider: route.provider, model: route.model, outcome, taskId, error: redact(err.message) });
+      ledger.append({ ...base, taskId, status: outcome, creditsAfter: after, error: redact(err.message) });
+      await writeRecord(dir, "job.json", { ...base, taskId, state: outcome, attempts, error: redact(err.message), raw: err.data ?? null });
+
+      lastError = err;
+      const more = i < usable.length - 1;
+      if (more && canFailOver(err)) continue;
+
+      if (more && err.code === EXIT.UNCERTAIN) {
+        warn(
+          `! NOT falling back: this job may exist at ${route.prov.label}. ` +
+            `Failing over would pay twice and abandon the handle. Rejoin instead.`,
+        );
+      }
+      throw err;
+    }
   }
-  return EXIT.OK;
+  throw lastError ?? usage("No route produced a result.");
 }
 
 /**
@@ -512,28 +602,19 @@ async function cmdVideo(catalog, args) {
   });
 
   const hasFirstFrame = refs.find((r) => r.role === "first_frame");
-  const built = buildInput(model, {
-    prompt,
-    duration: durationS,
-    aspect_ratio: aspectRatio,
-    resolution: args.resolution,
-    refs,
-  });
-  if (built.problems.length) {
-    throw unknown(
-      `Refused before submitting — nothing was spent:\n` +
-        built.problems.map((p) => `  · ${p}`).join("\n"),
-    );
-  }
-  const input = built.input;
-
-  // A first-frame reference makes this image-to-video on models that split the two.
-  const effective = hasFirstFrame && model.i2vModel ? { ...model, model: model.i2vModel } : model;
-
   return generate(catalog, {
     capability: "video",
-    model: effective,
-    input,
+    model,
+    values: {
+      prompt,
+      duration: durationS,
+      aspect_ratio: aspectRatio,
+      resolution: args.resolution,
+      refs,
+      // A first-frame reference makes this image-to-video on providers that
+      // split the two into separate model ids.
+      _useI2v: Boolean(hasFirstFrame),
+    },
     args,
     artifactBase: "out",
   });
@@ -553,23 +634,15 @@ async function cmdImage(catalog, args) {
   const dir = runDir(args.run);
   await writeRecord(dir, "image-prompt.txt", args.prompt);
 
-  const built = buildInput(model, {
-    prompt: args.prompt,
-    resolution: args.resolution,
-    quality: args.quality,
-    aspect_ratio: args.ar,
-  });
-  if (built.problems.length) {
-    throw unknown(
-      `Refused before submitting — nothing was spent:\n` +
-        built.problems.map((p) => `  · ${p}`).join("\n"),
-    );
-  }
-
   return generate(catalog, {
     capability: "image",
     model,
-    input: built.input,
+    values: {
+      prompt: args.prompt,
+      resolution: args.resolution,
+      quality: args.quality,
+      aspect_ratio: args.ar,
+    },
     args,
     artifactBase: "ref",
   });
@@ -599,7 +672,7 @@ async function cmdAudio(catalog, args) {
   return generate(catalog, {
     capability: "audio",
     model,
-    input,
+    values: input,
     args,
     artifactBase: isTts ? "vo" : "music",
   });
@@ -607,10 +680,11 @@ async function cmdAudio(catalog, args) {
 
 async function cmdJob(catalog, args, taskId) {
   if (!taskId) throw usage("kie job <taskId>");
-  const key = apiKey();
-  const family = args.family ?? "jobs";
+  const prov = getProvider(catalog, args.provider ?? "kie");
+  const key = providerKey(prov);
+  const family = args.family ?? Object.keys(prov.families)[0];
 
-  const result = await waitForTask(catalog, family, taskId, {
+  const result = await waitForTask(prov, family, taskId, {
     key,
     onTick: (state, s) => process.stderr.write(`\r  ${state} ${s}s   `),
   });
@@ -864,12 +938,28 @@ async function main(argv) {
       return cmdPresets(catalog, args) ?? EXIT.OK;
     case "doctor":
       return cmdDoctor(catalog);
+    case "providers": {
+      for (const name of Object.keys(catalog.providers)) {
+        const prov = getProvider(catalog, name);
+        const models = catalog.list.filter((m) => m.routes.some((r) => r.provider === name));
+        say(`\n${prov.label}  (${name})`);
+        say(`  key:      ${hasKey(prov) ? "configured" : `MISSING — set ${prov.keyEnv} or write ~/${prov.keyFile}`}`);
+        say(`  base:     ${prov.baseUrl}`);
+        say(`  errors:   reported in the ${prov.errorInBody ? "response BODY (HTTP 200 + code)" : "HTTP status"}`);
+        say(`  balance:  ${prov.credits ? `readable (${prov.creditUnit})` : "not exposed"}`);
+        say(`  uploads:  ${prov.upload ? "supported" : "not supported — upload elsewhere and pass the URL"}`);
+        say(`  models:   ${models.map((m) => m.id).join(", ")}`);
+        if (!hasKey(prov)) say(`  sign up:  ${prov.signup}`);
+      }
+      say(`\nRoutes are tried in the order listed under each model in \`kie models\`.`);
+      return EXIT.OK;
+    }
     case "preflight":
       if (!args.model) throw usage("kie preflight --model <id>");
       return cmdPreflight(catalog, args);
     case "upload": {
       if (!positionals[0]) throw usage("kie upload <path>");
-      const { url, bytes, mime } = await uploadFile(catalog, positionals[0]);
+      const { url, bytes, mime } = await uploadFile(catalog, positionals[0], { providerName: args.provider ?? "kie" });
       say(url);
       warn(`  uploaded ${(bytes / 1e6).toFixed(2)}MB ${mime}`);
       return EXIT.OK;

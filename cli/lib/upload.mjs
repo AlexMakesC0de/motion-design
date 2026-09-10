@@ -1,7 +1,8 @@
 import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, extname } from "node:path";
-import { apiKey, redact } from "./client.mjs";
+import { redact } from "./redact.mjs";
+import { getProvider, providerKey } from "./providers.mjs";
 import { provider, usage } from "./errors.mjs";
 
 const MIME = {
@@ -26,7 +27,15 @@ const MAX_BYTES = 64 * 1024 * 1024;
  * is not a remote attachment; `--ref` enforces it by refusing paths outright,
  * and this is the sanctioned way across.
  */
-export async function uploadFile(catalog, path, { key = apiKey() } = {}) {
+export async function uploadFile(catalog, path, { providerName = "kie" } = {}) {
+  const prov = getProvider(catalog, providerName);
+  if (!prov.upload) {
+    throw usage(
+      `${prov.label} has no file-upload endpoint. Upload to a provider that does ` +
+        `(kie) and pass the URL it prints -- a remote URL works with every provider.`,
+    );
+  }
+  const key = providerKey(prov);
   if (!existsSync(path)) throw usage(`No such file: ${path}`);
 
   const { size } = await stat(path);
@@ -44,8 +53,7 @@ export async function uploadFile(catalog, path, { key = apiKey() } = {}) {
     );
   }
 
-  const host = catalog.api.upload.host ?? catalog.api.baseUrl;
-  const url = host + catalog.api.upload.base64;
+  const url = (prov.upload.host ?? prov.baseUrl) + prov.upload.base64;
   const bytes = await readFile(path);
 
   const res = await fetch(url, {
