@@ -541,6 +541,7 @@ function durationAdvice(catalog, preset, model, requestedS) {
 
 async function cmdVideo(catalog, args) {
   const presets = loadPresets();
+  let usedSourcePromptRaw = false;
   let promptPath = args["prompt-file"];
   let modelId = args.model;
   let durationS = num(args.duration);
@@ -557,6 +558,25 @@ async function cmdVideo(catalog, args) {
 
     say(`preset:   ${preset.id} [${route.fidelity}]`);
     say(`          ${route.note}`);
+
+    // The archived source prompt is immutable REFERENCE material. SKILL.md is
+    // explicit that its client names and copy are provenance, "never
+    // authorization", and template-adaptation.md exists precisely to turn it
+    // into your film. Submitting it unmodified reproduces the original ad --
+    // verified: running kinetic-typography raw produced a Higgsfield
+    // commercial, correct branding and all. Warn every time.
+    if (!args["prompt-file"]) {
+      usedSourcePromptRaw = true;
+      warn(
+        `\n! This is the ARCHIVED SOURCE PROMPT, unmodified. It will reproduce the original\n` +
+          `  film — including its brand names, copy and product claims, which are provenance\n` +
+          `  and not yours to ship. To make it your film:\n` +
+          `    1. read ${preset.template ?? "the adaptation guide"} and references/template-adaptation.md\n` +
+          `    2. adapt the source prompt to your subject, keeping its motion language\n` +
+          `    3. re-run with --prompt-file <your-adapted-prompt.txt>\n` +
+          `  Proceeding anyway produces a reference render, not a deliverable.\n`,
+      );
+    }
     if (route.fidelity !== "native") {
       warn(
         `! This is an adaptation, not a reproduction. Say so when you report the result — ` +
@@ -599,6 +619,14 @@ async function cmdVideo(catalog, args) {
     aspectRatio,
     refs,
     promptChars: prompt.length,
+    usedSourcePromptRaw,
+    deliverable: !usedSourcePromptRaw,
+    ...(usedSourcePromptRaw
+      ? {
+          warning:
+            "Generated from the unmodified archived source prompt. This reproduces the ORIGINAL film including its branding and copy. It is a reference render, not a deliverable.",
+        }
+      : {}),
   });
 
   const hasFirstFrame = refs.find((r) => r.role === "first_frame");
