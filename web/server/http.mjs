@@ -2,6 +2,7 @@
 // JSON, call a handler, map core's typed errors to statuses. Handlers live in
 // api/*.mjs and call cli/core; nothing here knows about jobs or money.
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { pipeline } from "node:stream/promises";
 import { extname, join, resolve, sep } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { CliError } from "../../cli/lib/errors.mjs";
@@ -27,6 +28,19 @@ export class HttpError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
+  }
+}
+
+/**
+ * Stream a file to the response. A client that hangs up mid-download is
+ * normal (ERR_STREAM_PREMATURE_CLOSE) and pipeline has already closed the
+ * file by then; any other failure drops the connection.
+ */
+export async function streamFile(res, file, options) {
+  try {
+    await pipeline(createReadStream(file, options), res);
+  } catch (err) {
+    if (err?.code !== "ERR_STREAM_PREMATURE_CLOSE") res.destroy();
   }
 }
 
@@ -97,7 +111,7 @@ async function readJson(req) {
   }
 }
 
-function serveStatic(req, res, distDir, pathname, key) {
+async function serveStatic(req, res, distDir, pathname, key) {
   const root = resolve(distDir);
   let rel;
   try {
@@ -114,7 +128,7 @@ function serveStatic(req, res, distDir, pathname, key) {
       "content-type": TYPES[extname(file)] ?? "application/octet-stream",
       "cache-control": rel.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
     });
-    return createReadStream(file).pipe(res);
+    return streamFile(res, file);
   }
   // Every page path gets the app; the page routes itself.
   const index = join(root, "index.html");

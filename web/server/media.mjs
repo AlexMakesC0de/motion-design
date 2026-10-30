@@ -1,10 +1,10 @@
 // Serves run outputs and library images to <video> and <img>. Only two roots,
 // real paths only, no hidden segments: the same confinement the MCP tools use.
-import { createReadStream, existsSync, realpathSync, statSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../../cli/lib/run.mjs";
 import { confinePath } from "../../cli/core/inputs.mjs";
-import { HttpError } from "./http.mjs";
+import { HttpError, streamFile } from "./http.mjs";
 
 const TYPES = {
   ".mp4": "video/mp4",
@@ -49,16 +49,25 @@ export async function serveMedia(req, res, pathname) {
 
   const type = TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
   const range = (req.headers.range ?? "").match(/^bytes=(\d*)-(\d*)$/);
-  if (!range) {
+  const first = range?.[1] ?? "";
+  const last = range?.[2] ?? "";
+  // "bytes=-", or a first byte after the last one, is not a Range at all: serve the whole file.
+  const valid = range && (first !== "" || last !== "") && !(first !== "" && last !== "" && Number(first) > Number(last));
+  if (!valid) {
     res.writeHead(200, { "content-type": type, "content-length": st.size, "accept-ranges": "bytes", "cache-control": "no-cache" });
-    return createReadStream(file).pipe(res);
+    return streamFile(res, file);
   }
-  const start = range[1] === "" ? st.size - Number(range[2]) : Number(range[1]);
-  const end = Math.min(range[1] !== "" && range[2] !== "" ? Number(range[2]) : st.size - 1, st.size - 1);
-  if (!(start >= 0) || start > end) {
-    res.writeHead(416, { "content-range": `bytes */${st.size}` });
-    return res.end();
+  let start;
+  let end;
+  if (first === "") {
+    if (Number(last) === 0) return unsatisfiable(res, st.size);
+    start = Math.max(0, st.size - Number(last)); // the last N bytes; N past the start is the whole file
+    end = st.size - 1;
+  } else {
+    start = Number(first);
+    end = Math.min(last === "" ? st.size - 1 : Number(last), st.size - 1);
   }
+  if (start >= st.size) return unsatisfiable(res, st.size);
   res.writeHead(206, {
     "content-type": type,
     "content-length": end - start + 1,
@@ -66,5 +75,10 @@ export async function serveMedia(req, res, pathname) {
     "accept-ranges": "bytes",
     "cache-control": "no-cache",
   });
-  return createReadStream(file, { start, end }).pipe(res);
+  return streamFile(res, file, { start, end });
+}
+
+function unsatisfiable(res, size) {
+  res.writeHead(416, { "content-range": `bytes */${size}` });
+  res.end();
 }
