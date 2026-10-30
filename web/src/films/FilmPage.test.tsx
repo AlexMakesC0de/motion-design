@@ -1,8 +1,8 @@
 import { describe, test, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { FilmPage, shotOrder } from "./FilmPage";
 import { emitForTests } from "../app/useStudio";
-import { film, filmFile, job, routes } from "../test-fixtures";
+import { film, filmFile, finishInfo, job, routes, task } from "../test-fixtures";
 
 describe("shotOrder", () => {
   test("keeps the last assembly's order, then adds new takes oldest first", () => {
@@ -36,6 +36,25 @@ describe("FilmPage", () => {
     fireEvent.click(use);
     expect(use).not.toBeChecked();
     expect(screen.getByText("1 of 2 shots chosen")).toBeInTheDocument();
+  });
+
+  test("Assemble takes the chosen shots in the order shown", async () => {
+    const fetch = vi.fn(
+      routes({
+        "/api/films/zed": () => film(),
+        "/api/finish": () => finishInfo(),
+        "/api/tasks": () => [],
+        "/api/films/zed/assemble": () => ({ task: task() }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(<FilmPage slug="zed" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Move out.mp4 down" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use out.mp4" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Assemble" }));
+    await waitFor(() => expect(fetch.mock.calls.some(([p]) => String(p) === "/api/films/zed/assemble")).toBe(true));
+    const [, init] = fetch.mock.calls.find(([p]) => String(p) === "/api/films/zed/assemble")!;
+    expect(JSON.parse(String(init!.body)).shots).toEqual(["out-2.mp4"]);
   });
 
   test("shows a take's cost from its job, in mono", async () => {

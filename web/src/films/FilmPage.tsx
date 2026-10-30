@@ -3,6 +3,7 @@ import { api, ApiError } from "../api/client";
 import type { FilmDetail, FilmFile } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { takeCost } from "../studio/format";
+import { FinishPanel } from "./FinishPanel";
 
 const OUTPUT_LABEL = { film: "Film", captioned: "Captioned", variant: "Variant", card: "Text card" } as const;
 
@@ -165,6 +166,7 @@ export function FilmPage({ slug }: { slug: string }) {
               )}
             </section>
           </div>
+          <FinishPanel film={detail} shots={shots.filter((s) => s.on).map((s) => s.name)} onChanged={load} />
         </div>
       )}
     </div>
