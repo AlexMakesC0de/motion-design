@@ -7,15 +7,15 @@
 
 import { parseArgs } from "node:util";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { EXIT, CliError, usage, unknown, uncertain, provider as providerError } from "./lib/errors.mjs";
-import { loadCatalog, resolveModel, validateVideoRequest, parseRef, parseParams, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
-import { createTask, redact } from "./lib/client.mjs";
-import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
-import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
+import { loadCatalog, resolveModel, validateVideoRequest, parseRef, parseParams, routesFor, isStale, catalogAgeDays } from "./lib/models.mjs";
+import { redact } from "./lib/client.mjs";
+import { getProvider, providerKey, hasKey, providerCredits } from "./lib/providers.mjs";
+import { waitForTask, download } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
-import { preflight, creditsAfter, estimateUsd, priceLabel } from "./lib/budget.mjs";
+import { estimateUsd, priceLabel } from "./lib/budget.mjs";
 import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
@@ -44,9 +44,11 @@ const HELP = `kie -- motion-design execution layer
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--ref URL:ROLE]... [--background B]
-                 [--param KEY=VALUE]... [--budget U] [--dry-run]
+                 [--param KEY=VALUE]... [--budget U]
+                 [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
-                 [--voice V] [--budget U] [--dry-run]
+                 [--voice V] [--budget U]
+                 [--provider kie|wavespeed] [--no-wait] [--dry-run]
 
   kie job        <local job id>            wait for a job and download it
   kie job resolve <local job id> (--task ID | --not-created)
