@@ -1,0 +1,42 @@
+/* Projection room, engine showing. The footage is the brightest thing on screen. */
+:root {
+  --bg: #0e0d0c;
+  --surface-1: #161412;
+  --surface-2: #1b1917;
+  --surface-3: #2a2724;
+  --line: #2c2926;
+  --text: #ece7df;
+  --text-2: #b9b0a3;
+  --text-3: #988f83; /* ≥4.5:1 on every surface, including --surface-3 */
+  --accent: #e8a33d; /* Generate, the spend meter and costs only */
+  --accent-ink: #1a1206;
+  --ok: #8fc79a;
+  --warn: #ef8a47; /* orange, so it reads apart from the amber accent */
+  --bad: #e2725b;
+  --bad-surface: #2b1a14;
+  --bad-ink: #f3c8b8;
+  --selection: rgb(232 163 61 / 0.32);
+
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-xs: 11px; /* floor for any functional text */
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+}
