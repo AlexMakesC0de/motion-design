@@ -283,3 +283,45 @@ describe("POST /api/films/:slug/variants", () => {
     assert.equal((await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["1:1"], mode: "stretch" })).json.error.field, "mode");
   });
 });
+
+describe("POST /api/films/:slug/card", () => {
+  test("renders a text card from a template and its props into the film", async () => {
+    const r = await post(slowPort, "/api/films/finish-gated/card", { template: "kinetic-type", props: { lines: ["Exactly", "these words"], kicker: "ZED" }, aspect_ratio: "9:16", duration_s: 5 });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.task.label, "Text card (kinetic-type)");
+    await slowApp.tasks.idle();
+    const task = slowApp.tasks.get(r.json.task.id);
+    assert.equal(task.state, "done", task.error);
+    assert.deepEqual(task.outputs, [{ name: "kinetic-type.mp4", url: "/media/runs/finish-gated/kinetic-type.mp4" }]);
+    const a = calls.render.at(-1);
+    assert.deepEqual([a.template, a.ratio, a.durationS], ["kinetic-type", "9:16", 5]);
+    assert.equal(a.propsPath, join(RUNS, "finish-gated", "props-kinetic-type.json"));
+    assert.deepEqual(JSON.parse(readFileSync(a.propsPath, "utf8")), { lines: ["Exactly", "these words"], kicker: "ZED" });
+    assert.ok(existsSync(join(RUNS, "finish-gated", "render-kinetic-type.json")));
+  });
+
+  test("an image in the props is confined like any other file, and saved as its real path", async () => {
+    writeFileSync(join(RUNS, "finish-gated", "logo.png"), "png");
+    const r = await post(slowPort, "/api/films/finish-gated/card", { template: "logo-reveal", props: { wordmark: "Zed", logo: "finish-gated/logo.png" } });
+    assert.equal(r.status, 200, r.text);
+    await slowApp.tasks.idle();
+    assert.equal(JSON.parse(readFileSync(calls.render.at(-1).propsPath, "utf8")).logo, join(RUNS, "finish-gated", "logo.png"));
+
+    writeFileSync(join(tmp, "logo.png"), "png");
+    const outside = await post(slowPort, "/api/films/finish-gated/card", { template: "logo-reveal", props: { wordmark: "Zed", logo: join(tmp, "logo.png") } });
+    assert.equal(outside.status, 400);
+    assert.equal(outside.json.error.field, "props");
+    assert.match(outside.json.error.message, /outside the folders/);
+    const remote = await post(slowPort, "/api/films/finish-gated/card", { template: "logo-reveal", props: { wordmark: "Zed", logo: "https://example.com/logo.png" } });
+    assert.match(remote.json.error.message, /remote URLs would be fetched from this machine/);
+  });
+
+  test("a missing required prop, an unknown template or a duration over a minute is refused on its field", async () => {
+    const noLines = await post(slowPort, "/api/films/finish-gated/card", { template: "kinetic-type", props: { lines: [] } });
+    assert.equal(noLines.status, 400);
+    assert.equal(noLines.json.error.field, "props.lines");
+    assert.match(noLines.json.error.message, /Lines is required for kinetic-type/);
+    assert.equal((await post(slowPort, "/api/films/finish-gated/card", { template: "captions", props: {} })).json.error.field, "template");
+    assert.equal((await post(slowPort, "/api/films/finish-gated/card", { template: "lower-third", props: { name: "Zed" }, duration_s: 600 })).json.error.field, "duration_s");
+  });
+});

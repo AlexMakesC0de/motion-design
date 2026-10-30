@@ -5,16 +5,17 @@
 // the MCP server call. Outputs always land in the film's folder under core's
 // next free default name; the studio never takes an output name or path.
 import { existsSync, readFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
 import { assemble } from "../../../cli/lib/assemble.mjs";
 import { burnCaptions } from "../../../cli/lib/caption.mjs";
 import { makeVariants, MODES, captionOrderWarning } from "../../../cli/lib/variants.mjs";
-import { render, requireRemotion } from "../../../cli/lib/render.mjs";
+import { render, requireRemotion, TEMPLATES } from "../../../cli/lib/render.mjs";
 import { requireFfmpeg, RATIOS, dimsFor } from "../../../cli/lib/ffmpeg.mjs";
 import { RUNS_DIR, runDir, outPath, writeRecord } from "../../../cli/lib/run.mjs";
 import { unknown, usage } from "../../../cli/lib/errors.mjs";
-import { checkLocalFile, confinePath } from "../../../cli/core/inputs.mjs";
-import { templateList } from "../templates.mjs";
+import { checkLocalFile, confinePath, confineProps } from "../../../cli/core/inputs.mjs";
+import { templateList, TEMPLATE_FIELDS } from "../templates.mjs";
 import { context } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
 import * as f from "./fields.mjs";
@@ -26,6 +27,7 @@ export const CORE_TOOLS = { assemble, burnCaptions, makeVariants, render };
 export const TRANSITIONS = ["fade", "fadeblack", "fadewhite", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "circleopen", "circleclose"];
 export const CAPTION_STYLES = ["social", "subtle"];
 const SHOT_AUDIO = ["auto", "keep", "drop"];
+const MAX_CARD_S = 60;
 // Size limits are for files sent to a provider; finishing reads local files only.
 const ANY_SIZE = { image: Infinity, video: Infinity, audio: Infinity };
 
@@ -161,6 +163,42 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
       const result = await tools.makeVariants({ video, ratios, mode, outDir: dir, onLine: progress });
       await writeRecord(dir, "variants.json", result);
       return { outputs: result.variants.map((v) => output(v.out)), warnings: warning ? [warning] : [] };
+    });
+    return { task };
+  });
+
+  /**
+   * Text cards: exact titles, logos or numbers rendered from a template by the
+   * render engine. Image paths in the props are confined by core's
+   * confineProps, as for the MCP render tool, and the props are kept in the
+   * film as props-<template>.json beside core's render record.
+   */
+  router.post("/api/films/:slug/card", ({ params, body = {} }) => {
+    const dir = filmDir(params.slug);
+    const template = f.text(body, "template", { required: true });
+    if (!TEMPLATES[template]) throw f.invalid("template", `Unknown template "${template}". Templates: ${Object.keys(TEMPLATES).join(", ")}.`);
+    const props = f.params({ params: body.props }); // a plain object, or {} when absent
+    for (const field of TEMPLATE_FIELDS[template].fields) {
+      const v = props[field.name];
+      const empty = v == null || v === "" || (Array.isArray(v) && !v.length);
+      if (field.required && empty) throw f.invalid(`props.${field.name}`, `${field.label} is required for ${template}.`);
+    }
+    let confined;
+    try {
+      confined = confineProps(props, context().roots);
+    } catch (err) {
+      throw f.invalid("props", err.message);
+    }
+    const ratio = oneOf(body, "aspect_ratio", Object.keys(RATIOS), "16:9");
+    const durationS = f.amount(body, "duration_s");
+    if (durationS > MAX_CARD_S) throw f.invalid("duration_s", `A text card runs ${MAX_CARD_S} seconds at most.`);
+    need(check, "render");
+    const task = tasks.start(params.slug, "card", `Text card (${template})`, async ({ progress }) => {
+      const propsPath = join(dir, `props-${template}.json`);
+      await writeFile(propsPath, JSON.stringify(confined, null, 2) + "\n");
+      const result = await tools.render({ template, propsPath, ratio, durationS, out: outPath(dir, undefined, template, ".mp4"), onLine: progress });
+      await writeRecord(dir, `render-${template}.json`, result);
+      return { outputs: [output(result.out)] };
     });
     return { task };
   });
