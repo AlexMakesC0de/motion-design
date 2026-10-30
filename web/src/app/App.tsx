@@ -7,10 +7,10 @@ import { StudioScreen } from "../studio/StudioScreen";
 import { LibraryScreen } from "../library/LibraryScreen";
 import { PresetsScreen } from "../presets/PresetsScreen";
 import { FilmsScreen } from "../films/FilmsScreen";
+import { SpendScreen } from "../spend/SpendScreen";
 import "./App.css";
 
 const LATER = {
-  spend: ["Spend", "Daily totals and every job will show here."],
   settings: ["Settings", "Chat connection, limits and provider keys will show here."],
 } as const;
 
@@ -19,6 +19,7 @@ function Screen({ tab, rest }: { tab: TabId; rest: string[] }) {
   if (tab === "library") return <LibraryScreen />;
   if (tab === "presets") return <PresetsScreen />;
   if (tab === "films") return <FilmsScreen slug={rest[0]} />;
+  if (tab === "spend") return <SpendScreen />;
   const [title, next] = LATER[tab];
   return <Placeholder title={title} next={next} />;
 }

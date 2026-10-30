@@ -1,0 +1,77 @@
+/* Spend: today against the cap, 14 days of bars, then every job. Tokens only.
+   Amber marks money: the meter, the bars and the cost column. Text stays in text tokens. */
+
+.spend { display: flex; flex-direction: column; gap: var(--space-5); }
+.spend__head h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
+.spend__top { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: var(--space-4); align-items: stretch; }
+.spend h2 { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.spend-today, .spend-chart {
+  display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1);
+}
+.spend-today__figure { margin: 0; display: flex; align-items: baseline; gap: var(--space-2); }
+.spend-today__figure .mono { font-size: 32px; color: var(--text); font-weight: 500; }
+.spend-today__of { color: var(--text-2); font-size: var(--text-md); }
+.spend-today__bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.spend-today__bar span { display: block; height: 100%; background: var(--accent); transform-origin: left; transition: transform 250ms var(--ease-out); }
+.spend-today__note { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.spend-today__hint { margin: auto 0 0; color: var(--text-3); font-size: var(--text-xs); }
+.spend-today__hint a { color: var(--text-2); }
+
+.spend-chart__frame { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); height: 180px; padding-bottom: 20px; }
+.spend-chart__axis { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; color: var(--text-3); font-size: var(--text-xs); margin: -7px 0; }
+.spend-chart__plot { position: relative; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); align-items: end; border-bottom: 1px solid var(--line); }
+.spend-chart__grid { position: absolute; left: 0; right: 0; height: 1px; background: var(--line); pointer-events: none; }
+.spend-chart__day {
+  position: relative; height: 100%; display: flex; align-items: flex-end; justify-content: center;
+  padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: var(--radius-sm);
+}
+.spend-chart__day:hover, .spend-chart__day:focus-visible { background: var(--surface-2); }
+.spend-chart__day[aria-pressed="true"] { background: var(--surface-3); }
+.spend-chart__bar { display: block; width: min(24px, 60%); background: var(--accent); border-radius: 4px 4px 0 0; }
+.spend-chart__day:hover .spend-chart__bar, .spend-chart__day:focus-visible .spend-chart__bar { filter: brightness(1.15); }
+.spend-chart__label { position: absolute; bottom: -20px; left: 0; right: 0; text-align: center; font-size: var(--text-xs); color: var(--text-3); }
+.spend-chart__tip {
+  position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 1;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) var(--space-2);
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--radius-sm); white-space: nowrap;
+}
+.spend-chart__tip strong { color: var(--text); font-size: var(--text-sm); }
+.spend-chart__tip span { color: var(--text-2); font-size: var(--text-xs); }
+.spend-chart__table summary { color: var(--text-2); font-size: var(--text-xs); cursor: pointer; }
+.spend-chart__table table { margin-top: var(--space-2); border-collapse: collapse; font-size: var(--text-xs); }
+.spend-chart__table th, .spend-chart__table td { padding: 2px var(--space-3) 2px 0; text-align: left; }
+.spend-chart__table th { color: var(--text-3); font-weight: 500; }
+
+.jobs { display: flex; flex-direction: column; gap: var(--space-2); }
+.jobs__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--text-sm); }
+.jobs__head h2 { margin-right: var(--space-3); }
+.jobs__head label { color: var(--text-2); }
+.jobs__head select {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 4px var(--space-2); font-size: var(--text-sm);
+}
+.jobs__count { margin-left: auto; color: var(--text-2); font-size: var(--text-xs); }
+.jobs__error { margin: 0; color: var(--bad-ink); }
+.jobs__none { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.jobs__table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.jobs__table th { text-align: left; font-size: var(--text-xs); font-weight: 500; color: var(--text-3); padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--line); }
+.jobs__table td { padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--line); vertical-align: middle; }
+.jobs__table td.mono { font-size: var(--text-xs); white-space: nowrap; }
+.jobs__table a { color: var(--text); }
+.jobs__cost { color: var(--accent); }
+.jobs__source { color: var(--text-2); }
+.jobs__state { color: var(--text-2); font-size: var(--text-xs); }
+tr[data-state="uncertain"] .jobs__state, tr[data-state="failed-unconfirmed"] .jobs__state { color: var(--warn); }
+tr[data-state="failed-charged"] .jobs__state { color: var(--bad-ink); }
+.jobs__more td { background: var(--surface-1); }
+.jobs__note { margin: 0; color: var(--text-2); font-size: var(--text-xs); }
+.jobs__message { margin: 0 0 var(--space-2); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); white-space: pre-wrap; }
+.resolve { display: flex; align-items: center; gap: var(--space-2); }
+.resolve code { font-size: var(--text-xs); color: var(--text); }
+
+@media (max-width: 900px) {
+  .spend__top { grid-template-columns: minmax(0, 1fr); }
+  .jobs__table { display: block; overflow-x: auto; }
+}

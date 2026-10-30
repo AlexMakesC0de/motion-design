@@ -25,7 +25,8 @@ describe("App", () => {
     window.location.hash = "#/spend";
     render(<App />);
     expect(screen.getByRole("heading", { name: "Spend" })).toBeInTheDocument();
-    expect(screen.getByText("Daily totals and every job will show here.")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument();
+    expect(screen.queryByText("Daily totals and every job will show here.")).toBeNull();
   });
 
   test("#/films/<name> opens that film's page", async () => {
