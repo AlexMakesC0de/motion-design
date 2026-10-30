@@ -56,6 +56,19 @@ describe("estimate reserves nothing and says whether the job may run", () => {
     assert.equal(e.withinDailyCap, false);
     assert.equal(e.allowed, false);
   });
+
+  test("above the per-job ceiling is not allowed, and says so", () => {
+    const e = views.estimate(catalog, seedance, { store, limits: { ...limits, perJobUsd: 0.5 } });
+    assert.equal(e.perJobUsd, 0.5);
+    assert.equal(e.withinPerJob, false);
+    assert.equal(e.allowed, false);
+  });
+
+  test("with no ceiling, perJobUsd is null and withinPerJob is true", () => {
+    const e = views.estimate(catalog, seedance, { store, limits });
+    assert.equal(e.perJobUsd, null);
+    assert.equal(e.withinPerJob, true);
+  });
 });
 
 describe("status and runs", () => {

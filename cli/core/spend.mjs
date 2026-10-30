@@ -8,7 +8,7 @@ import { UNSETTLED, countedUsd, localDay, pidAlive } from "./jobs.mjs";
 export const DEFAULT_LIMITS = { dailyUsd: 10, allowRoots: [] };
 export const LOCK_PATH = join(RUNS_DIR, ".spend.lock");
 
-/** ~/.config/kie/limits.json. No MCP tool writes it; `kie limits` is the only writer. */
+/** ~/.config/kie/limits.json. Writers: `kie limits` and the studio's Settings screen. No MCP tool or chat path writes it. */
 export const limitsPath = () => process.env.KIE_LIMITS_FILE || join(homedir(), ".config", "kie", "limits.json");
 
 export function readLimits(path = limitsPath()) {
@@ -24,6 +24,9 @@ export function readLimits(path = limitsPath()) {
     throw usage(`${path}: dailyUsd must be a number of dollars, 0 or more.`);
   }
   if (!Array.isArray(limits.allowRoots)) throw usage(`${path}: allowRoots must be a list of directories.`);
+  if (limits.perJobUsd != null && (typeof limits.perJobUsd !== "number" || !(limits.perJobUsd > 0))) {
+    throw usage(`${path}: perJobUsd must be a dollar amount above 0, or absent for no per-job limit.`);
+  }
   return limits;
 }
 
@@ -32,6 +35,22 @@ export function setDailyLimit(usd, path = limitsPath()) {
   // Number("") is 0, which would silently set the cap to 0.
   if (String(usd ?? "").trim() === "" || !Number.isFinite(n) || n < 0) throw usage(`--daily wants a dollar amount of 0 or more, got "${usd}".`);
   const next = { ...readLimits(path), dailyUsd: n };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(next, null, 2) + "\n");
+  return next;
+}
+
+/** "off" (or null) removes the per-job ceiling; anything else must be a dollar amount above 0. */
+export function setPerJobLimit(usd, path = limitsPath()) {
+  const { perJobUsd: _old, ...rest } = readLimits(path);
+  let next = rest;
+  if (!(usd == null || String(usd).trim() === "off")) {
+    const n = Number(usd);
+    if (String(usd).trim() === "" || !Number.isFinite(n) || n <= 0) {
+      throw usage(`--per-job wants a dollar amount above 0, or "off", got "${usd}".`);
+    }
+    next = { ...rest, perJobUsd: n };
+  }
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(next, null, 2) + "\n");
   return next;
@@ -132,6 +151,13 @@ function statSafe(path) {
  * the error says only the user can raise it.
  */
 export async function reserve(store, fields, { limits = readLimits(), lock = {} } = {}) {
+  if (limits.perJobUsd != null && fields.estimateUsd > limits.perJobUsd) {
+    throw budget(
+      `Refused, nothing spent. Estimated $${fields.estimateUsd.toFixed(2)} is above the ` +
+        `$${limits.perJobUsd.toFixed(2)} per-job limit. Ask the user; only they can raise it, with: kie limits --per-job N`,
+      { estimatedUsd: fields.estimateUsd, perJobUsd: limits.perJobUsd },
+    );
+  }
   return withSpendLock(() => {
     store.sweep();
     const pos = dailyPosition(store, limits);

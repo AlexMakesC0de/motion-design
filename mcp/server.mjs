@@ -280,6 +280,8 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           basis: z.string().nullable(),
           budgetUsd: z.number().nullable(),
           withinBudget: z.boolean(),
+          perJobUsd: z.number().nullable(),
+          withinPerJob: z.boolean(),
           availableTodayUsd: z.number(),
           withinDailyCap: z.boolean(),
           problems: z.array(z.string()),

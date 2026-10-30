@@ -19,7 +19,7 @@ import { estimateUsd, priceLabel } from "./lib/budget.mjs";
 import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
-import { readLimits, setDailyLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
+import { readLimits, setDailyLimit, setPerJobLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
 import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { openLibrary, KINDS } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
@@ -58,7 +58,7 @@ const HELP = `kie -- motion-design execution layer
   kie job        <local job id>            wait for a job and download it
   kie job resolve <local job id> (--task ID | --not-created)
                                            settle an uncertain job after checking the provider's log
-  kie limits     [--daily USD] [--json]    the daily cap, today's spend and unsettled jobs
+  kie limits     [--daily USD] [--per-job USD|off] [--json]   the daily cap, per-job limit, today's spend and unsettled jobs
   kie spend      [--today] [--run SLUG] [--since YYYY-MM-DD] [--json]
 
 Finishing (local ffmpeg — no key, no spend):
@@ -135,6 +135,7 @@ const OPTS = {
   since: { type: "string" },
   "no-wait": { type: "boolean", default: false },
   daily: { type: "string" },
+  "per-job": { type: "string" },
   task: { type: "string" },
   "not-created": { type: "boolean", default: false },
   "dry-run": { type: "boolean", default: false },
@@ -350,12 +351,18 @@ function cmdLimits(args) {
     const next = setDailyLimit(args.daily);
     say(`daily cap set to $${next.dailyUsd.toFixed(2)}  (${limitsPath()})`);
   }
+  if (args["per-job"] != null) {
+    const next = setPerJobLimit(args["per-job"]);
+    say(next.perJobUsd == null ? `per-job limit removed  (${limitsPath()})` : `per-job limit set to $${next.perJobUsd.toFixed(2)}  (${limitsPath()})`);
+  }
   const store = openJobs();
   store.sweep();
   const pos = dailyPosition(store, readLimits());
-  if (args.json) return say(JSON.stringify(pos, null, 2));
+  if (args.json) return say(JSON.stringify({ ...pos, perJobUsd: readLimits().perJobUsd ?? null }, null, 2));
 
   say(`daily cap:  $${pos.capUsd.toFixed(2)}`);
+  const perJob = readLimits().perJobUsd;
+  say(`per-job:    ${perJob == null ? "no limit" : `$${perJob.toFixed(2)}`}`);
   say(`today:      $${pos.spentUsd.toFixed(2)} spent or held, $${pos.availableUsd.toFixed(2)} available`);
   if (pos.unsettled.length) {
     say(`\nunsettled jobs (each holds its estimate until settled)`);

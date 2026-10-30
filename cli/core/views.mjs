@@ -112,8 +112,8 @@ export function listPresets(catalog) {
 }
 
 /**
- * What a planned job would cost and whether the per-job budget and today's
- * cap allow it. Reserves nothing and calls no provider. `refs` are checked by
+ * What a planned job would cost and whether the per-job budget, the per-job
+ * ceiling and today's cap allow it. Reserves nothing and calls no provider. `refs` are checked by
  * role only; assets are not expanded here.
  */
 export function estimate(catalog, req, { store, limits }) {
@@ -147,6 +147,8 @@ export function estimate(catalog, req, { store, limits }) {
   const usd = est?.usd ?? null;
   const withinBudget = usd != null && (cap == null || usd <= cap);
   const withinDailyCap = usd != null && usd <= pos.availableUsd;
+  const perJobUsd = limits.perJobUsd ?? null;
+  const withinPerJob = usd != null && (perJobUsd == null || usd <= perJobUsd);
   return {
     model: model.id,
     provider: route?.provider ?? null,
@@ -156,10 +158,12 @@ export function estimate(catalog, req, { store, limits }) {
     basis: est?.basis ?? null,
     budgetUsd: cap,
     withinBudget,
+    perJobUsd,
+    withinPerJob,
     availableTodayUsd: pos.availableUsd,
     withinDailyCap,
     problems,
-    allowed: !problems.length && withinBudget && withinDailyCap && Boolean(route?.usable),
+    allowed: !problems.length && withinBudget && withinPerJob && withinDailyCap && Boolean(route?.usable),
   };
 }
 

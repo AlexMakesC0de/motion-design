@@ -12,7 +12,7 @@ process.env.KIE_LIMITS_FILE = join(RUNS, "limits.json");
 
 const { EXIT } = await import("../cli/lib/errors.mjs");
 const { openJobs } = await import("../cli/core/jobs.mjs");
-const { readLimits, setDailyLimit, spentToday, dailyPosition, withSpendLock, reserve, LOCK_PATH } =
+const { readLimits, setDailyLimit, setPerJobLimit, spentToday, dailyPosition, withSpendLock, reserve, LOCK_PATH } =
   await import("../cli/core/spend.mjs");
 
 const fresh = (opts) => openJobs(mkdtempSync(join(tmpdir(), "kie-store-")), opts);
@@ -139,5 +139,49 @@ describe("the spend lock", () => {
     } finally {
       (await import("node:fs")).unlinkSync(LOCK_PATH);
     }
+  });
+});
+
+describe("per-job ceiling", () => {
+  const limitsFile = () => join(mkdtempSync(join(tmpdir(), "kie-lim-")), "limits.json");
+
+  test("absent by default, so existing limits files keep their meaning", () => {
+    assert.equal(readLimits(join(RUNS, "absent.json")).perJobUsd, undefined);
+  });
+
+  test("setPerJobLimit writes a ceiling and keeps the other settings; off removes it", () => {
+    const path = limitsFile();
+    writeFileSync(path, JSON.stringify({ dailyUsd: 7, allowRoots: [] }));
+    assert.equal(setPerJobLimit("2", path).perJobUsd, 2);
+    assert.deepEqual(readLimits(path), { dailyUsd: 7, allowRoots: [], perJobUsd: 2 });
+    setPerJobLimit("off", path);
+    assert.deepEqual(readLimits(path), { dailyUsd: 7, allowRoots: [] });
+  });
+
+  test("a zero, negative, blank or non-numeric ceiling is refused", () => {
+    for (const bad of ["0", "-1", "", "  ", "lots"]) {
+      assert.throws(() => setPerJobLimit(bad, limitsFile()), { code: EXIT.USAGE }, bad);
+    }
+  });
+
+  test("a limits file with a bad perJobUsd is an error", () => {
+    const path = limitsFile();
+    writeFileSync(path, JSON.stringify({ perJobUsd: "two" }));
+    assert.throws(() => readLimits(path), /perJobUsd/);
+  });
+
+  test("reserve refuses a job above the ceiling whatever budget the caller chose, and writes nothing", async () => {
+    const store = fresh();
+    await assert.rejects(
+      reserve(store, { run: "demo", estimateUsd: 2.5 }, { limits: { dailyUsd: 10, allowRoots: [], perJobUsd: 2 } }),
+      (e) => e.code === EXIT.BUDGET && /per-job limit/.test(e.message) && /kie limits --per-job/.test(e.message),
+    );
+    assert.deepEqual(store.list(), []);
+  });
+
+  test("reserve allows a job at or under the ceiling", async () => {
+    const store = fresh();
+    const job = await reserve(store, { run: "demo", estimateUsd: 2 }, { limits: { dailyUsd: 10, allowRoots: [], perJobUsd: 2 } });
+    assert.equal(job.state, "reserved");
   });
 });
