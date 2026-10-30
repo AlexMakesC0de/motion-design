@@ -29,7 +29,8 @@ export function readLimits(path = limitsPath()) {
 
 export function setDailyLimit(usd, path = limitsPath()) {
   const n = Number(usd);
-  if (!Number.isFinite(n) || n < 0) throw usage(`--daily wants a dollar amount of 0 or more, got "${usd}".`);
+  // Number("") is 0, which would silently set the cap to 0.
+  if (String(usd ?? "").trim() === "" || !Number.isFinite(n) || n < 0) throw usage(`--daily wants a dollar amount of 0 or more, got "${usd}".`);
   const next = { ...readLimits(path), dailyUsd: n };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(next, null, 2) + "\n");

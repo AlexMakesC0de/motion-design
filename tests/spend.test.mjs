@@ -35,6 +35,13 @@ describe("limits", () => {
     assert.throws(() => setDailyLimit("lots", join(RUNS, "x.json")), { code: EXIT.USAGE });
   });
 
+  test("an empty or blank cap is refused, not read as 0", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "kie-lim-")), "limits.json");
+    assert.throws(() => setDailyLimit("", path), { code: EXIT.USAGE });
+    assert.throws(() => setDailyLimit("   ", path), { code: EXIT.USAGE });
+    assert.deepEqual(readLimits(path), { dailyUsd: 10, allowRoots: [] }, "nothing was written");
+  });
+
   test("a broken limits file is an error, not a silent default", () => {
     const path = join(RUNS, "broken.json");
     writeFileSync(path, "{ nope");
