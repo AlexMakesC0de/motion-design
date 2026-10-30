@@ -45,7 +45,7 @@ function sweepIncoming(dir, now = Date.now()) {
 }
 
 /** A label for messages from the client's file name. Never used as a path. */
-function label(header) {
+export function label(header) {
   let name = "";
   try {
     name = decodeURIComponent(String(header ?? ""));
@@ -57,7 +57,7 @@ function label(header) {
 }
 
 /** Stream the request body to `path`, keeping at most `limit` bytes. Returns the full size sent. */
-async function saveBody(req, path, limit) {
+export async function saveBody(req, path, limit) {
   let size = 0;
   const cap = new Transform({
     transform(chunk, _enc, done) {

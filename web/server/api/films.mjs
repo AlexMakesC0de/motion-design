@@ -1,14 +1,27 @@
-// Films: one card per run folder, and one film's files for its page. Reads
-// only; the finishing tools are in finish.mjs. Core's getRun checks the slug,
-// refuses an unknown run (code 3) and lists the folder's files.
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { join } from "node:path";
+// Films: one card per run folder, one film's files for its page, and the two
+// ways files get into a film from the page: music or voice-over uploaded as a
+// raw body, and captions pasted as SRT text. The finishing tools are in
+// finish.mjs. Core's getRun checks the slug, refuses an unknown run (code 3)
+// and lists the folder's files.
+import { mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { basename, extname, join } from "node:path";
 import { listRuns, getRun } from "../../../cli/core/views.mjs";
-import { runDir } from "../../../cli/lib/run.mjs";
+import { checkLocalFile } from "../../../cli/core/inputs.mjs";
+import { RUNS_DIR, runDir, claimArtifact, landArtifact } from "../../../cli/lib/run.mjs";
+import { parseSrt } from "../../../cli/lib/caption.mjs";
 import { RATIOS } from "../../../cli/lib/ffmpeg.mjs";
 import { TEMPLATES } from "../../../cli/lib/render.mjs";
 import { context, jobView } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
+import { HttpError } from "../http.mjs";
+import { label, saveBody } from "./library.mjs";
+import { filmDir } from "./finish.mjs";
+import * as f from "./fields.mjs";
+
+/** Music beds run long and are never sent to a provider, so the ceiling is core's largest (video), not its 30 MB audio limit. */
+export const MAX_AUDIO_UPLOAD = 200_000_000;
 
 const KINDS = [
   [/\.(mp4|mov|webm)$/i, "video"],
@@ -86,7 +99,79 @@ export function filmDetail(slug, following) {
   return { run: run.run, prompt: run.prompt, files, order: lastOrder(dir, videos) };
 }
 
-export function registerFilms(router, { following } = {}) {
+/** "My Song (final).mp3" -> "my-song-final": a plain file stem, or `fallback`. */
+export function plainStem(name, fallback) {
+  const stem = basename(name, extname(name))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return stem || fallback;
+}
+
+export function registerFilms(router, { following, maxAudioBytes = MAX_AUDIO_UPLOAD } = {}) {
   router.get("/api/films", () => listRuns().map((r) => ({ ...r, cover: cover(r.run) })));
   router.get("/api/films/:slug", ({ params }) => filmDetail(params.slug, following));
+
+  /**
+   * Music or voice-over for Assemble, as the raw file body. It is streamed to
+   * runs/.incoming/, checked by core as audio, then moved into the film under
+   * a plain name from the client's (claimArtifact never replaces a file).
+   */
+  router.post(
+    "/api/films/:slug/audio",
+    async ({ params, req }) => {
+      const dir = filmDir(params.slug);
+      const incoming = join(RUNS_DIR, ".incoming");
+      mkdirSync(incoming, { recursive: true });
+      const root = realpathSync(incoming);
+      const part = join(root, `${randomBytes(16).toString("hex")}.part`);
+      const name = label(req.headers["x-file-name"]);
+      const drop = () => rmSync(part, { force: true });
+      let size;
+      try {
+        size = await saveBody(req, part, maxAudioBytes);
+      } catch (err) {
+        drop();
+        throw err;
+      }
+      if (size > maxAudioBytes) {
+        drop();
+        throw new HttpError(413, `${name} is over ${Math.round(maxAudioBytes / 1e6)} MB; nothing was saved.`);
+      }
+      if (size === 0) {
+        drop();
+        throw f.invalid("file", `${name} is empty.`);
+      }
+      let info;
+      try {
+        info = checkLocalFile(part, { roots: [root], kinds: ["audio"], maxBytes: { audio: maxAudioBytes } });
+      } catch (err) {
+        drop();
+        err.message = err.message.replaceAll(part, name);
+        err.field = "file";
+        throw err;
+      }
+      const { path } = claimArtifact(part, dir, plainStem(name, "audio"), info.ext);
+      return { name: basename(path), kind: "audio", url: mediaUrl(path), bytes: info.bytes };
+    },
+    { raw: true },
+  );
+
+  /**
+   * Captions arrive as SRT text (pasted, or read from a file by the page): an
+   * SRT has no signature to check by content, and core's parser says at once
+   * whether its cues read. Saved as captions.srt, or the next free number.
+   */
+  router.post("/api/films/:slug/srt", async ({ params, body = {} }) => {
+    const dir = filmDir(params.slug);
+    const text = f.text(body, "text", { required: true });
+    const parsed = parseSrt(text);
+    if (!parsed.cues.length) {
+      throw f.invalid("text", "No readable cues. Each cue is a number, a line like 00:00:01,000 --> 00:00:03,500, then its text, with a blank line between cues.");
+    }
+    const { path } = await landArtifact(dir, "captions", ".srt", (p) => writeFile(p, text));
+    return { name: basename(path), url: mediaUrl(path), cues: parsed.cues.length, problems: parsed.problems, lastEndS: parsed.lastEnd };
+  });
 }

@@ -1,7 +1,7 @@
 import { RUNS, KEY, deps, req, tmp } from "./helpers.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const { createApp } = await import("../server/app.mjs");
@@ -86,5 +86,56 @@ describe("GET /api/films/:slug", () => {
     assert.equal(r.json.error.code, 3);
     assert.match(r.json.error.message, /No run "no-such-film"/);
     assert.equal((await req(port, "/api/films/Bad%20Slug")).status, 400);
+  });
+});
+
+describe("POST /api/films/:slug/audio", () => {
+  const wav = Buffer.concat([Buffer.from("RIFF\x24\x00\x00\x00WAVEfmt ", "latin1"), Buffer.alloc(64)]);
+  const upload = (film, body, name) => req(port, `/api/films/${film}/audio`, { method: "POST", body, headers: { "content-type": "application/octet-stream", "x-file-name": encodeURIComponent(name) } });
+
+  test("streams music into the film under a plain name from the file's, never over a file already there", async () => {
+    const r = await upload("film-demo", wav, "My Song (final).wav");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json, { name: "my-song-final.wav", kind: "audio", url: "/media/runs/film-demo/my-song-final.wav", bytes: wav.length });
+    assert.ok(existsSync(join(film, "my-song-final.wav")));
+    const again = await upload("film-demo", wav, "My Song (final).wav");
+    assert.equal(again.json.name, "my-song-final-2.wav");
+  });
+
+  test("a file that is not audio is refused by its content and nothing is kept", async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...Buffer.alloc(32)]);
+    const r = await upload("film-demo", png, "song.mp3");
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.field, "file");
+    assert.match(r.json.error.message, /^song\.mp3 is not an audio file/);
+    assert.ok(!existsSync(join(film, "song.mp3")));
+    assert.deepEqual(readdirSync(join(RUNS, ".incoming")), []);
+  });
+
+  test("an empty upload and an unknown film are refused", async () => {
+    assert.equal((await upload("film-demo", Buffer.alloc(0), "x.wav")).json.error.field, "file");
+    const r = await upload("no-such-film", wav, "x.wav");
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.code, 3);
+  });
+});
+
+describe("POST /api/films/:slug/srt", () => {
+  const srt = "1\n00:00:00,000 --> 00:00:01,500\nHello\n\n2\n00:00:01,000 --> 00:00:03,000\nAgain\n";
+
+  test("saves pasted captions as captions.srt in the film, numbering the next one, and reports core's problems", async () => {
+    const r = await req(port, "/api/films/film-demo/srt", { method: "POST", body: { text: srt } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.name, "captions-2.srt", "captions.srt was already there");
+    assert.equal(r.json.cues, 2);
+    assert.deepEqual(r.json.problems, ["Cue 2 starts at 1s before cue 1 ends at 1.5s."]);
+    assert.equal(readFileSync(join(film, "captions-2.srt"), "utf8"), srt);
+  });
+
+  test("text with no readable cue is refused on its field", async () => {
+    const r = await req(port, "/api/films/film-demo/srt", { method: "POST", body: { text: "just words" } });
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.field, "text");
+    assert.match(r.json.error.message, /No readable cues/);
   });
 });
