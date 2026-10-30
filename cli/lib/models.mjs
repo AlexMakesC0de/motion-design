@@ -240,6 +240,32 @@ export function buildInput(route, values = {}) {
     else out[field] = ref.url;
   }
 
+  // Documented per-route limits, checked after asset expansion so `zed`
+  // counts as however many images it holds.
+  const refLimits = schema.refLimits ?? {};
+  for (const [field, max] of Object.entries(refLimits.maxCount ?? {})) {
+    const n = Array.isArray(out[field]) ? out[field].length : 0;
+    if (n > max) problems.push(`${route.model} takes at most ${max} in ${field}; got ${n}.`);
+  }
+  const img = refLimits.image;
+  for (const r of img ? values.refs ?? [] : []) {
+    const f = r.file;
+    if (!f?.mime?.startsWith("image/")) continue;
+    const name = r.label ?? r.url;
+    if (f.width && f.height) {
+      if (Math.min(f.width, f.height) < img.minSide || Math.max(f.width, f.height) > img.maxSide) {
+        problems.push(`${name}: ${f.width}×${f.height} is outside ${route.model}'s ${img.minSide}-${img.maxSide}px per side.`);
+      }
+      const aspect = f.width / f.height;
+      if (aspect < img.minAspect || aspect > img.maxAspect) {
+        problems.push(`${name}: aspect ${aspect.toFixed(2)} is outside ${route.model}'s ${img.minAspect}-${img.maxAspect}.`);
+      }
+    }
+    if (f.bytes > img.maxBytes) {
+      problems.push(`${name}: ${(f.bytes / 1e6).toFixed(1)}MB is over ${route.model}'s ${img.maxBytes / 1e6}MB per image.`);
+    }
+  }
+
   // Combinations the provider documents as impossible are refused here, free,
   // rather than posted for a paid round trip or a silently ignored input.
   const roles = new Set((values.refs ?? []).map((r) => r.role));
@@ -262,7 +288,7 @@ export function buildInput(route, values = {}) {
   return { input: out, unverified: false, problems };
 }
 
-/** `--ref <url>:<role>` -- refuses a local path by design. See parseRef tests. */
+/** `--ref <url|asset|asset#n>:<role>` -- refuses a local path by design. See parseRef tests. */
 export function parseRef(spec) {
   const idx = spec.lastIndexOf(":");
   if (idx <= 0) {
@@ -271,13 +297,19 @@ export function parseRef(spec) {
   const url = spec.slice(0, idx);
   const role = spec.slice(idx + 1);
 
+  // A saved asset: `zed` (all its images) or `zed#2` (one of them). The role
+  // check keeps a URL with no role ("https://x.test/a.png" splits at "https:")
+  // from reading as an asset named "https".
+  if (/^[a-z0-9][a-z0-9-]{0,80}(#\d+)?$/.test(url) && /^[a-z_]+$/.test(role)) return { source: url, role };
+
   if (!/^https?:\/\//i.test(url)) {
     throw usage(
       `A local path is not a remote attachment: "${url}".\n` +
-        `Run \`kie upload ${url}\` first and pass the URL it prints.`,
+        `Run \`kie upload ${url}\` first and pass the URL it prints, or save it as an asset ` +
+        `(kie asset save) and pass its name.`,
     );
   }
-  return { url, role };
+  return { source: url, role };
 }
 
 /**

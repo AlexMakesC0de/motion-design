@@ -607,6 +607,19 @@
               },
               "note": "Frame-to-video and reference-to-video are separate modes; for strict frame matching use frames, not reference images."
             },
+            "refLimits": {
+              "maxCount": {
+                "reference_image_urls": 30
+              },
+              "image": {
+                "minSide": 300,
+                "maxSide": 6000,
+                "minAspect": 0.4,
+                "maxAspect": 2.5,
+                "maxBytes": 30000000
+              },
+              "source": "docs.kie.ai/market/bytedance/seedance-2-5.md, read 2026-10-30"
+            },
             "params": {
               "generate_audio": {
                 "type": "boolean"

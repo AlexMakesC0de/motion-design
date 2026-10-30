@@ -27,7 +27,7 @@ const MAX_BYTES = 64 * 1024 * 1024;
  * is not a remote attachment; `--ref` enforces it by refusing paths outright,
  * and this is the sanctioned way across.
  */
-export async function uploadFile(catalog, path, { providerName = "kie" } = {}) {
+export async function uploadFile(catalog, path, { providerName = "kie", mime: knownMime } = {}) {
   const prov = getProvider(catalog, providerName);
   if (!prov.upload) {
     throw usage(
@@ -46,7 +46,7 @@ export async function uploadFile(catalog, path, { providerName = "kie" } = {}) {
   }
 
   const ext = extname(path).toLowerCase();
-  const mime = MIME[ext];
+  const mime = knownMime ?? MIME[ext];
   if (!mime) {
     throw usage(
       `Unsupported file type "${ext || "(none)"}". Supported: ${Object.keys(MIME).join(", ")}`,

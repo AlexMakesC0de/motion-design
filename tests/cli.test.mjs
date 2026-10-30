@@ -134,7 +134,7 @@ describe("--ref enforces the local-path rule in code, not prose", () => {
 
   test("a URL containing colons still splits on the last one", () => {
     assert.deepEqual(parseRef("https://cdn.test:8443/a/b.png:first_frame"), {
-      url: "https://cdn.test:8443/a/b.png",
+      source: "https://cdn.test:8443/a/b.png",
       role: "first_frame",
     });
   });
