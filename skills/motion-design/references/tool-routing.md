@@ -9,13 +9,14 @@ MCP to connect and no capability that exists in one client and not another.
 | Browse examples or draft a prompt | Local skill files; no generation, no key required |
 | Read what a model can actually do | `kie models --capability video` |
 | See a preset's route and fidelity | `kie presets` |
-| Check cost and settings without spending | `kie preflight --model M --duration N --ar R` |
+| Check cost and settings without spending | `kie preflight --model M --duration N --resolution R --ar R` |
 | Create needed reference images | `kie image --run SLUG --prompt "..."` |
 | Bring a local asset in | `kie upload <path>` |
 | Generate the complete film | `kie video --run SLUG --preset P` |
 | Rejoin an uncertain or long job | `kie job <taskId> --run SLUG` |
 | Draw text, a logo, numbers or a screenshot | `kie render --template T` |
 | Read a file's real duration, size and loudness | `kie probe <file>` |
+| See a clip without playing it; get its last frame for the next shot | `kie frames <video> --run SLUG` |
 | Add a music bed, a voiceover, or join takes | `kie assemble --run SLUG` |
 | Burn captions | `kie caption --run SLUG` |
 | Reframe to another aspect ratio | `kie variants --run SLUG` |
@@ -55,6 +56,8 @@ simultaneously. Read the table; quote the table.
 
 The CLI refuses an unknown model locally rather than forwarding it, so a guessed
 `--model` fails instantly and for free (exit `3`) instead of after an upload.
+
+Provider fields without a flag of their own (Seedance 2.5's `generate_audio`, for a silent film) go through `--param key=value`; `kie models --json` shows which fields each route declares.
 
 ## Native routes versus adaptations
 

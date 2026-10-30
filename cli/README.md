@@ -190,3 +190,27 @@ field is required":
 when a value is out of range. A route with `schemaVerified: false` has no
 captured contract: the body is a guess, the CLI warns, and references are
 **refused** rather than dropped silently, since there is no field to map them to.
+
+### Prices follow the provider's billing unit
+
+A route with `pricing: { per: "second", usdPerSecond: { <resolution>: <usd> } }`
+is estimated as duration × the rate for the requested resolution, which is how
+Seedance 2.5 and H3 bill on kie. `priceUsd` stays as the fallback when the
+duration or resolution is unknown. `kie preflight --duration N --resolution R`
+shows the estimate and how it was worked out.
+
+### Passing a provider field the CLI has no flag for
+
+`--param key=value` (repeatable) sends a field such as Seedance 2.5's
+`generate_audio=false`. Only fields declared under the route's `input.params`
+pass, with their type and allowed values checked locally. Anything else is
+refused with exit 3, so a param can never replace the prompt or a reference
+field. A route with no captured contract refuses every param.
+
+### Reference rules
+
+`input.refRules` holds what the provider documents as impossible:
+`exclusiveGroups` (roles from different groups cannot share a job, e.g. Seedance
+2.5's first frame with reference images) and `requires` (e.g. a last frame needs
+a first frame). Violations are refused before anything is uploaded or spent.
+An image-to-video model with its own contract carries it as `i2vInput`.
