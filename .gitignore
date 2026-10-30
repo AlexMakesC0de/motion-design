@@ -23,3 +23,7 @@ node_modules/
 # Remotion's own dependency tree (React + a headless browser). Installed on
 # demand by `cd render && npm install`; nothing else in the project needs it.
 /render/node_modules/
+
+# Saved reference assets (characters, products, screens). Private material,
+# like runs/.
+/library/
