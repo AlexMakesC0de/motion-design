@@ -1,0 +1,435 @@
+#!/usr/bin/env node
+// MCP server over the kie harness, for Claude Code and Codex over stdio.
+// Thin by design: validate input, call cli/core or cli/lib, shape the result.
+// stdout carries the protocol, so nothing in here may print to it.
+
+import { realpathSync, writeFileSync } from "node:fs";
+import { basename, extname, isAbsolute, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+import { loadCatalog, resolveModel, validateVideoRequest } from "../cli/lib/models.mjs";
+import { loadPresets, findPreset, routeFor } from "../cli/lib/presets.mjs";
+import { RUNS_DIR, runDir, outPath, writeRecord } from "../cli/lib/run.mjs";
+import { uploadFile } from "../cli/lib/upload.mjs";
+import { probe, measureLoudness, dimsFor, RATIOS } from "../cli/lib/ffmpeg.mjs";
+import { extractFrames } from "../cli/lib/frames.mjs";
+import { assemble } from "../cli/lib/assemble.mjs";
+import { makeVariants, MODES } from "../cli/lib/variants.mjs";
+import { burnCaptions } from "../cli/lib/caption.mjs";
+import { render, TEMPLATES } from "../cli/lib/render.mjs";
+import { unknown, usage } from "../cli/lib/errors.mjs";
+import { openJobs } from "../cli/core/jobs.mjs";
+import { readLimits } from "../cli/core/spend.mjs";
+import { submitJob, waitJob } from "../cli/core/generate.mjs";
+import { openLibrary, KINDS } from "../cli/core/assets.mjs";
+import { expandRefs } from "../cli/core/refs.mjs";
+import { allowedRoots, confinePath } from "../cli/core/inputs.mjs";
+import { status, listModels, listPresets, estimate, listRuns, getRun } from "../cli/core/views.mjs";
+import { ok, fail } from "./results.mjs";
+import { artifactPreview, imagePreview } from "./preview.mjs";
+
+const VERSION = "0.1.0";
+
+const INSTRUCTIONS =
+  "Motion-design studio over kie.ai. Look first (status, list_models, list_presets, estimate), " +
+  "then generate_image or generate_video, then wait_job until it finishes. Generating spends real money " +
+  "against a per-job budget and a daily cap. Error 2 means nothing was spent: ask the user. " +
+  "Error 5 means a job may exist: never resubmit it. Relative paths are inside runs/; only runs/, " +
+  "library/ and folders the user allowed can be read.";
+
+const LOOK = { readOnlyHint: true, openWorldHint: false };
+const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+const SPEND = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+
+const Job = z.object({
+  id: z.string(),
+  state: z.string(),
+  run: z.string(),
+  model: z.string(),
+  provider: z.string(),
+  upstreamTaskId: z.string().nullable(),
+  estimateUsd: z.number().nullable(),
+  actualUsd: z.number().nullable(),
+  createdAt: z.string(),
+});
+
+const Asset = {
+  name: z.string(),
+  kind: z.string(),
+  description: z.string(),
+  images: z.array(
+    z.object({
+      n: z.number().int(),
+      file: z.string(),
+      path: z.string(),
+      width: z.number().nullable(),
+      height: z.number().nullable(),
+      bytes: z.number(),
+      uploadedAt: z.string().nullable(),
+    }),
+  ),
+  usedIn: z.array(z.string()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+};
+
+const assetView = (a) => ({
+  name: a.name,
+  kind: a.kind,
+  description: a.description,
+  images: a.images.map((im) => ({
+    n: im.n,
+    file: im.file,
+    path: im.path,
+    width: im.width ?? null,
+    height: im.height ?? null,
+    bytes: im.bytes,
+    uploadedAt: im.upload?.at ?? null,
+  })),
+  usedIn: a.usedIn ?? [],
+  createdAt: a.createdAt,
+  updatedAt: a.updatedAt,
+});
+
+/**
+ * Build the server. `deps` replaces anything that would reach a provider:
+ * `generate` (preflight, createTask, waitForTask, download, creditsAfter),
+ * `upload` and `credits` (the balance read). Tests pass stubs; production
+ * passes nothing.
+ */
+export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
+  const server = new McpServer({ name: "motion-design", version: VERSION }, { instructions: INSTRUCTIONS });
+
+  const tool = (name, config, fn) =>
+    server.registerTool(name, config, async (args) => {
+      try {
+        return await fn(args ?? {});
+      } catch (err) {
+        return fail(err);
+      }
+    });
+
+  /** Per call, so a limits change or a new run folder is seen without a restart. */
+  const ctx = () => {
+    const limits = readLimits();
+    return { limits, store: openJobs(), roots: allowedRoots(limits), library: openLibrary() };
+  };
+
+  /** A path a client named: relative means inside runs/; the real path must sit in an allowed root. */
+  const clientPath = (p, roots) => confinePath(isAbsolute(p) ? p : join(RUNS_DIR, p), roots);
+
+  /** A file of a run: a bare name is looked for in the run folder; anything else is a client path. */
+  const runFile = (dir, name, roots) =>
+    name.includes("/") || isAbsolute(name) ? clientPath(name, roots) : confinePath(join(dir, name), roots);
+
+  /** Outputs land in the run folder under a plain name, never a path. */
+  const outName = (name) => {
+    if (name == null) return undefined;
+    if (/[\\/]/.test(name) || name.startsWith(".")) {
+      throw unknown(`out must be a plain file name inside the run folder, got "${name}".`);
+    }
+    return name;
+  };
+
+  const Ref = z.object({
+    source: z
+      .string()
+      .describe('An asset name ("zed"), one of its images ("zed#2"), an https:// URL, or a file inside runs/ (relative) or library/.'),
+    role: z.enum(catalog.roles),
+  });
+
+  registerLook();
+  registerAssets();
+  registerGenerate(); // Task 5
+  registerFinish(); // Task 6
+  return server;
+
+  function registerLook() {
+    tool(
+      "status",
+      {
+        title: "Status",
+        description: "Keys, kie balance, catalog age, today's spend against the daily cap, and jobs not yet settled. Free.",
+        inputSchema: {},
+        outputSchema: {
+          providers: z.array(
+            z.object({
+              name: z.string(),
+              label: z.string(),
+              keyConfigured: z.boolean(),
+              balance: z.number().nullable(),
+              unit: z.string().nullable(),
+            }),
+          ),
+          catalog: z.object({ captured: z.string().nullable(), ageDays: z.number().nullable(), stale: z.boolean() }),
+          today: z.object({ capUsd: z.number(), spentUsd: z.number(), availableUsd: z.number() }),
+          unsettled: z.array(Job),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: true },
+      },
+      async () => {
+        const { store, limits } = ctx();
+        const s = await status(catalog, { store, limits, credits: deps.credits });
+        const lines = [
+          `today: $${s.today.spentUsd.toFixed(2)} spent or held of $${s.today.capUsd.toFixed(2)}; $${s.today.availableUsd.toFixed(2)} available`,
+          ...s.providers.map(
+            (p) => `${p.label}: ${p.keyConfigured ? "key configured" : "no key"}${p.balance != null ? `, ${p.balance} ${p.unit ?? ""}` : ""}`,
+          ),
+          `catalog captured ${s.catalog.captured}${s.catalog.stale ? " (stale: prices may be out of date)" : ""}`,
+          s.unsettled.length ? `not settled: ${s.unsettled.map((j) => `${j.id} ${j.state}`).join(", ")}` : "no unsettled jobs",
+        ];
+        return ok(lines.join("\n"), s);
+      },
+    );
+
+    tool(
+      "list_models",
+      {
+        title: "List models",
+        description: "Models with durations, aspect ratios, reference roles, price per route and whether each route is verified. Free.",
+        inputSchema: { capability: z.enum(["video", "image", "audio"]).optional() },
+        outputSchema: {
+          models: z.array(
+            z.object({
+              id: z.string(),
+              capability: z.string(),
+              durationsS: z.array(z.number()),
+              aspectRatios: z.array(z.string()),
+              resolutions: z.array(z.string()),
+              refRoles: z.array(z.string()),
+              nativeAudio: z.boolean(),
+              notes: z.string().nullable(),
+              routes: z.array(
+                z.object({
+                  provider: z.string(),
+                  price: z.string(),
+                  verified: z.boolean(),
+                  usable: z.boolean(),
+                  skipReason: z.string().nullable(),
+                }),
+              ),
+            }),
+          ),
+        },
+        annotations: LOOK,
+      },
+      async ({ capability }) => {
+        const models = listModels(catalog, { capability });
+        return ok(models.map((m) => `${m.id} (${m.capability}): ${m.routes.map((r) => `${r.provider} ${r.price}`).join("; ")}`).join("\n"), { models });
+      },
+    );
+
+    tool(
+      "list_presets",
+      {
+        title: "List presets",
+        description: "Gallery presets: default duration and aspect ratio, the model each runs on, native or adaptation, and the source prompt and guide to adapt from. Free.",
+        inputSchema: {},
+        outputSchema: {
+          presets: z.array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              tagline: z.string().nullable(),
+              bestFor: z.string().nullable(),
+              durationS: z.number().nullable(),
+              aspectRatio: z.string().nullable(),
+              model: z.string().nullable(),
+              fidelity: z.string().nullable(),
+              sourcePromptPath: z.string().nullable(),
+              guide: z.string().nullable(),
+            }),
+          ),
+        },
+        annotations: LOOK,
+      },
+      async () => {
+        const presets = listPresets(catalog);
+        return ok(presets.map((p) => `${p.id}: ${p.title} [${p.fidelity ?? "unrouted"}]`).join("\n"), { presets });
+      },
+    );
+
+    tool(
+      "estimate",
+      {
+        title: "Estimate",
+        description: "Cost of a planned job and whether the per-job budget and today's cap allow it. Reserves nothing, calls no provider. Free.",
+        inputSchema: {
+          model: z.string(),
+          duration_s: z.number().int().positive().optional(),
+          resolution: z.string().optional(),
+          aspect_ratio: z.string().optional(),
+          refs: z.array(Ref).optional(),
+          params: z.record(z.string(), z.unknown()).optional(),
+          budget_usd: z.number().positive().optional(),
+          provider: z.string().optional(),
+        },
+        outputSchema: {
+          model: z.string(),
+          provider: z.string().nullable(),
+          providerModel: z.string().nullable(),
+          routeUsable: z.boolean(),
+          estimateUsd: z.number().nullable(),
+          basis: z.string().nullable(),
+          budgetUsd: z.number().nullable(),
+          withinBudget: z.boolean(),
+          availableTodayUsd: z.number(),
+          withinDailyCap: z.boolean(),
+          problems: z.array(z.string()),
+          allowed: z.boolean(),
+        },
+        annotations: LOOK,
+      },
+      async (a) => {
+        const { store, limits } = ctx();
+        const e = estimate(
+          catalog,
+          {
+            model: a.model,
+            durationS: a.duration_s,
+            resolution: a.resolution,
+            aspectRatio: a.aspect_ratio,
+            refs: a.refs ?? [],
+            params: a.params ?? {},
+            budgetUsd: a.budget_usd,
+            provider: a.provider,
+          },
+          { store, limits },
+        );
+        const head = e.estimateUsd == null ? "no estimate" : `$${e.estimateUsd.toFixed(2)} (${e.basis})`;
+        const verdict = e.allowed ? "allowed" : `not allowed${e.problems.length ? `: ${e.problems.join("; ")}` : ""}`;
+        return ok(`${e.model} via ${e.provider ?? "?"}: ${head}; $${e.availableTodayUsd.toFixed(2)} available today; ${verdict}`, e);
+      },
+    );
+
+    tool(
+      "list_runs",
+      {
+        title: "List runs",
+        description: "Run folders, newest first, with file and take counts. Free.",
+        inputSchema: {},
+        outputSchema: {
+          runs: z.array(z.object({ run: z.string(), modified: z.string(), files: z.number(), takes: z.number() })),
+        },
+        annotations: LOOK,
+      },
+      async () => {
+        const runs = listRuns();
+        return ok(runs.map((r) => `${r.run}  ${r.takes} take(s)  ${r.modified}`).join("\n") || "no runs yet", { runs });
+      },
+    );
+
+    tool(
+      "get_run",
+      {
+        title: "Get run",
+        description: "One run: prompt, settings, takes, job records, cost and review notes. Free.",
+        inputSchema: { run: z.string() },
+        outputSchema: {
+          run: z.string(),
+          prompt: z.string().nullable(),
+          inputs: z.record(z.string(), z.unknown()).nullable(),
+          files: z.array(z.object({ name: z.string(), bytes: z.number() })),
+          artifacts: z.array(z.string()),
+          jobs: z.array(Job),
+          cost: z.record(z.string(), z.unknown()).nullable(),
+          review: z.string().nullable(),
+        },
+        annotations: LOOK,
+      },
+      async ({ run }) => {
+        const { store } = ctx();
+        const r = getRun(run, { store });
+        return ok(`${r.run}: ${r.artifacts.length} take(s), ${r.jobs.length} job(s)`, r);
+      },
+    );
+  }
+
+  function registerAssets() {
+    tool(
+      "save_asset",
+      {
+        title: "Save asset",
+        description:
+          "Save 1-4 images as a named reference (character, product, location or style) to reuse in any job as refs [{ source: name, role }]. " +
+          "Images are files inside runs/ (relative paths, e.g. my-film/out.png) or library/. The description is reused word for word in prompts. Free.",
+        inputSchema: {
+          name: z.string(),
+          kind: z.enum(KINDS),
+          description: z.string().min(1),
+          images: z.array(z.string()).min(1).max(4),
+          replace: z.boolean().optional(),
+        },
+        outputSchema: Asset,
+        annotations: LOCAL_WRITE,
+      },
+      async ({ name, kind, description, images, replace }) => {
+        const { library, roots } = ctx();
+        const paths = images.map((p) => (isAbsolute(p) ? p : join(RUNS_DIR, p)));
+        library.save({ name, kind, description, images: paths, replace: replace ?? false }, { roots });
+        const a = assetView(library.get(name));
+        return ok(`saved ${a.name} (${a.kind}) with ${a.images.length} image(s); use it as refs [{ source: "${a.name}", role }]`, a);
+      },
+    );
+
+    tool(
+      "list_assets",
+      {
+        title: "List assets",
+        description: "Saved references: names, kinds, descriptions, image counts. Free.",
+        inputSchema: {},
+        outputSchema: {
+          assets: z.array(
+            z.object({
+              name: z.string(),
+              kind: z.string(),
+              description: z.string(),
+              imageCount: z.number(),
+              updatedAt: z.string(),
+            }),
+          ),
+        },
+        annotations: LOOK,
+      },
+      async () => {
+        const { library } = ctx();
+        const assets = library.list();
+        return ok(assets.map((a) => `${a.name} (${a.kind}, ${a.imageCount} image(s)): ${a.description}`).join("\n") || "no assets yet", { assets });
+      },
+    );
+
+    tool(
+      "get_asset",
+      {
+        title: "Get asset",
+        description: "One asset with its images shown, numbered #1..#n as used in refs (zed#2). Free.",
+        inputSchema: { name: z.string() },
+        outputSchema: Asset,
+        annotations: LOOK,
+      },
+      async ({ name }) => {
+        const { library } = ctx();
+        const a = assetView(library.get(name));
+        const previews = [];
+        for (const im of a.images) {
+          const p = await imagePreview(im.path);
+          if (p) previews.push(p);
+        }
+        const lines = [`${a.name} (${a.kind}): ${a.description}`, ...a.images.map((im) => `#${im.n} ${im.file} ${im.width ?? "?"}×${im.height ?? "?"}`)];
+        return ok(lines.join("\n"), a, previews);
+      },
+    );
+  }
+
+  function registerGenerate() {} // Task 5
+  function registerFinish() {} // Task 6
+}
+
+const entry = process.argv[1] ? realpathSync(process.argv[1]) : null;
+if (entry && entry === realpathSync(fileURLToPath(import.meta.url))) {
+  const server = createServer();
+  await server.connect(new StdioServerTransport());
+}
