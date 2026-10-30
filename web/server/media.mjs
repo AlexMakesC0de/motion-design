@@ -1,10 +1,10 @@
 // Serves run outputs and library images to <video> and <img>. Only two roots,
 // real paths only, no hidden segments: the same confinement the MCP tools use.
-import { existsSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../../cli/lib/run.mjs";
 import { confinePath } from "../../cli/core/inputs.mjs";
-import { HttpError, streamFile } from "./http.mjs";
+import { HARDENING, HttpError, streamFile } from "./http.mjs";
 
 const TYPES = {
   ".mp4": "video/mp4",
@@ -43,7 +43,13 @@ export async function serveMedia(req, res, pathname) {
     throw new HttpError(400, "Bad path.");
   }
   const root = roots()[m[1]];
-  const file = confinePath(join(root, rel), [root]); // code 3 outside the root, through a hidden segment, or missing
+  const joined = join(root, rel);
+  try {
+    lstatSync(joined);
+  } catch {
+    throw new HttpError(404, "Not found."); // a missing file is a 404, not a refusal
+  }
+  const file = confinePath(joined, [root]); // code 3 outside the root, through a hidden segment, or missing
   const st = statSync(file);
   if (!st.isFile()) throw new HttpError(404, "Not found.");
 
@@ -54,7 +60,7 @@ export async function serveMedia(req, res, pathname) {
   // "bytes=-", or a first byte after the last one, is not a Range at all: serve the whole file.
   const valid = range && (first !== "" || last !== "") && !(first !== "" && last !== "" && Number(first) > Number(last));
   if (!valid) {
-    res.writeHead(200, { "content-type": type, "content-length": st.size, "accept-ranges": "bytes", "cache-control": "no-cache" });
+    res.writeHead(200, { ...HARDENING, "content-type": type, "content-length": st.size, "accept-ranges": "bytes", "cache-control": "no-cache" });
     return streamFile(res, file);
   }
   let start;
@@ -69,6 +75,7 @@ export async function serveMedia(req, res, pathname) {
   }
   if (start >= st.size) return unsatisfiable(res, st.size);
   res.writeHead(206, {
+    ...HARDENING,
     "content-type": type,
     "content-length": end - start + 1,
     "content-range": `bytes ${start}-${end}/${st.size}`,
@@ -79,6 +86,6 @@ export async function serveMedia(req, res, pathname) {
 }
 
 function unsatisfiable(res, size) {
-  res.writeHead(416, { "content-range": `bytes */${size}` });
+  res.writeHead(416, { ...HARDENING, "content-range": `bytes */${size}` });
   res.end();
 }

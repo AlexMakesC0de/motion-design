@@ -24,6 +24,13 @@ const TYPES = {
   ".ico": "image/x-icon",
 };
 
+/** Sent on every response: no framing, no content sniffing. */
+export const HARDENING = {
+  "x-frame-options": "DENY",
+  "content-security-policy": "frame-ancestors 'none'",
+  "x-content-type-options": "nosniff",
+};
+
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -72,7 +79,7 @@ export function createRouter() {
 
 export function sendJson(res, status, value) {
   const body = JSON.stringify(value);
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(body) });
+  res.writeHead(status, { ...HARDENING, "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(body) });
   res.end(body);
 }
 
@@ -80,7 +87,8 @@ const fail = (res, status, message, extra = {}) => sendJson(res, status, { error
 
 export function sendError(res, err) {
   if (err instanceof CliError) {
-    const { code, message, name: _n, stack: _s, ...extra } = err;
+    // `data` is the raw provider task record: big, and not for the page.
+    const { code, message, name: _n, stack: _s, data: _d, ...extra } = err;
     return sendJson(res, statusFor(code), { error: { ...extra, code, message: redact(message) } });
   }
   if (err instanceof HttpError) return fail(res, err.status, err.message);
@@ -125,6 +133,7 @@ async function serveStatic(req, res, distDir, pathname, key) {
   const isAsset = rel !== "/" && existsSync(file) && statSync(file).isFile();
   if (isAsset && !file.endsWith("index.html")) {
     res.writeHead(200, {
+      ...HARDENING,
       "content-type": TYPES[extname(file)] ?? "application/octet-stream",
       "cache-control": rel.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
     });
@@ -135,6 +144,7 @@ async function serveStatic(req, res, distDir, pathname, key) {
   if (!existsSync(index)) return fail(res, 503, "The page is not built yet. Run: npm --prefix web run build");
   const html = readFileSync(index, "utf8").replace("<!--studio-key-->", `<meta name="studio-key" content="${key}">`);
   res.writeHead(200, {
+    ...HARDENING,
     "content-type": TYPES[".html"],
     "cache-control": "no-store",
     "set-cookie": `studio=${key}; Path=/media; HttpOnly; SameSite=Strict`,

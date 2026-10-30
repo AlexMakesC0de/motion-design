@@ -51,4 +51,31 @@ describe("createEvents", () => {
     assert.match(text, /event: job\ndata: \{"id":"j-/);
     assert.match(text, /event: spend/);
   });
+
+  test("fs.watch alone delivers a job event, and a closed subscriber is dropped and written to no more", async () => {
+    const events = createEvents({ pollMs: 60_000 }); // the poll cannot fire inside this test
+    const written = [];
+    let onClose = () => {};
+    const res = { writeHead: () => {}, write: (s) => written.push(s), on: (ev, fn) => ev === "close" && (onClose = fn) };
+    try {
+      assert.equal(events.size(), 0);
+      events.subscribe(res);
+      assert.equal(events.size(), 1);
+      await new Promise((r) => setTimeout(r, 100));
+      openJobs(join(RUNS, ".jobs")).create({ run: "watch", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 });
+      // debounce is 150ms; allow up to ~1s for the watcher to fire
+      const deadline = Date.now() + 1_000;
+      while (!written.join("").includes("event: job") && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+      assert.match(written.join(""), /event: job\ndata: \{"id":"j-/);
+
+      onClose();
+      assert.equal(events.size(), 0);
+      const before = written.length;
+      openJobs(join(RUNS, ".jobs")).create({ run: "watch2", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 });
+      await new Promise((r) => setTimeout(r, 500));
+      assert.equal(written.length, before, "nothing is written after close");
+    } finally {
+      events.close();
+    }
+  });
 });

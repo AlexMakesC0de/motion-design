@@ -26,6 +26,9 @@ router.get("/api/missing", () => {
 router.get("/api/maybe", () => {
   throw uncertain("Timed out.", "task-1", { localJobId: "j-20261030-abcdef" });
 });
+router.get("/api/withdata", () => {
+  throw uncertain("Timed out.", "task-2", { localJobId: "j-20261030-123456", data: { secretProviderField: "raw" } });
+});
 router.get("/api/boom", () => {
   throw new Error("kaboom with sk-abcdefghijklmnopqrstuvwxyz0123");
 });
@@ -136,6 +139,15 @@ describe("errors keep core's codes", () => {
     assert.equal(r.json.error.taskId, "task-1");
   });
 
+  test("an uncertain error never sends the raw provider record", async () => {
+    const r = await req(port, "/api/withdata");
+    assert.equal(r.status, 409);
+    assert.equal(r.json.error.taskId, "task-2");
+    assert.equal(r.json.error.localJobId, "j-20261030-123456");
+    assert.ok(!("data" in r.json.error));
+    assert.doesNotMatch(r.text, /secretProviderField/);
+  });
+
   test("an unexpected error is 500 and redacts anything key-shaped", async () => {
     const r = await req(port, "/api/boom");
     assert.equal(r.status, 500);
@@ -167,7 +179,23 @@ describe("static files", () => {
   });
 
   test("a traversal path never serves a file outside dist", async () => {
-    const r = await req(port, "/assets/..%2f..%2fhelpers.mjs", { key: null });
-    assert.doesNotMatch(r.text, /network call attempted/);
+    const secret = `secret-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+    writeFileSync(join(tmp, "secret.txt"), secret); // next to dist/, one level up
+    for (const p of ["/..%2fsecret.txt", "/assets/..%2f..%2fsecret.txt", "/%2e%2e/secret.txt", "/assets/%2e%2e/%2e%2e/secret.txt"]) {
+      const r = await req(port, p, { key: null });
+      assert.ok(!r.text.includes(secret), p);
+      assert.ok(r.status === 404 || (r.status === 200 && /app/.test(r.text)), `${p} was ${r.status}`);
+    }
+  });
+
+  test("the page and JSON responses refuse framing and sniffing", async () => {
+    const page = await req(port, "/", { key: null });
+    const json = await req(port, "/api/ping");
+    const asset = await req(port, "/assets/app.js", { key: null });
+    for (const r of [page, json, asset]) {
+      assert.equal(r.headers["x-frame-options"], "DENY");
+      assert.equal(r.headers["content-security-policy"], "frame-ancestors 'none'");
+      assert.equal(r.headers["x-content-type-options"], "nosniff");
+    }
   });
 });

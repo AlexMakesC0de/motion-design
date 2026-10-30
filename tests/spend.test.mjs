@@ -9,11 +9,16 @@ import { fileURLToPath } from "node:url";
 const RUNS = mkdtempSync(join(tmpdir(), "kie-spend-"));
 process.env.KIE_RUNS_DIR = RUNS;
 process.env.KIE_LIMITS_FILE = join(RUNS, "limits.json");
+// Only makes the route usable; the provider call below is a stub.
+process.env.KIE_API_KEY = "test-kie";
 
 const { EXIT } = await import("../cli/lib/errors.mjs");
 const { openJobs } = await import("../cli/core/jobs.mjs");
 const { readLimits, setDailyLimit, setPerJobLimit, spentToday, dailyPosition, withSpendLock, reserve, LOCK_PATH } =
   await import("../cli/core/spend.mjs");
+
+const { loadCatalog, resolveModel } = await import("../cli/lib/models.mjs");
+const { submitJob } = await import("../cli/core/generate.mjs");
 
 const fresh = (opts) => openJobs(mkdtempSync(join(tmpdir(), "kie-store-")), opts);
 const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid;
@@ -170,7 +175,7 @@ describe("per-job ceiling", () => {
     assert.throws(() => readLimits(path), /perJobUsd/);
   });
 
-  test("reserve refuses a job above the ceiling whatever budget the caller chose, and writes nothing", async () => {
+  test("reserve refuses a job above the ceiling and writes nothing", async () => {
     const store = fresh();
     await assert.rejects(
       reserve(store, { run: "demo", estimateUsd: 2.5 }, { limits: { dailyUsd: 10, allowRoots: [], perJobUsd: 2 } }),
@@ -183,5 +188,36 @@ describe("per-job ceiling", () => {
     const store = fresh();
     const job = await reserve(store, { run: "demo", estimateUsd: 2 }, { limits: { dailyUsd: 10, allowRoots: [], perJobUsd: 2 } });
     assert.equal(job.state, "reserved");
+  });
+
+  test("submitJob refuses above the ceiling even when the caller passes a bigger budgetUsd, and never calls the provider", async () => {
+    const catalog = loadCatalog();
+    const store = fresh();
+    const created = [];
+    await assert.rejects(
+      submitJob(
+        catalog,
+        {
+          capability: "video",
+          model: resolveModel(catalog, "seedance-2-5", "video"),
+          values: { prompt: "a fox", duration: 4, resolution: "480p", aspect_ratio: "16:9" },
+          run: "spend-test",
+          artifactBase: "out",
+          budgetUsd: 100,
+          only: "kie",
+        },
+        {
+          store,
+          limits: { dailyUsd: 10, allowRoots: [], perJobUsd: 0.1 },
+          deps: {
+            preflight: async () => ({ estimatedUsd: 0.5, basis: "stub", cap: 100, creditsBefore: null }),
+            createTask: async (...args) => (created.push(args), { taskId: "t-never" }),
+          },
+        },
+      ),
+      (e) => e.code === EXIT.BUDGET && /per-job limit/.test(e.message),
+    );
+    assert.equal(created.length, 0, "createTask was never called");
+    assert.deepEqual(store.list(), []);
   });
 });

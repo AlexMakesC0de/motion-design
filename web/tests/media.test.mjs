@@ -118,10 +118,32 @@ describe("media", () => {
     assert.equal((await req(port, "/media/runs/zed/out.mp4", { key: null })).status, 403);
   });
 
-  test("hidden folders, traversal and symlinks out of the root are refused", async () => {
-    for (const p of ["/media/runs/.jobs/secret.json", "/media/runs/..%2Foutside.txt", "/media/runs/zed/link.mp4", "/media/other/x"]) {
+  test("hidden folders, traversal and symlinks out of the root are refused with the exact status and never leak the file", async () => {
+    const cases = [
+      ["/media/runs/.jobs/secret.json", 400, "{}"],
+      ["/media/runs/..%2Foutside.txt", 400, "nope"],
+      ["/media/runs/zed/link.mp4", 400, "nope"],
+      ["/media/other/x", 404, null],
+    ];
+    for (const [p, status, contents] of cases) {
       const r = await req(port, p, { key: null, headers: cookie });
-      assert.notEqual(r.status, 200, p);
+      assert.equal(r.status, status, p);
+      assert.ok(r.json?.error, `${p} answers with a JSON error`);
+      if (contents !== null) assert.ok(!r.text.includes(contents), `${p} leaked the file contents`);
     }
+  });
+
+  test("a file that does not exist is 404", async () => {
+    const r = await req(port, "/media/runs/zed/none.mp4", { key: null, headers: cookie });
+    assert.equal(r.status, 404);
+  });
+
+  test("media responses carry the hardening headers", async () => {
+    const r = await req(port, "/media/runs/zed/out.mp4", { key: null, headers: cookie });
+    assert.equal(r.headers["x-content-type-options"], "nosniff");
+    assert.equal(r.headers["x-frame-options"], "DENY");
+    assert.equal(r.headers["content-security-policy"], "frame-ancestors 'none'");
+    const part = await req(port, "/media/runs/zed/out.mp4", { key: null, headers: { ...cookie, range: "bytes=0-1" } });
+    assert.equal(part.headers["x-content-type-options"], "nosniff");
   });
 });

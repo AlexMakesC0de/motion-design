@@ -67,6 +67,8 @@ export function createEvents({ pollMs = 2_000, snapshot = takeSnapshot } = {}) {
   check();
 
   return {
+    /** How many responses are subscribed right now. */
+    size: () => clients.size,
     /** Attach an HTTP response as a subscriber. */
     subscribe(res) {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });

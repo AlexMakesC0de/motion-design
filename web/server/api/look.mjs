@@ -1,5 +1,6 @@
 // Read-only endpoints. Each one calls a cli/core view and turns paths into
-// media URLs; none reserves, submits or writes.
+// media URLs; none reserves or submits. /api/spend (like the event snapshot)
+// calls store.sweep(), which settles abandoned records, so it can write.
 import { loadCatalog } from "../../../cli/lib/models.mjs";
 import { status, listModels, listPresets, estimate, listRuns, getRun } from "../../../cli/core/views.mjs";
 import { context, jobView, spendView } from "../state.mjs";
