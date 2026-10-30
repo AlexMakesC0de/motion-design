@@ -1,5 +1,5 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../lib/run.mjs";
 import { unknown } from "../lib/errors.mjs";
 import { limitsPath } from "./spend.mjs";
@@ -103,6 +103,33 @@ export function confinePath(path, roots) {
   const hidden = relative(root, real).split(sep).find((s) => s.startsWith("."));
   if (hidden) throw unknown(`${path} is or sits in a hidden folder ("${hidden}"); such files are never read.`);
   return real;
+}
+
+const IMAGE_PATH = /\.(png|jpe?g|webp|gif|svg)$/i;
+
+/**
+ * Render template props, confined like any other file a client names. The
+ * renderer turns every image path in props into a file:// URL for a headless
+ * browser, so each such path must sit in an allowed root (relative means
+ * inside runs/), and file: or http(s) URLs are refused outright: a remote URL
+ * would be fetched from this machine. Returns the props with real paths.
+ */
+export function confineProps(value, roots) {
+  if (typeof value === "string") {
+    if (/^file:/i.test(value)) {
+      throw unknown(`props may not contain file: URLs ("${value}"); name a file inside runs/ or library/ instead.`);
+    }
+    if (/^\s*https?:/i.test(value)) {
+      throw unknown("render props may only name local files in the allowed folders; remote URLs would be fetched from this machine.");
+    }
+    if (!IMAGE_PATH.test(value) || /^data:/i.test(value)) return value;
+    return confinePath(isAbsolute(value) ? value : join(RUNS_DIR, value), roots);
+  }
+  if (Array.isArray(value)) return value.map((v) => confineProps(v, roots));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, confineProps(v, roots)]));
+  }
+  return value;
 }
 
 /**

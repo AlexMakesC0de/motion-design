@@ -214,3 +214,63 @@ export function getRun(slug, { store }) {
     review: readText(join(dir, "review.md")),
   };
 }
+
+/**
+ * `kie doctor`'s checks as data, for the CLI and the studio's Settings screen.
+ * Its one network call is each provider's balance read (a GET on the credit
+ * endpoint, which costs nothing); `credits` replaces it in tests. No check
+ * carries a key: the key check names its provider in `keyOf`, and the CLI
+ * alone adds the short key hint it prints.
+ */
+export async function doctor(catalog, { credits = providerCredits } = {}) {
+  const checks = [];
+  const add = (level, text, extra = {}) => checks.push({ level, text, ...extra });
+
+  let anyKey = false;
+  for (const name of Object.keys(catalog.providers)) {
+    const prov = getProvider(catalog, name);
+    const key = providerKey(prov, { required: false });
+    if (!key) {
+      add("warn", `${prov.label}: no key (set ${prov.keyEnv} or write ~/${prov.keyFile}) — routes skipped`);
+      continue;
+    }
+    anyKey = true;
+    add("ok", `${prov.label}: key found`, { keyOf: name });
+    if (prov.credits) {
+      try {
+        const c = await credits(prov, key);
+        if (c == null) add("fail", `${prov.label}: credit endpoint gave no balance`);
+        else add("ok", `${prov.label}: ${c} ${prov.creditUnit}`);
+      } catch (e) {
+        add("fail", `${prov.label}: credit check — ${e.message}`);
+      }
+    } else {
+      add("ok", `${prov.label}: no balance endpoint — spend is not readable from here`);
+    }
+  }
+  if (!anyKey) add("fail", "No provider key configured at all — nothing can be generated.");
+
+  const age = catalogAgeDays(catalog);
+  add(isStale(catalog) ? "fail" : "ok", `models.json captured ${catalog.captured}${age != null ? ` (${age}d ago)` : ""}`);
+
+  const routes = catalog.list.flatMap((m) => routesFor(catalog, m).map((r) => ({ m, r })));
+  const unverified = routes.filter(({ r }) => !r.verified);
+  add(unverified.length ? "warn" : "ok", `${routes.length - unverified.length}/${routes.length} routes verified by a real job`);
+
+  const noRoute = catalog.list.filter((m) => !routesFor(catalog, m).some((r) => r.usable));
+  if (noRoute.length) add("warn", `unreachable with current keys: ${noRoute.map((m) => m.id).join(", ")}`);
+
+  const withFallback = catalog.list.filter((m) => routesFor(catalog, m).filter((r) => r.usable).length > 1);
+  add("ok", `${withFallback.length}/${catalog.list.length} models have a working fallback: ${withFallback.map((m) => m.id).join(", ") || "none"}`);
+
+  try {
+    const presets = loadPresets();
+    const mapped = presets.filter((p) => p.kie?.native || p.kie?.route?.length);
+    add("ok", `presets: ${mapped.length}/${presets.length} routed to a model`);
+    add("info", `native-route presets: ${presets.filter((p) => p.kie?.native).map((p) => p.id).join(", ") || "none"}`);
+  } catch (e) {
+    add("fail", `presets.json: ${e.message}`);
+  }
+
+  return { checks, failures: checks.filter((c) => c.level === "fail").length };
+}

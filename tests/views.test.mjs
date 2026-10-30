@@ -91,3 +91,31 @@ describe("status and runs", () => {
     assert.throws(() => views.getRun("nope", { store }), { code: EXIT.UNKNOWN });
   });
 });
+
+describe("doctor", () => {
+  test("returns kie doctor's checks as data, reading balances only through the injected reader", async () => {
+    let reads = 0;
+    const d = await views.doctor(catalog, {
+      credits: async () => {
+        reads += 1;
+        return 42;
+      },
+    });
+    assert.equal(reads, 1, "only kie.ai has a balance endpoint");
+    assert.ok(d.checks.some((c) => c.level === "ok" && c.text === "kie.ai: 42 credits"));
+    assert.ok(d.checks.some((c) => c.level === "ok" && c.text === "kie.ai: key found" && c.keyOf === "kie"));
+    assert.ok(d.checks.every((c) => ["ok", "warn", "fail", "info"].includes(c.level)));
+    assert.equal(d.failures, d.checks.filter((c) => c.level === "fail").length);
+    assert.ok(!JSON.stringify(d).includes("test-key-not-real"), "no key value in any check");
+  });
+
+  test("a failed balance read is a failed check, not a throw", async () => {
+    const d = await views.doctor(catalog, {
+      credits: async () => {
+        throw new Error("kie.ai credit check failed (HTTP 401).");
+      },
+    });
+    assert.ok(d.checks.some((c) => c.level === "fail" && c.text === "kie.ai: credit check — kie.ai credit check failed (HTTP 401)."));
+    assert.ok(d.failures >= 1);
+  });
+});

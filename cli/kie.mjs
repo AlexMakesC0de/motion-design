@@ -24,6 +24,7 @@ import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { openLibrary, KINDS } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
 import { checkLocalFile } from "./core/inputs.mjs";
+import { doctor } from "./core/views.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
 import { extractFrames } from "./lib/frames.mjs";
@@ -218,57 +219,17 @@ function cmdPresets(catalog, args) {
 }
 
 async function cmdDoctor(catalog) {
-  let failures = 0;
-  const ok = (m) => say(`  ok    ${m}`);
-  const bad = (m) => { failures += 1; say(`  FAIL  ${m}`); };
-
   say("kie doctor\n");
-
-  let anyKey = false;
-  for (const name of Object.keys(catalog.providers)) {
-    const prov = getProvider(catalog, name);
-    const key = providerKey(prov, { required: false });
-    if (!key) {
-      say(`  warn  ${prov.label}: no key (set ${prov.keyEnv} or write ~/${prov.keyFile}) — routes skipped`);
-      continue;
+  const { checks, failures } = await doctor(catalog);
+  const tag = { ok: "ok    ", warn: "warn  ", fail: "FAIL  ", info: "      " };
+  for (const c of checks) {
+    let text = c.text;
+    if (c.keyOf) {
+      const key = providerKey(getProvider(catalog, c.keyOf), { required: false });
+      text += ` (${key.slice(0, 4)}…${key.slice(-2)})`;
     }
-    anyKey = true;
-    ok(`${prov.label}: key found (${key.slice(0, 4)}…${key.slice(-2)})`);
-    if (prov.credits) {
-      try {
-        const c = await providerCredits(prov, key);
-        c == null ? bad(`${prov.label}: credit endpoint gave no balance`) : ok(`${prov.label}: ${c} ${prov.creditUnit}`);
-      } catch (e) {
-        bad(`${prov.label}: credit check — ${e.message}`);
-      }
-    } else {
-      say(`  ok    ${prov.label}: no balance endpoint — spend is not readable from here`);
-    }
+    say(`  ${tag[c.level]}${text}`);
   }
-  if (!anyKey) bad("No provider key configured at all — nothing can be generated.");
-
-  const age = catalogAgeDays(catalog);
-  (isStale(catalog) ? bad : ok)(`models.json captured ${catalog.captured}${age != null ? ` (${age}d ago)` : ""}`);
-
-  const routes = catalog.list.flatMap((m) => routesFor(catalog, m).map((r) => ({ m, r })));
-  const unverified = routes.filter(({ r }) => !r.verified);
-  say(`  ${unverified.length ? "warn " : "ok   "} ${routes.length - unverified.length}/${routes.length} routes verified by a real job`);
-
-  const noRoute = catalog.list.filter((m) => !routesFor(catalog, m).some((r) => r.usable));
-  if (noRoute.length) say(`  warn  unreachable with current keys: ${noRoute.map((m) => m.id).join(", ")}`);
-
-  const withFallback = catalog.list.filter((m) => routesFor(catalog, m).filter((r) => r.usable).length > 1);
-  ok(`${withFallback.length}/${catalog.list.length} models have a working fallback: ${withFallback.map((m) => m.id).join(", ") || "none"}`);
-
-  try {
-    const presets = loadPresets();
-    const mapped = presets.filter((p) => p.kie?.native || p.kie?.route?.length);
-    ok(`presets: ${mapped.length}/${presets.length} routed to a model`);
-    say(`        native-route presets: ${presets.filter((p) => p.kie?.native).map((p) => p.id).join(", ") || "none"}`);
-  } catch (e) {
-    bad(`presets.json: ${e.message}`);
-  }
-
   say(`\n${failures ? `${failures} check(s) failed.` : "All checks passed."}`);
   return failures ? EXIT.PROVIDER : EXIT.OK;
 }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { EXIT } from "../cli/lib/errors.mjs";
-import { sniff, imageSize, checkLocalFile, checkHttpsUrl, confinePath } from "../cli/core/inputs.mjs";
+import { sniff, imageSize, checkLocalFile, checkHttpsUrl, confinePath, confineProps } from "../cli/core/inputs.mjs";
 import { png, jpeg, webp, mp4 } from "./fixtures/images.mjs";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "kie-root-")));
@@ -114,5 +114,23 @@ describe("URLs", () => {
   test("http and other schemes are refused with code 3", () => {
     assert.throws(() => checkHttpsUrl("http://example.com/a.png"), { code: EXIT.UNKNOWN });
     assert.throws(() => checkHttpsUrl("file:///etc/passwd"), { code: EXIT.UNKNOWN });
+  });
+});
+
+describe("confineProps, for render template props", () => {
+  test("an image path inside a root comes back as its real path; other values pass unchanged", () => {
+    const logo = put(root, "logo.png", png(10, 10));
+    const out = confineProps({ wordmark: "Zed", logo, steps: [{ image: logo, caption: "One" }], size: 3 }, [root]);
+    assert.deepEqual(out, { wordmark: "Zed", logo, steps: [{ image: logo, caption: "One" }], size: 3 });
+  });
+
+  test("an image path outside every root is refused with code 3", () => {
+    const p = put(outside, "logo.png", png(10, 10));
+    assert.throws(() => confineProps({ logo: p }, [root]), (e) => e.code === EXIT.UNKNOWN && /outside the folders/.test(e.message));
+  });
+
+  test("file: and http(s) URLs are refused, at any depth", () => {
+    assert.throws(() => confineProps({ steps: [{ image: "file:///etc/x.png" }] }, [root]), /file: URLs/);
+    assert.throws(() => confineProps({ background: "HTTPS://example.com/page" }, [root]), /remote URLs would be fetched from this machine/);
   });
 });

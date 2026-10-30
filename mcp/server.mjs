@@ -26,7 +26,7 @@ import { readLimits } from "../cli/core/spend.mjs";
 import { submitJob, waitJob } from "../cli/core/generate.mjs";
 import { openLibrary, KINDS } from "../cli/core/assets.mjs";
 import { expandRefs } from "../cli/core/refs.mjs";
-import { allowedRoots, confinePath } from "../cli/core/inputs.mjs";
+import { allowedRoots, confinePath, confineProps } from "../cli/core/inputs.mjs";
 import { status, listModels, listPresets, estimate, listRuns, getRun } from "../cli/core/views.mjs";
 import { ok, fail } from "./results.mjs";
 import { artifactPreview, imagePreview } from "./preview.mjs";
@@ -664,24 +664,6 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
     const Run = z.string().describe("Run folder slug.");
     const InRun = (what) => z.string().describe(`${what}: a file name in the run folder, or a path inside runs/ or library/.`);
     const Ratio = z.enum(Object.keys(RATIOS));
-
-    const IMAGE_PATH = /\.(png|jpe?g|webp|gif|svg)$/i;
-    const confineProps = (value, roots) => {
-      if (typeof value === "string") {
-        if (/^file:/i.test(value)) {
-          throw unknown(`props may not contain file: URLs ("${value}"); name a file inside runs/ or library/ instead.`);
-        }
-        if (/^\s*https?:/i.test(value)) {
-          throw unknown("render props may only name local files in the allowed folders; remote URLs would be fetched from this machine.");
-        }
-        return IMAGE_PATH.test(value) && !/^data:/i.test(value) ? clientPath(value, roots) : value;
-      }
-      if (Array.isArray(value)) return value.map((v) => confineProps(v, roots));
-      if (value && typeof value === "object") {
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, confineProps(v, roots)]));
-      }
-      return value;
-    };
 
     tool(
       "frames",
