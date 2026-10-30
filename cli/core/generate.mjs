@@ -191,6 +191,13 @@ const OUTCOME = {
 };
 
 /**
+ * Whether a waitJob result may be retried on the next reseller. Only a failure
+ * confirmed free qualifies: a job that may have been charged is never repeated,
+ * because a second submission would pay for the same film twice.
+ */
+export const shouldFailOver = (w) => w.outcome === "failed" && w.job.state === "failed-confirmed-free";
+
+/**
  * Poll a job to a final state, download its results into the run and settle
  * its cost. Running out of time is a normal result ("pending"), never an
  * error: the job stays submitted and can be waited on again.

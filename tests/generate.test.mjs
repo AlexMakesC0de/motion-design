@@ -15,7 +15,7 @@ const { EXIT, provider, uncertain } = await import("../cli/lib/errors.mjs");
 const { loadCatalog, resolveModel } = await import("../cli/lib/models.mjs");
 const { openJobs, countedUsd } = await import("../cli/core/jobs.mjs");
 const { LOCK_PATH } = await import("../cli/core/spend.mjs");
-const { submitJob, waitJob } = await import("../cli/core/generate.mjs");
+const { submitJob, waitJob, shouldFailOver } = await import("../cli/core/generate.mjs");
 
 const catalog = loadCatalog();
 const model = resolveModel(catalog, "seedance-2-5", "video");
@@ -221,5 +221,20 @@ describe("waitJob", () => {
     await waitJob(catalog, s, job.id, { deps });
     const again = await waitJob(catalog, s, job.id, { deps: { waitForTask: async () => assert.fail("polled a settled job") } });
     assert.equal(again.outcome, "succeeded");
+  });
+});
+
+describe("shouldFailOver", () => {
+  const w = (outcome, state) => ({ outcome, job: { state } });
+
+  test("only a failure confirmed free may be retried on another reseller", () => {
+    assert.equal(shouldFailOver(w("failed", "failed-confirmed-free")), true);
+  });
+
+  test("a failure that may have been charged, or any other result, is never failed over", () => {
+    assert.equal(shouldFailOver(w("failed", "failed-charged")), false);
+    assert.equal(shouldFailOver(w("failed", "failed-unconfirmed")), false);
+    assert.equal(shouldFailOver(w("succeeded", "succeeded")), false);
+    assert.equal(shouldFailOver(w("pending", "submitted")), false);
   });
 });

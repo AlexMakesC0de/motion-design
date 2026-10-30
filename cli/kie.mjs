@@ -20,7 +20,7 @@ import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_RO
 import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
 import { readLimits, setDailyLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
-import { submitJob, waitJob } from "./core/generate.mjs";
+import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
 import { extractFrames } from "./lib/frames.mjs";
@@ -382,9 +382,10 @@ function finishWait(w) {
 }
 
 /**
- * Submit through the core, then wait unless --no-wait. A job that FAILS
- * upstream may fall over to the same model at the next reseller, as before;
- * an uncertain one never does.
+ * Submit through the core, then wait unless --no-wait. A job may fall over to
+ * the same model at the next reseller only when it failed upstream and is
+ * confirmed free (state failed-confirmed-free); a job that may have been
+ * charged, or is uncertain, never does.
  */
 async function generate(catalog, { capability, model, values, args, artifactBase }) {
   warnIfStale(catalog);
@@ -436,10 +437,10 @@ async function generate(catalog, { capability, model, values, args, artifactBase
 
     const w = await waitJob(catalog, store, sub.job.id, { onTick });
     process.stderr.write("\n");
-    if (w.outcome !== "failed") return finishWait(w);
+    if (!shouldFailOver(w)) return finishWait(w);
 
     const more = routesFor(catalog, model, { only: args.provider }).some((r) => r.usable && !tried.includes(r.provider));
-    if (!more || !canFailOver(w.error)) return finishWait(w);
+    if (!more) return finishWait(w);
     warn(`! ${w.job.error}`);
   }
 }
