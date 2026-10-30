@@ -7,9 +7,9 @@
 // "minimax-h3 4s 480p" and "$0.16". History lives in runs/<film>/chat.jsonl,
 // one JSON object per line, plus { kind: "codex-thread", threadId } lines the
 // page never sees.
-import { appendFileSync, existsSync, lstatSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { runDir } from "../../../cli/lib/run.mjs";
+import { closeSync, constants, existsSync, lstatSync, openSync, readFileSync, realpathSync, writeSync } from "node:fs";
+import { join, sep } from "node:path";
+import { RUNS_DIR, runDir } from "../../../cli/lib/run.mjs";
 import { EXIT, unknown } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
 
@@ -34,15 +34,23 @@ export const toolEntry = (name, args) => ({ id: newId(), kind: "tool", at: now()
 export const noticeEntry = (text, tone = "error") => ({ id: newId(), kind: "notice", at: now(), text: redact(text), tone });
 
 /**
- * The film's chat file. runDir checks the slug (code 1 for a bad one) and
- * keeps the folder inside runs/; a chat.jsonl that is a symlink is refused,
- * so a write can never land outside the film.
+ * The film's chat file. runDir checks the slug (code 1 for a bad one); the
+ * film's folder must be a real folder inside runs/ (not a link), and a
+ * chat.jsonl that is a link, even one to a missing file, is refused, so a
+ * write can never land outside the film.
  */
 export function chatPath(film, { create = false } = {}) {
-  const file = join(runDir(film, { create }), CHAT_FILE);
-  if (existsSync(file) && lstatSync(file).isSymbolicLink()) {
-    throw unknown(`runs/${film}/${CHAT_FILE} is a link; the studio only writes plain files in a film.`);
+  const dir = runDir(film, { create: false });
+  const linked = (what) => unknown(`runs/${film}${what} is a link; the studio only writes plain files in a film.`);
+  const d = lstatSync(dir, { throwIfNoEntry: false });
+  if (d && (d.isSymbolicLink() || !d.isDirectory())) throw linked("");
+  if (!d && create) runDir(film, { create: true });
+  if (d || create) {
+    const root = realpathSync(RUNS_DIR);
+    if (!realpathSync(dir).startsWith(root + sep)) throw linked("");
   }
+  const file = join(dir, CHAT_FILE);
+  if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) throw linked(`/${CHAT_FILE}`);
   return file;
 }
 
@@ -68,7 +76,13 @@ export function readChat(film) {
 /** Append records to the film's chat, making the film's folder if this is its first line. */
 export function appendChat(film, records) {
   if (!records.length) return;
-  appendFileSync(chatPath(film, { create: true }), records.map((r) => `${JSON.stringify(r)}\n`).join(""));
+  // O_NOFOLLOW: a link swapped in after the check is refused by the open itself.
+  const fd = openSync(chatPath(film, { create: true }), constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY | constants.O_NOFOLLOW, 0o644);
+  try {
+    writeSync(fd, records.map((r) => `${JSON.stringify(r)}\n`).join(""));
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** The saved user and assistant lines as model input, newest 40. Tool steps and notices stay on the page. */

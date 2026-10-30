@@ -1,7 +1,7 @@
 import { RUNS, tmp } from "./helpers.mjs";
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const t = await import("../server/chat/transcript.mjs");
@@ -87,6 +87,27 @@ describe("chat.jsonl", () => {
     symlinkSync(join(tmp, "outside.jsonl"), join(RUNS, "chat-link", "chat.jsonl"));
     assert.throws(() => t.appendChat("chat-link", [t.userEntry("x")]), { code: 3 });
     assert.equal(readFileSync(join(tmp, "outside.jsonl"), "utf8"), "");
+  });
+
+  test("a chat.jsonl that links to a missing file is refused, and nothing is created outside runs/", () => {
+    mkdirSync(join(RUNS, "chat-dangling"), { recursive: true });
+    const target = join(tmp, "dangling-target.jsonl");
+    symlinkSync(target, join(RUNS, "chat-dangling", "chat.jsonl"));
+    assert.throws(() => t.appendChat("chat-dangling", [t.userEntry("x")]), { code: 3 });
+    assert.throws(() => t.readChat("chat-dangling"), { code: 3 });
+    assert.equal(existsSync(target), false);
+  });
+
+  test("a film folder that is a link is refused, wherever it points", () => {
+    mkdirSync(join(tmp, "elsewhere"), { recursive: true });
+    symlinkSync(join(tmp, "elsewhere"), join(RUNS, "chat-dirlink"));
+    assert.throws(() => t.appendChat("chat-dirlink", [t.userEntry("x")]), { code: 3 });
+    assert.throws(() => t.readChat("chat-dirlink"), { code: 3 });
+    assert.equal(existsSync(join(tmp, "elsewhere", "chat.jsonl")), false);
+
+    symlinkSync(join(tmp, "missing-dir"), join(RUNS, "chat-dirlink-dangling"));
+    assert.throws(() => t.appendChat("chat-dirlink-dangling", [t.userEntry("x")]), { code: 3 });
+    assert.equal(existsSync(join(tmp, "missing-dir")), false);
   });
 
   test("history for a model is the user and assistant text only", () => {
