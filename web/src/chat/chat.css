@@ -1,0 +1,65 @@
+/* The Studio's chat rail and the chat connection form (also in Settings). Tokens only; no amber here. */
+
+.chat {
+  width: 340px; display: flex; flex-direction: column; gap: var(--space-2); min-height: 0;
+  padding-left: var(--space-4); border-left: 1px solid var(--line); font-size: var(--text-sm);
+}
+.chat--closed { width: 44px; padding: var(--space-3) 0; align-items: center; }
+.chat__toggle {
+  writing-mode: vertical-rl; background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--text-2); font-size: var(--text-sm);
+}
+.chat__toggle:hover { color: var(--text); }
+.chat__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.chat__title { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.chat__film { color: var(--text-2); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chat__hide { margin-left: auto; }
+
+.chat__log { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); }
+.chat__msg { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.chat__msg--user { align-self: flex-end; max-width: 90%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); }
+.chat__msg--assistant { color: var(--text); }
+.chat__msg--assistant[aria-busy="true"]::after { content: "▍"; color: var(--text-3); }
+.chat__notice { color: var(--text-2); font-size: var(--text-xs); }
+.chat__notice[data-tone="error"] { color: var(--bad-ink); }
+.chat__empty, .chat__intro { margin: 0; color: var(--text-2); }
+.chat__error { margin: 0; color: var(--bad-ink); }
+
+.tool-step { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-1); font-size: var(--text-xs); color: var(--text-2); }
+.tool-step__mark { width: 1em; color: var(--text-3); }
+.tool-step__name { color: var(--text); }
+.tool-step__result { overflow-wrap: anywhere; }
+.tool-step[data-state="done"] .tool-step__mark { color: var(--ok); }
+.tool-step[data-state="failed"] .tool-step__mark, .tool-step[data-state="failed"] .tool-step__result { color: var(--bad-ink); }
+
+.chat__form { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-end; }
+.chat__input {
+  width: 100%; resize: vertical; min-height: 56px; max-height: 30vh; padding: var(--space-2);
+  background: var(--surface-1); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-md);
+  font: inherit; font-size: var(--text-sm); line-height: 1.5;
+}
+
+/* Connection form */
+.connect { display: flex; flex-direction: column; gap: var(--space-3); }
+.connect__choices { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.connect__choices legend { padding: 0; margin-bottom: var(--space-1); color: var(--text-2); }
+.connect__choice { display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer; }
+.connect__choice > span { display: flex; flex-direction: column; }
+.connect__label { color: var(--text); }
+.connect__hint { color: var(--text-2); font-size: var(--text-xs); margin: 0; }
+.connect__detail { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; padding-left: var(--space-5); }
+.connect__status { margin: 0; color: var(--warn); }
+.connect__status[data-ok="true"] { color: var(--ok); }
+.connect__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.connect__row label { color: var(--text-2); }
+.connect__row input, .connect__row select {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 5px var(--space-2); font-size: var(--text-sm);
+}
+.connect__row input { width: 20em; max-width: 100%; }
+.connect__error { margin: 0; color: var(--bad-ink); }
+.connect__actions { display: flex; gap: var(--space-2); }
+
+@media (max-width: 760px) {
+  .chat { display: none; }
+}

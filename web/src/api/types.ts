@@ -284,9 +284,39 @@ export interface DoctorResult {
   ranAt: string;
 }
 
+/** One line of a film's chat, the same whichever backend answered (web/server/chat/transcript.mjs). */
+export type ChatEntry =
+  | { id: string; kind: "user"; at: string; text: string }
+  | { id: string; kind: "assistant"; at: string; text: string; streaming: boolean }
+  | { id: string; kind: "tool"; at: string; name: string; args: string; result: string | null; state: "running" | "done" | "failed" }
+  | { id: string; kind: "notice"; at: string; text: string; tone: "error" | "info" };
+
+export interface ChatView {
+  film: string;
+  busy: boolean;
+  entries: ChatEntry[];
+}
+
+export type ChatBackend = "codex" | "openai";
+
+export interface ChatSettingsView {
+  backend: ChatBackend | null;
+  model: string | null;
+  openai: { keySaved: boolean; keySource: "env" | "file" | null; keyFile: string; keyEnv: string };
+}
+
+export interface CodexStatus {
+  installed: boolean;
+  loggedIn: boolean;
+  plan: string | null;
+  message: string | null;
+}
+
 export type StudioEvent =
   | { event: "hello"; data: { at: string } }
   | { event: "job"; data: JobView }
   | { event: "spend"; data: SpendView }
   | { event: "library"; data: AssetSummary[] }
-  | { event: "task"; data: TaskView };
+  | { event: "task"; data: TaskView }
+  /** A chat entry was added or changed (entry), or a turn began or ended (busy). */
+  | { event: "chat"; data: { film: string; busy: boolean; entry: ChatEntry | null } };

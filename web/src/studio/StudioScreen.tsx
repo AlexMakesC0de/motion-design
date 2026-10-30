@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
+import { ChatPanel } from "../chat/ChatPanel";
 import type { AssetSummary, JobView, ModelInfo, RunSummary, Vocab } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { FilmPicker } from "./FilmPicker";
@@ -73,10 +74,7 @@ export function StudioScreen() {
           }}
         />
       </div>
-      <aside className="chat-slot" aria-label="Chat">
-        <span className="chat-slot__title">Chat</span>
-        <p className="chat-slot__note">Arrives in a later build.</p>
-      </aside>
+      <ChatPanel film={run || null} />
       {open && <TakeViewer job={open} kinds={vocab.kinds} now={now} onClose={() => setOpenId(null)} />}
     </div>
   );

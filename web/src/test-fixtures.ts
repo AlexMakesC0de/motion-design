@@ -1,5 +1,5 @@
 // Shared test data for page tests. Not a test file itself, so importing it runs no tests.
-import type { Estimate, FilmDetail, FilmFile, FinishInfo, JobView, ModelInfo, SettingsView, SpendView, TaskView } from "./api/types";
+import type { ChatEntry, ChatSettingsView, Estimate, FilmDetail, FilmFile, FinishInfo, JobView, ModelInfo, SettingsView, SpendView, TaskView } from "./api/types";
 
 export const job = (over: Partial<JobView> = {}): JobView => ({
   id: "j-20261031-abc123",
@@ -146,6 +146,30 @@ export const settings = (over: Partial<SettingsView> = {}): SettingsView => ({
   ],
   ...over,
 });
+
+export const chatSettings = (over: Partial<ChatSettingsView> = {}): ChatSettingsView => ({
+  backend: null,
+  model: null,
+  openai: { keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/openai.key", keyEnv: "OPENAI_API_KEY" },
+  ...over,
+});
+
+export const userLine = (text: string, id = "c-user"): ChatEntry => ({ id, kind: "user", at: "2026-10-31T10:00:00.000Z", text });
+export const assistantLine = (text: string, streaming = false, id = "c-assistant"): ChatEntry => ({ id, kind: "assistant", at: "2026-10-31T10:00:01.000Z", text, streaming });
+export const toolLine = (over: Partial<Extract<ChatEntry, { kind: "tool" }>> = {}): ChatEntry => ({
+  id: "c-tool",
+  kind: "tool",
+  at: "2026-10-31T10:00:02.000Z",
+  name: "estimate",
+  args: "seedance-2-5 4s 480p",
+  result: "$0.56",
+  state: "done",
+  ...over,
+});
+
+/** Answers with `status` and the server's error body ({ error: { message, ...extra } }). */
+export const errorResponse = (status: number, message: string, extra: Record<string, unknown> = {}) =>
+  new Response(JSON.stringify({ error: { message, ...extra } }), { status });
 
 /** A fetch stub that answers by path. Unlisted paths never resolve, like a slow server. */
 export function routes(table: Record<string, (init?: RequestInit) => unknown>) {
