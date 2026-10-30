@@ -130,17 +130,25 @@ export function buildInput(route, values = {}) {
     // `refs` is our own vocabulary, not a provider field. Without a captured
     // contract there is no field name to map it to, so it must be dropped
     // rather than posted as a stray array the provider will reject.
-    const { refs, ...rest } = values;
+    const { refs, params, ...rest } = values;
+    const problems = [];
+    if (refs?.length) {
+      problems.push(
+        `No captured contract for this route, so reference roles ` +
+          `(${refs.map((r) => r.role).join(", ")}) cannot be mapped to its input fields. ` +
+          `Use a route whose schema is verified, or capture this one's doc page.`,
+      );
+    }
+    if (params && Object.keys(params).length) {
+      problems.push(
+        `No captured contract for this route, so --param ${Object.keys(params).join(", ")} ` +
+          `cannot be checked. Capture its doc page into models.json first.`,
+      );
+    }
     return {
       input: Object.fromEntries(Object.entries(rest).filter(([, v]) => v != null)),
       unverified: true,
-      problems: refs?.length
-        ? [
-            `No captured contract for this route, so reference roles ` +
-              `(${refs.map((r) => r.role).join(", ")}) cannot be mapped to its input fields. ` +
-              `Use a route whose schema is verified, or capture this one's doc page.`,
-          ]
-        : [],
+      problems,
     };
   }
 
@@ -156,8 +164,36 @@ export function buildInput(route, values = {}) {
 
   for (const [key, v] of Object.entries(values)) {
     if (v == null) continue;
-    if (key === "refs") continue;
+    if (key === "refs" || key === "params") continue;
     out[key] = coerce(key, v);
+  }
+
+  // Passthrough fields: only what the route's contract declares, with its type.
+  // Undeclared keys are refused, so a param can never override the prompt, a
+  // reference field or anything else the CLI builds itself.
+  const declared = schema.params ?? {};
+  for (const [key, v] of Object.entries(values.params ?? {})) {
+    const spec = declared[key];
+    if (!spec) {
+      problems.push(
+        `${route.model} has no passthrough field "${key}". Allowed: ${Object.keys(declared).join(", ") || "none"}.`,
+      );
+      continue;
+    }
+    const typeOk =
+      spec.type === "boolean" ? typeof v === "boolean"
+        : spec.type === "integer" ? Number.isInteger(v)
+          : spec.type === "string" ? typeof v === "string"
+            : true;
+    if (!typeOk) {
+      problems.push(`${route.model}: ${key} must be a ${spec.type}, got ${JSON.stringify(v)}.`);
+      continue;
+    }
+    if (spec.enum && !spec.enum.includes(v)) {
+      problems.push(`${route.model}: ${key}="${v}" is not allowed. Allowed: ${spec.enum.join(", ")}.`);
+      continue;
+    }
+    out[key] = v;
   }
 
   // A model with no aspect-ratio parameter must not be sent one.
@@ -242,6 +278,28 @@ export function parseRef(spec) {
     );
   }
   return { url, role };
+}
+
+/**
+ * `--param key=value` → { key: value }. A value that parses as JSON is used as
+ * that type, so `generate_audio=false` reaches the provider as the boolean it
+ * expects rather than the string "false". Anything else stays a string.
+ */
+export function parseParams(list = []) {
+  const out = {};
+  for (const spec of list ?? []) {
+    const idx = spec.indexOf("=");
+    if (idx <= 0) throw usage(`--param must be "key=value", got "${spec}".`);
+    const raw = spec.slice(idx + 1);
+    let value;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = raw;
+    }
+    out[spec.slice(0, idx).trim()] = value;
+  }
+  return out;
 }
 
 /**

@@ -10,7 +10,7 @@ import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
-import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
+import { loadCatalog, resolveModel, validateVideoRequest, parseRef, parseParams, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
 import { createTask, redact } from "./lib/client.mjs";
 import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
@@ -35,11 +35,12 @@ const HELP = `kie -- motion-design execution layer
   kie upload     <path>
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
-                 [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]... [--budget U]
+                 [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]...
+                 [--param KEY=VALUE]... [--budget U]
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--ref URL:ROLE]... [--background B]
-                 [--budget U] [--dry-run]
+                 [--param KEY=VALUE]... [--budget U] [--dry-run]
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
                  [--voice V] [--budget U] [--dry-run]
 
@@ -76,6 +77,7 @@ const OPTS = {
   duration: { type: "string" },
   ar: { type: "string" },
   ref: { type: "string", multiple: true, default: [] },
+  param: { type: "string", multiple: true, default: [] },
   budget: { type: "string" },
   resolution: { type: "string" },
   quality: { type: "string" },
@@ -600,6 +602,7 @@ async function cmdVideo(catalog, args) {
 
   const model = resolveModel(catalog, modelId, "video");
   const refs = (args.ref ?? []).map(parseRef);
+  const params = parseParams(args.param);
 
   const problems = validateVideoRequest(catalog, model, { durationS, aspectRatio, refs });
   if (problems.length) {
@@ -621,6 +624,7 @@ async function cmdVideo(catalog, args) {
     durationS,
     aspectRatio,
     refs,
+    params,
     promptChars: prompt.length,
     usedSourcePromptRaw,
     deliverable: !usedSourcePromptRaw,
@@ -642,6 +646,7 @@ async function cmdVideo(catalog, args) {
       aspect_ratio: aspectRatio,
       resolution: args.resolution,
       refs,
+      params,
       // A first-frame reference makes this image-to-video on providers that
       // split the two into separate model ids.
       _useI2v: Boolean(hasFirstFrame),
@@ -665,10 +670,13 @@ async function cmdImage(catalog, args) {
   // A reference turns this into an edit on routes that keep image-to-image
   // under its own model id, the same switch a first frame makes for video.
   const refs = (args.ref ?? []).map(parseRef);
+  const params = parseParams(args.param);
 
   const dir = runDir(args.run);
   await writeRecord(dir, "image-prompt.txt", args.prompt);
-  if (refs.length) await writeRecord(dir, "image-inputs.json", { model: model.id, refs, background: args.background ?? null });
+  if (refs.length || Object.keys(params).length) {
+    await writeRecord(dir, "image-inputs.json", { model: model.id, refs, params, background: args.background ?? null });
+  }
 
   return generate(catalog, {
     capability: "image",
@@ -680,6 +688,7 @@ async function cmdImage(catalog, args) {
       aspect_ratio: args.ar,
       background: args.background,
       refs,
+      params,
       _useI2v: refs.length > 0,
     },
     args,

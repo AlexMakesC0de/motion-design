@@ -1,7 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { effectiveRoute, buildInput } from "../cli/lib/models.mjs";
+import { effectiveRoute, buildInput, parseParams } from "../cli/lib/models.mjs";
+import { EXIT } from "../cli/lib/errors.mjs";
 
 describe("an image-to-video call uses the image-to-video contract", () => {
   const route = {
@@ -76,5 +77,66 @@ describe("reference rules a model documents are enforced locally", () => {
   test("a route without rules is unaffected", () => {
     const plain = { model: "acme/p", input: { refFields: route.input.refFields } };
     assert.deepEqual(buildInput(plain, { prompt: "x", refs: [ref("first_frame"), ref("identity")] }).problems, []);
+  });
+});
+
+describe("--param values are read as the types providers expect", () => {
+  test("booleans and numbers parse; anything else stays a string", () => {
+    assert.deepEqual(parseParams(["generate_audio=false", "seed=42", "output_format=mov"]), {
+      generate_audio: false,
+      seed: 42,
+      output_format: "mov",
+    });
+  });
+
+  test("a value may itself contain '='", () => {
+    assert.deepEqual(parseParams(["note=a=b"]), { note: "a=b" });
+  });
+
+  test("a spec without '=' is a usage error", () => {
+    assert.throws(() => parseParams(["generate_audio"]), { code: EXIT.USAGE });
+  });
+
+  test("no params is an empty object", () => {
+    assert.deepEqual(parseParams(undefined), {});
+  });
+});
+
+describe("params pass only where the route's contract declares them", () => {
+  const route = {
+    model: "acme/v",
+    input: {
+      params: {
+        generate_audio: { type: "boolean" },
+        output_format: { type: "string", enum: ["mp4", "mov"] },
+      },
+    },
+  };
+
+  test("a declared field passes through with its value", () => {
+    const { input, problems } = buildInput(route, { prompt: "x", params: { generate_audio: false } });
+    assert.deepEqual(problems, []);
+    assert.strictEqual(input.generate_audio, false);
+  });
+
+  test("an undeclared field is refused, listing what is allowed", () => {
+    const { problems } = buildInput(route, { prompt: "x", params: { first_frame_url: "https://evil.test" } });
+    assert.match(problems[0], /no passthrough field "first_frame_url". Allowed: generate_audio, output_format/);
+  });
+
+  test("a wrong type is refused", () => {
+    const { problems } = buildInput(route, { prompt: "x", params: { generate_audio: "no" } });
+    assert.match(problems[0], /generate_audio must be a boolean/);
+  });
+
+  test("a value outside the enum is refused", () => {
+    const { problems } = buildInput(route, { prompt: "x", params: { output_format: "avi" } });
+    assert.match(problems[0], /output_format="avi" is not allowed. Allowed: mp4, mov/);
+  });
+
+  test("a route with no captured contract refuses params rather than guessing", () => {
+    const { problems, input } = buildInput({ model: "acme/guess" }, { prompt: "x", params: { generate_audio: false } });
+    assert.match(problems[0], /cannot be checked/);
+    assert.ok(!("params" in input) && !("generate_audio" in input));
   });
 });
