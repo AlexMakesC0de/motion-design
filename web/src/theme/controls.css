@@ -1,0 +1,23 @@
+/* Buttons and the save-to-library form, shared by the Studio, Library and Presets screens. Tokens only. */
+
+.button {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text); font-size: var(--text-sm); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.button:hover:not(:disabled) { background: var(--surface-3); }
+.button:disabled { color: var(--text-3); cursor: not-allowed; }
+.button--quiet { background: transparent; border-color: transparent; color: var(--text-2); }
+.button--quiet:hover:not(:disabled) { color: var(--text); }
+
+.save-asset { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); font-size: var(--text-sm); }
+.save-asset label { color: var(--text-2); }
+.save-asset input:not([type="checkbox"]), .save-asset select, .save-asset textarea {
+  background: var(--surface-1); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 5px var(--space-2); font: inherit; font-size: var(--text-sm);
+}
+.save-asset__hint { margin: 0 0 var(--space-1); color: var(--text-3); font-size: var(--text-xs); }
+.save-asset__replace { display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-xs); margin-top: var(--space-1); }
+.save-asset__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
+.save-asset__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
