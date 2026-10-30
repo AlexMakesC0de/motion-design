@@ -15,7 +15,7 @@ import { createTask, redact } from "./lib/client.mjs";
 import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
-import { preflight, creditsAfter } from "./lib/budget.mjs";
+import { preflight, creditsAfter, estimateUsd, priceLabel } from "./lib/budget.mjs";
 import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
@@ -29,7 +29,7 @@ const HELP = `kie -- motion-design execution layer
 
   kie models     [--capability video|image|audio] [--json]
   kie presets    [--json]
-  kie preflight  --model M [--duration N] [--ar R] [--budget U]
+  kie preflight  --model M [--duration N] [--resolution R] [--ar R] [--budget U]
   kie doctor
   kie providers
   kie upload     <path>
@@ -170,7 +170,7 @@ function cmdModels(catalog, args) {
           r.measuredCredits != null ? `measured ${r.measuredCredits} cr` : null,
           !r.usable ? `SKIPPED — ${r.skipReason}` : null,
         ].filter(Boolean).join(", ");
-        say(`    ${r.provider === m.routes[0].provider ? "→" : " "} ${r.prov.label.padEnd(10)} $${String(r.priceUsd).padEnd(7)} ${flags}`);
+        say(`    ${r.provider === m.routes[0].provider ? "→" : " "} ${r.prov.label.padEnd(10)} ${priceLabel(r).padEnd(34)} ${flags}`);
       }
       if (m.notes) say(`    ${m.notes}`);
     }
@@ -278,13 +278,17 @@ function cmdPreflight(catalog, args) {
   say(`model:   ${model.id} (${model.capability})`);
   say(`budget:  $${Number(cap).toFixed(2)}`);
   say(`routes:`);
-  for (const r of routes) {
+  const priced = routes.map((r) => ({
+    ...r,
+    estimate: estimateUsd(r, { durationS: num(args.duration), resolution: args.resolution }),
+  }));
+  for (const r of priced) {
     const verdict = !r.usable
       ? `skipped — ${r.skipReason}`
-      : (r.priceUsd ?? 0) > cap
+      : r.estimate.usd > cap
         ? `WOULD REFUSE — over budget`
         : `ok`;
-    say(`  ${r.prov.label.padEnd(10)} $${String(r.priceUsd).padEnd(7)} ${verdict}`);
+    say(`  ${r.prov.label.padEnd(10)} $${r.estimate.usd.toFixed(2).padEnd(7)} ${verdict}  (${r.estimate.basis})`);
   }
 
   if (problems.length) {
@@ -292,7 +296,7 @@ function cmdPreflight(catalog, args) {
     for (const p of problems) say(`  · ${p}`);
     return EXIT.UNKNOWN;
   }
-  const affordable = routes.filter((r) => r.usable && (r.priceUsd ?? 0) <= cap);
+  const affordable = priced.filter((r) => r.usable && r.estimate.usd <= cap);
   if (!affordable.length) {
     say(`\nWould be refused: no usable route within budget.`);
     return EXIT.BUDGET;
