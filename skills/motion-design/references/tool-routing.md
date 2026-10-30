@@ -12,6 +12,7 @@ MCP to connect and no capability that exists in one client and not another.
 | Check cost and settings without spending | `kie preflight --model M --duration N --resolution R --ar R` |
 | Create needed reference images | `kie image --run SLUG --prompt "..."` |
 | Bring a local asset in | `kie upload <path>` |
+| Reuse a character, product or screen across jobs | `kie asset save <name> <image>... --kind K --description "..."`, then `--ref <name>:identity` or `--ref <name>#n:first_frame` |
 | Generate the complete film | `kie video --run SLUG --preset P` |
 | See today's spend against the cap, and unsettled jobs | `kie limits` |
 | Wait for a job submitted with `--no-wait`, or rejoin after exit 5 | `kie job <local job id>` |

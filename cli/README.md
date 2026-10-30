@@ -86,6 +86,20 @@ When a submission ends uncertain without a task id, the job may exist.
 Do not resubmit. Check the provider's task log, then record what you found:
 `kie job resolve <id> --task <task id>` or `kie job resolve <id> --not-created`.
 
+### Saved references (assets)
+
+`kie asset save zed front.png side.png --kind character --description "Zed, a small round robot with one blue eye."`
+copies the images into `library/zed/` (gitignored). Use them in any job:
+`--ref zed:identity` sends every image of `zed`, `--ref zed#2:first_frame`
+sends image 2. The CLI prints the mapping the prompt should use
+(`@Image1 = zed#1`) and records it in the run. Uploads are reused for 20
+hours, since kie deletes them after 24. Saving over a name needs
+`--replace`; the previous version moves to `library/zed/.history/`.
+
+Every file is checked by its contents before it is sent: PNG, JPEG, WebP,
+MP4, MOV, WAV, MP3, AAC or OGG, under 30 MB (200 MB for video). Results are
+downloaded only from https URLs, only into the run directory.
+
 ## Design decisions worth not undoing
 
 **Video prompts come from a file, never argv.** These are 5–13KB with structured
