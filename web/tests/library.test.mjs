@@ -54,7 +54,8 @@ describe("upload", () => {
     assert.equal(r.status, 400);
     assert.equal(r.json.error.code, 3);
     assert.equal(r.json.error.field, "file");
-    assert.match(r.json.error.message, /^clip\.mp4 is not a image file \(checked by its content/);
+    assert.match(r.json.error.message, /^clip\.mp4 is not an image file \(checked by its content/);
+    assert.match(r.json.error.message, /Accepted: PNG, JPEG, WebP\.$/);
     assert.doesNotMatch(r.json.error.message, /\.incoming/);
     assert.equal(leftovers().length, before);
   });

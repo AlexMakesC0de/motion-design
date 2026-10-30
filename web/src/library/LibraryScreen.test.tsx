@@ -50,12 +50,12 @@ describe("LibraryScreen", () => {
   });
 
   test("a refused drop shows core's reason", async () => {
-    const refusal = () => new Response(JSON.stringify({ error: { code: 3, field: "file", message: "clip.mp4 is not a image file (checked by its content, not its name)." } }), { status: 400 });
+    const refusal = () => new Response(JSON.stringify({ error: { code: 3, field: "file", message: "clip.mp4 is not an image file (checked by its content, not its name)." } }), { status: 400 });
     stub({ "/api/library/incoming": refusal });
     render(<LibraryScreen />);
     const file = new File(["x"], "clip.mp4", { type: "video/mp4" });
     fireEvent.drop(screen.getByLabelText("Drop images here"), { dataTransfer: { files: [file] } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("clip.mp4 is not a image file");
+    expect(await screen.findByRole("alert")).toHaveTextContent("clip.mp4 is not an image file");
     expect(screen.getByRole("button", { name: "Save 0 as an asset" })).toBeDisabled();
   });
 

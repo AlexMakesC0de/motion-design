@@ -45,7 +45,17 @@ describe("type comes from the contents, not the name", () => {
 
   test("a video where only images are accepted is refused", () => {
     const p = put(root, "clip.mp4", mp4());
-    assert.throws(() => checkLocalFile(p, { kinds: ["image"] }), /not a image file/);
+    assert.throws(
+      () => checkLocalFile(p, { kinds: ["image"] }),
+      (e) => e.message === `${p} is not an image file (checked by its content, not its name). Accepted: PNG, JPEG, WebP.`,
+    );
+  });
+
+  test("the refusal names only the formats of the kinds asked for, with the right article", () => {
+    const p = put(root, "still.png", png(10, 10));
+    assert.throws(() => checkLocalFile(p, { kinds: ["video"] }), /is not a video file .*Accepted: MP4, MOV\.$/);
+    assert.throws(() => checkLocalFile(p, { kinds: ["audio"] }), /is not an audio file .*Accepted: WAV, MP3, AAC, OGG\.$/);
+    assert.throws(() => checkLocalFile(p, { kinds: ["video", "audio"] }), /is not a video or audio file .*Accepted: MP4, MOV, WAV, MP3, AAC, OGG\.$/);
   });
 
   test("an oversize file is refused", () => {

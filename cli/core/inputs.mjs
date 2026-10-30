@@ -5,7 +5,14 @@ import { unknown } from "../lib/errors.mjs";
 import { limitsPath } from "./spend.mjs";
 
 export const MAX_BYTES = { image: 30_000_000, video: 200_000_000, audio: 30_000_000 };
-const ACCEPTED = "PNG, JPEG, WebP, MP4, MOV, WAV, MP3, AAC, OGG";
+const FORMATS = { image: ["PNG", "JPEG", "WebP"], video: ["MP4", "MOV"], audio: ["WAV", "MP3", "AAC", "OGG"] };
+
+/** "an image", "a video or audio": the kinds a refusal names, with their article. */
+function kindPhrase(kinds) {
+  const [first, ...rest] = kinds;
+  const names = rest.length ? `${[first, ...rest.slice(0, -1)].join(", ")} or ${rest.at(-1)}` : first;
+  return `${/^[aeiou]/.test(first) ? "an" : "a"} ${names}`;
+}
 
 /** What a file is, from its first bytes. Null when it is none of the accepted types. */
 export function sniff(buf) {
@@ -128,7 +135,8 @@ export function checkLocalFile(path, { roots = null, kinds = ["image", "video", 
   }
   const type = sniff(head);
   if (!type || !kinds.includes(type.kind)) {
-    throw unknown(`${path} is not a ${kinds.join(" or ")} file (checked by its content, not its name). Accepted: ${ACCEPTED}.`);
+    const accepted = kinds.flatMap((k) => FORMATS[k] ?? []).join(", ");
+    throw unknown(`${path} is not ${kindPhrase(kinds)} file (checked by its content, not its name). Accepted: ${accepted}.`);
   }
   const limit = maxBytes[type.kind] ?? MAX_BYTES[type.kind];
   if (stat.size > limit) {
