@@ -10,7 +10,7 @@ import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
-import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
+import { loadCatalog, resolveModel, validateVideoRequest, parseRef, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
 import { createTask, redact } from "./lib/client.mjs";
 import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
 import { waitForTask, download, extractUrls } from "./lib/poll.mjs";
@@ -369,10 +369,9 @@ async function generate(catalog, { capability, model, values, args, artifactBase
 
     warnIfUnverified(route, model);
 
-    const effectiveRoute =
-      values._useI2v && route.i2vModel ? { ...route, model: route.i2vModel } : route;
+    const callRoute = effectiveRoute(route, values._useI2v);
     const { _useI2v, ...inputValues } = values;
-    const built = buildInput(effectiveRoute, inputValues);
+    const built = buildInput(callRoute, inputValues);
     if (built.problems.length) {
       // Our request is wrong for this route's contract. Not a provider fault,
       // so it does not consume the failover budget -- but a sibling route may
@@ -393,11 +392,13 @@ async function generate(catalog, { capability, model, values, args, artifactBase
       );
     }
 
-    const { estimatedUsd, cap, creditsBefore } = await preflight(catalog, route, {
+    const { estimatedUsd, cap, creditsBefore } = await preflight(catalog, callRoute, {
       budgetUsd: num(args.budget),
       key,
       modelId: model.id,
       capability,
+      durationS: built.input.duration,
+      resolution: built.input.resolution,
     });
 
     if (args["dry-run"]) {
@@ -427,7 +428,7 @@ async function generate(catalog, { capability, model, values, args, artifactBase
 
     let taskId = null;
     try {
-      const created = await createTask(route.prov, route.family, effectiveRoute.model, built.input, { key });
+      const created = await createTask(route.prov, route.family, callRoute.model, built.input, { key });
       taskId = created.taskId;
       say(`submitted ${taskId} (${label})`);
 

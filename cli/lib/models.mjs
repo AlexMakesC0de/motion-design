@@ -101,6 +101,17 @@ export function validateVideoRequest(catalog, model, { durationS, aspectRatio, r
 }
 
 /**
+ * The route as it will actually be called. Providers that split image-to-video
+ * into its own model id often give it its own contract too -- kie's H3 i2v has
+ * no aspect_ratio at all -- so the i2v model brings `i2vInput` when one was
+ * captured, and falls back to the t2v contract when not.
+ */
+export function effectiveRoute(route, useI2v) {
+  if (!useI2v || !route.i2vModel) return route;
+  return { ...route, model: route.i2vModel, input: route.i2vInput ?? route.input };
+}
+
+/**
  * Build the `input` object kie.ai actually wants for THIS model.
  *
  * Every model has its own contract and they disagree in ways that fail at
