@@ -53,13 +53,15 @@ export async function streamFile(res, file, options) {
 
 export function createRouter() {
   const routes = [];
-  const add = (method) => (pattern, handler) => {
+  // `raw: true` hands the handler the unread request stream instead of a parsed
+  // JSON body, for uploads; the 1 MB JSON limit does not apply to such a route.
+  const add = (method) => (pattern, handler, { raw = false } = {}) => {
     const names = [];
     const source = pattern.replace(/:([a-zA-Z]+)/g, (_, n) => {
       names.push(n);
       return "([^/]+)";
     });
-    routes.push({ method, re: new RegExp(`^${source}$`), names, handler });
+    routes.push({ method, re: new RegExp(`^${source}$`), names, handler, raw });
   };
   return {
     get: add("GET"),
@@ -70,7 +72,7 @@ export function createRouter() {
       for (const r of routes) {
         if (r.method !== method) continue;
         const m = path.match(r.re);
-        if (m) return { handler: r.handler, params: Object.fromEntries(r.names.map((n, i) => [n, decodeURIComponent(m[i + 1])])) };
+        if (m) return { handler: r.handler, raw: r.raw, params: Object.fromEntries(r.names.map((n, i) => [n, decodeURIComponent(m[i + 1])])) };
       }
       return null;
     },
@@ -185,7 +187,7 @@ export function createHandler({ key, router, distDir, media = null }) {
           throw new HttpError(400, "Bad path.");
         }
         if (!hit) return fail(res, 404, `No ${req.method} ${url.pathname}.`);
-        const body = req.method === "GET" ? undefined : await readJson(req);
+        const body = req.method === "GET" || hit.raw ? undefined : await readJson(req);
         const out = await hit.handler({ params: hit.params, query: url.searchParams, body, req, res });
         if (out === undefined) return; // the handler wrote the response itself (a stream)
         return sendJson(res, 200, out);

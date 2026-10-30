@@ -17,6 +17,15 @@ const router = createRouter();
 router.get("/api/ping", () => ({ ok: true }));
 router.get("/api/runs/:slug", ({ params }) => ({ slug: params.slug }));
 router.post("/api/echo", ({ body }) => body);
+router.post(
+  "/api/count",
+  async ({ req, body }) => {
+    let bytes = 0;
+    for await (const c of req) bytes += c.length;
+    return { bytes, body: body ?? null };
+  },
+  { raw: true },
+);
 router.get("/api/over", () => {
   throw budget("Refused, nothing spent. Over the cap.");
 });
@@ -90,6 +99,17 @@ describe("routing and bodies", () => {
   test("a body over 1 MB is 413", async () => {
     const r = await req(port, "/api/echo", { method: "POST", body: Buffer.alloc(1_100_000, 32) });
     assert.equal(r.status, 413);
+  });
+
+  test("a raw route gets the unread stream, past the 1 MB JSON limit", async () => {
+    const r = await req(port, "/api/count", { method: "POST", body: Buffer.alloc(2_500_000, 7), headers: { "content-type": "application/octet-stream" } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json, { bytes: 2_500_000, body: null });
+  });
+
+  test("a raw route still needs the key", async () => {
+    const r = await req(port, "/api/count", { method: "POST", body: Buffer.alloc(10), key: null });
+    assert.equal(r.status, 403);
   });
 
   test("an unknown API path is 404 JSON", async () => {
