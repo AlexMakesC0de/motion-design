@@ -44,31 +44,72 @@ describe("SettingsScreen: limits", () => {
     expect(calls(fetch, "/api/settings/limits")).toHaveLength(0);
   });
 
-  test("when the limits changed elsewhere, says so, shows what is saved now, and the next save is based on it", async () => {
-    let n = 0;
-    const fetch = setup({
-      "/api/settings/limits": () =>
-        ++n === 1
-          ? new Response(
-              JSON.stringify({
-                error: {
-                  code: 0,
-                  message: "The limits changed since this page loaded. Check the values now saved, then save again.",
-                  current: { dailyUsd: 3, perJobUsd: 0.5, file: "/Users/x/.config/kie/limits.json" },
-                },
-              }),
-              { status: 409 },
-            )
-          : { limits: { dailyUsd: 6, perJobUsd: null, file: "/Users/x/.config/kie/limits.json" } },
+  describe("when the limits changed elsewhere", () => {
+    const conflict = () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 0,
+            message: "The limits changed since this page loaded. Check the values now saved, then save again.",
+            current: { dailyUsd: 3, perJobUsd: 0.5, file: "/Users/x/.config/kie/limits.json" },
+          },
+        }),
+        { status: 409 },
+      );
+
+    async function refused() {
+      let n = 0;
+      const fetch = setup({
+        "/api/settings/limits": () => (++n === 1 ? conflict() : { limits: { dailyUsd: 6, perJobUsd: 0.5, file: "/Users/x/.config/kie/limits.json" } }),
+      });
+      fireEvent.change(await screen.findByLabelText("Daily cap"), { target: { value: "6" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
+      await screen.findByRole("alert");
+      return fetch;
+    }
+
+    test("says so and shows what is saved now, in the message and in the inputs", async () => {
+      await refused();
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("The limits changed since this page loaded.");
+      expect(alert).toHaveTextContent("Saved now: daily cap $3.00, per job $0.50.");
+      expect(screen.getByLabelText("Daily cap")).toHaveValue(3);
+      expect(screen.getByLabelText("Per-job limit")).toHaveValue(0.5);
     });
-    fireEvent.change(await screen.findByLabelText("Daily cap"), { target: { value: "6" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The limits changed since this page loaded.");
-    expect(alert).toHaveTextContent("Saved now: daily cap $3.00, per job $0.50.");
-    fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
-    await screen.findByText("Saved.");
-    expect(lastBody(fetch, "/api/settings/limits").was).toEqual({ dailyUsd: 3, perJobUsd: 0.5 });
+
+    test("a limit set elsewhere is not removed by the next save: nothing is sent until the user edits, and then the saved per-job limit goes with it", async () => {
+      const fetch = await refused();
+      // The inputs equal what is saved, so there is nothing to save, and a click does nothing.
+      const save = screen.getByRole("button", { name: "Save limits" });
+      expect(save).toBeDisabled();
+      fireEvent.click(save);
+      expect(calls(fetch, "/api/settings/limits")).toHaveLength(1);
+
+      fireEvent.change(screen.getByLabelText("Daily cap"), { target: { value: "6" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
+      await screen.findByText("Saved.");
+      expect(calls(fetch, "/api/settings/limits")).toHaveLength(2);
+      expect(lastBody(fetch, "/api/settings/limits")).toEqual({ dailyUsd: 6, perJobUsd: 0.5, was: { dailyUsd: 3, perJobUsd: 0.5 } });
+    });
+
+    test("an emptied per-job input is reloaded too when the limit it showed was removed elsewhere", async () => {
+      let n = 0;
+      setup({
+        "/api/settings": () => settings({ limits: { dailyUsd: 10, perJobUsd: 2, file: "/Users/x/.config/kie/limits.json" } }),
+        "/api/settings/limits": () =>
+          ++n === 1
+            ? new Response(
+                JSON.stringify({ error: { code: 0, message: "The limits changed since this page loaded.", current: { dailyUsd: 10, perJobUsd: null, file: "/f" } } }),
+                { status: 409 },
+              )
+            : { limits: { dailyUsd: 10, perJobUsd: null, file: "/f" } },
+      });
+      fireEvent.change(await screen.findByLabelText("Per-job limit"), { target: { value: "4" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save limits" }));
+      await screen.findByRole("alert");
+      expect(screen.getByLabelText("Daily cap")).toHaveValue(10);
+      expect(screen.getByLabelText("Per-job limit")).toHaveValue(null);
+    });
   });
 });
 

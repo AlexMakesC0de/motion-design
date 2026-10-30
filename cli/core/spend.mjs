@@ -1,6 +1,7 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { RUNS_DIR } from "../lib/run.mjs";
 import { budget, provider, usage } from "../lib/errors.mjs";
 import { UNSETTLED, countedUsd, localDay, pidAlive } from "./jobs.mjs";
@@ -30,29 +31,78 @@ export function readLimits(path = limitsPath()) {
   return limits;
 }
 
-export function setDailyLimit(usd, path = limitsPath()) {
+/**
+ * Write limits.json whole or not at all: the new text goes to a temp file in
+ * the same folder (so the rename cannot cross a filesystem), is flushed, and
+ * is renamed over the old file. A crash leaves the old file or the new one,
+ * never half of either. A limits.json that is a symlink (dotfiles setups) is
+ * written through to its target, so the link survives.
+ */
+function writeLimits(path, limits) {
+  const target = existsSync(path) ? realpathSync(path) : path;
+  mkdirSync(dirname(target), { recursive: true });
+  const temp = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    const fd = openSync(temp, "wx", 0o644);
+    try {
+      writeFileSync(fd, JSON.stringify(limits, null, 2) + "\n");
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temp, target);
+  } catch (err) {
+    try {
+      unlinkSync(temp);
+    } catch {
+      /* never created, or already renamed */
+    }
+    throw err;
+  }
+}
+
+function dailyValue(usd) {
   const n = Number(usd);
   // Number("") is 0, which would silently set the cap to 0.
   if (String(usd ?? "").trim() === "" || !Number.isFinite(n) || n < 0) throw usage(`--daily wants a dollar amount of 0 or more, got "${usd}".`);
-  const next = { ...readLimits(path), dailyUsd: n };
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(next, null, 2) + "\n");
+  return n;
+}
+
+/** A dollar amount above 0, or null for "off" (or null, undefined): no per-job ceiling. */
+function perJobValue(usd) {
+  if (usd == null || String(usd).trim() === "off") return null;
+  const n = Number(usd);
+  if (String(usd).trim() === "" || !Number.isFinite(n) || n <= 0) throw usage(`--per-job wants a dollar amount above 0, or "off", got "${usd}".`);
+  return n;
+}
+
+export function setDailyLimit(usd, path = limitsPath()) {
+  const next = { ...readLimits(path), dailyUsd: dailyValue(usd) };
+  writeLimits(path, next);
   return next;
 }
 
 /** "off" (or null) removes the per-job ceiling; anything else must be a dollar amount above 0. */
 export function setPerJobLimit(usd, path = limitsPath()) {
   const { perJobUsd: _old, ...rest } = readLimits(path);
-  let next = rest;
-  if (!(usd == null || String(usd).trim() === "off")) {
-    const n = Number(usd);
-    if (String(usd).trim() === "" || !Number.isFinite(n) || n <= 0) {
-      throw usage(`--per-job wants a dollar amount above 0, or "off", got "${usd}".`);
-    }
-    next = { ...rest, perJobUsd: n };
-  }
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(next, null, 2) + "\n");
+  const n = perJobValue(usd);
+  const next = n == null ? rest : { ...rest, perJobUsd: n };
+  writeLimits(path, next);
+  return next;
+}
+
+/**
+ * Both limits in one write, for a caller (the studio's Settings) that has both
+ * values at once: with two setters, a failure between them would leave one
+ * changed. Same rules and messages as the setters; both are checked before
+ * anything is written. perJobUsd null, undefined or "off" means no ceiling.
+ */
+export function setLimits({ dailyUsd, perJobUsd } = {}, path = limitsPath()) {
+  const { perJobUsd: _old, ...rest } = readLimits(path);
+  const daily = dailyValue(dailyUsd);
+  const each = perJobValue(perJobUsd);
+  const next = { ...rest, dailyUsd: daily, ...(each == null ? {} : { perJobUsd: each }) };
+  writeLimits(path, next);
   return next;
 }
 

@@ -41,9 +41,15 @@ function LimitsForm({ initial }: { initial: LimitsView }) {
       setNote("Saved.");
     } catch (e) {
       const current = e instanceof ApiError ? (e.detail.current as LimitsView | undefined) : undefined;
-      if (current) setSaved({ dailyUsd: current.dailyUsd, perJobUsd: current.perJobUsd });
+      if (current) {
+        // Show what the file holds now, in the inputs as well as `was`: inputs left at the old values
+        // would send them with a matching `was` on the next save and undo the change made elsewhere.
+        setSaved({ dailyUsd: current.dailyUsd, perJobUsd: current.perJobUsd });
+        setCap(String(current.dailyUsd));
+        setPerJob(current.perJobUsd == null ? "" : String(current.perJobUsd));
+      }
       const message = e instanceof ApiError ? e.message : String(e);
-      setError(current ? `${message} Saved now: ${describe(current)}.` : message);
+      setError(current ? `${message} Saved now: ${describe(current)}. The fields show these values now.` : message);
     } finally {
       setSending(false);
     }

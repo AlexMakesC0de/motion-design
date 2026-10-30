@@ -1,6 +1,6 @@
 // Settings: the two limits, provider key presence and kie doctor. Limits are
-// written through core's setDailyLimit and setPerJobLimit, the same writers
-// as `kie limits`; no MCP tool or chat path reaches these routes' code.
+// written through core's setLimits (one atomic write of both values, with the
+// same rules as `kie limits`); no MCP tool or chat path reaches these routes' code.
 //
 // A write needs the session key (like every /api call), which another website
 // cannot read or send. It also carries the limits the page last showed
@@ -8,7 +8,7 @@
 // terminal, or in another tab), the write is refused with 409 so a stale page
 // never quietly undoes a cap the user just lowered.
 import { doctor } from "../../../cli/core/views.mjs";
-import { readLimits, setDailyLimit, setPerJobLimit, limitsPath } from "../../../cli/core/spend.mjs";
+import { readLimits, setLimits, limitsPath } from "../../../cli/core/spend.mjs";
 import { getProvider, providerCredits, providerKey } from "../../../cli/lib/providers.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
 import { HttpError } from "../http.mjs";
@@ -27,9 +27,11 @@ function cap(body) {
   return v;
 }
 
+/** Present in every write: a missing key is a mistake (a page or script that forgot it), and must not quietly remove the limit. Only null means none. */
 function perJob(body, field = "perJobUsd") {
   const v = body?.[field];
-  if (v == null) return null;
+  if (v === undefined) throw f.invalid(field, "Send perJobUsd: a dollar amount above 0, or send null for no per-job limit.");
+  if (v === null) return null;
   if (!dollars(v) || v <= 0) throw f.invalid(field, "The per-job limit is a dollar amount above 0, or none.");
   return v;
 }
@@ -62,8 +64,7 @@ export function registerSettings(router, { catalog, deps = {} }) {
     if (now.dailyUsd !== was.dailyUsd || now.perJobUsd !== (was.perJobUsd ?? null)) {
       throw new HttpError(409, "The limits changed since this page loaded. Check the values now saved, then save again.", { current: now });
     }
-    setDailyLimit(dailyUsd);
-    setPerJobLimit(perJobUsd ?? "off");
+    setLimits({ dailyUsd, perJobUsd });
     return { limits: limitsView() };
   });
 

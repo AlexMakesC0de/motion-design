@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, readFileSync, readdirSync, statSync, symlinkSync, lstatSync, linkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -14,7 +14,7 @@ process.env.KIE_API_KEY = "test-kie";
 
 const { EXIT } = await import("../cli/lib/errors.mjs");
 const { openJobs } = await import("../cli/core/jobs.mjs");
-const { readLimits, setDailyLimit, setPerJobLimit, spentToday, dailyPosition, withSpendLock, reserve, LOCK_PATH } =
+const { readLimits, setDailyLimit, setPerJobLimit, setLimits, spentToday, dailyPosition, withSpendLock, reserve, LOCK_PATH } =
   await import("../cli/core/spend.mjs");
 
 const { loadCatalog, resolveModel } = await import("../cli/lib/models.mjs");
@@ -45,6 +45,63 @@ describe("limits", () => {
     assert.throws(() => setDailyLimit("", path), { code: EXIT.USAGE });
     assert.throws(() => setDailyLimit("   ", path), { code: EXIT.USAGE });
     assert.deepEqual(readLimits(path), { dailyUsd: 10, allowRoots: [] }, "nothing was written");
+  });
+
+  test("a write replaces limits.json by rename, so a crash mid-write never leaves half a file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kie-lim-"));
+    const path = join(dir, "limits.json");
+    writeFileSync(path, JSON.stringify({ dailyUsd: 10, allowRoots: [] }));
+    const kept = join(dir, "old-copy.json");
+    linkSync(path, kept); // a second name for the file as it was: an in-place write would change it too
+    const inode = statSync(path).ino;
+    setDailyLimit("4", path);
+    assert.notEqual(statSync(path).ino, inode, "the new content is a new file renamed into place");
+    assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), { dailyUsd: 10, allowRoots: [] }, "the old file was never written into");
+    setPerJobLimit("2", path);
+    setLimits({ dailyUsd: 3, perJobUsd: 1 }, path);
+    assert.deepEqual(readdirSync(dir).sort(), ["limits.json", "old-copy.json"], "no temp file is left beside it");
+  });
+
+  test("a limits.json that is a symlink stays one, and its target is what changes", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kie-lim-"));
+    const target = join(dir, "dotfiles-limits.json");
+    const path = join(dir, "limits.json");
+    writeFileSync(target, JSON.stringify({ dailyUsd: 10, allowRoots: [] }));
+    symlinkSync(target, path);
+    setDailyLimit("6", path);
+    assert.ok(lstatSync(path).isSymbolicLink());
+    assert.equal(readLimits(target).dailyUsd, 6);
+  });
+
+  test("setLimits writes both limits in one write and keeps the other settings", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kie-lim-"));
+    const path = join(dir, "limits.json");
+    writeFileSync(path, JSON.stringify({ dailyUsd: 10, allowRoots: ["/Users/a/brand"], perJobUsd: 3 }));
+    const first = statSync(path).ino;
+    const next = setLimits({ dailyUsd: 4.5, perJobUsd: 1.25 }, path);
+    assert.deepEqual(next, { dailyUsd: 4.5, allowRoots: ["/Users/a/brand"], perJobUsd: 1.25 });
+    assert.deepEqual(readLimits(path), next);
+    const afterOne = statSync(path).ino;
+    assert.notEqual(afterOne, first);
+    assert.deepEqual(setLimits({ dailyUsd: 0, perJobUsd: null }, path), { dailyUsd: 0, allowRoots: ["/Users/a/brand"] }, "null removes the per-job limit; a cap of 0 is allowed");
+    assert.deepEqual(readLimits(path), { dailyUsd: 0, allowRoots: ["/Users/a/brand"] });
+    assert.deepEqual(setLimits({ dailyUsd: 2, perJobUsd: "off" }, path), { dailyUsd: 2, allowRoots: ["/Users/a/brand"] }, "off means none, as for setPerJobLimit");
+  });
+
+  test("setLimits refuses what the two setters refuse, with their messages, and writes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kie-lim-"));
+    const path = join(dir, "limits.json");
+    writeFileSync(path, JSON.stringify({ dailyUsd: 7, allowRoots: [] }));
+    const before = readFileSync(path, "utf8");
+    for (const bad of ["-1", "lots", "", "  ", NaN, undefined]) {
+      const viaSetter = (() => { try { setDailyLimit(bad, path); } catch (e) { return e; } })();
+      assert.throws(() => setLimits({ dailyUsd: bad, perJobUsd: null }, path), { code: EXIT.USAGE, message: viaSetter.message }, String(bad));
+    }
+    for (const bad of ["0", "-1", "", "  ", "lots", NaN]) {
+      const viaSetter = (() => { try { setPerJobLimit(bad, path); } catch (e) { return e; } })();
+      assert.throws(() => setLimits({ dailyUsd: 5, perJobUsd: bad }, path), { code: EXIT.USAGE, message: viaSetter.message }, String(bad));
+    }
+    assert.equal(readFileSync(path, "utf8"), before, "a refused value leaves the file as it was, even when the other value was fine");
   });
 
   test("a broken limits file is an error, not a silent default", () => {

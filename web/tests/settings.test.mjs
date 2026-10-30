@@ -74,6 +74,23 @@ describe("PUT /api/settings/limits", () => {
     assert.equal(readFileSync(LIMITS, "utf8"), before);
   });
 
+  test("a missing perJobUsd is refused, not read as no limit; only an explicit null removes it", async () => {
+    writeFileSync(LIMITS, JSON.stringify({ dailyUsd: 4, allowRoots: [], perJobUsd: 1.5 }));
+    const before = readFileSync(LIMITS, "utf8");
+    const was = { dailyUsd: 4, perJobUsd: 1.5 };
+    const missing = await put({ dailyUsd: 4, was });
+    assert.equal(missing.status, 400);
+    assert.equal(missing.json.error.field, "perJobUsd");
+    assert.match(missing.json.error.message, /send null for no per-job limit/);
+    assert.equal(readFileSync(LIMITS, "utf8"), before, "the per-job limit is still there");
+    const undef = await put({ dailyUsd: 4, perJobUsd: undefined, was });
+    assert.equal(undef.json.error.field, "perJobUsd");
+    const none = await put({ dailyUsd: 4, perJobUsd: null, was });
+    assert.equal(none.status, 200, none.text);
+    assert.equal(none.json.limits.perJobUsd, null);
+    assert.equal("perJobUsd" in JSON.parse(readFileSync(LIMITS, "utf8")), false);
+  });
+
   test("a page holding limits that changed since it loaded is refused with 409, and the file is unchanged", async () => {
     writeFileSync(LIMITS, JSON.stringify({ dailyUsd: 2, allowRoots: [] })); // kie limits --daily 2, in another terminal
     const r = await put({ dailyUsd: 50, perJobUsd: null, was: { dailyUsd: 0, perJobUsd: null } });
