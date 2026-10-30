@@ -71,6 +71,11 @@ export function createEvents({ pollMs = 2_000, snapshot = takeSnapshot } = {}) {
     nudge: soon,
     /** How many responses are subscribed right now. */
     size: () => clients.size,
+    /** Send `e` ({ event, data }) to every subscriber now: for changes no snapshot holds (finishing tasks). */
+    publish(e) {
+      const text = formatEvent(e);
+      for (const c of clients) c.write(text);
+    },
     /** Attach an HTTP response as a subscriber. */
     subscribe(res) {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });

@@ -6,6 +6,7 @@ import { createRouter, createHandler } from "./http.mjs";
 import { serveMedia } from "./media.mjs";
 import { createEvents, takeSnapshot } from "./events.mjs";
 import { createFollower } from "./follow.mjs";
+import { createTasks } from "./tasks.mjs";
 import { registerLook } from "./api/look.mjs";
 import { registerGenerate } from "./api/generate.mjs";
 import { registerFrames } from "./api/frames.mjs";
@@ -28,10 +29,12 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   const follower = createFollower({ catalog, deps, onChange: () => events?.nudge() });
   const following = follower.has;
   events = createEvents({ pollMs, snapshot: () => takeSnapshot({ following }) });
+  const tasks = createTasks({ onChange: (task) => events.publish({ event: "task", data: task }) });
   router.get("/api/events", ({ res }) => {
     events.subscribe(res);
     return undefined;
   });
+  router.get("/api/tasks", ({ query }) => tasks.list(query.get("run") || undefined));
   registerLook(router, { catalog, deps, following });
   registerGenerate(router, { catalog, deps, follower });
   registerFrames(router);
@@ -50,6 +53,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.router = router;
   server.events = events;
   server.follower = follower;
+  server.tasks = tasks;
   // Studio jobs a previous run left waiting. Safe beside a CLI or MCP waiter: core settles each job once.
   if (resume) follower.resume();
   return server;
