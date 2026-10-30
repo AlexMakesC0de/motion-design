@@ -1,0 +1,55 @@
+.app { display: flex; flex-direction: column; height: 100%; }
+.app__top {
+  display: flex; align-items: center; gap: var(--space-5);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+}
+.app__brand {
+  color: var(--text); font-weight: 600; text-decoration: none; letter-spacing: 0.01em;
+  padding: var(--space-1) 0; border-radius: var(--radius-sm);
+}
+
+.nav { display: flex; gap: var(--space-1); }
+.nav a {
+  color: var(--text-2); text-decoration: none; font-size: var(--text-md); white-space: nowrap;
+  padding: 6px var(--space-3); border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.nav a:hover { color: var(--text); background: var(--surface-2); }
+.nav a:active { background: var(--surface-3); }
+.nav a[aria-current="page"] { color: var(--text); background: var(--surface-3); font-weight: 500; }
+
+.spend-meter {
+  margin-left: auto; display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-sm); color: var(--text-2); white-space: nowrap;
+}
+.spend-meter .mono { color: var(--text); }
+.spend-meter[aria-busy="true"] .mono { color: var(--text-3); }
+.spend-meter__bar { width: 80px; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.spend-meter__bar span {
+  display: block; height: 100%; background: var(--accent);
+  transform-origin: left; transition: transform 250ms var(--ease-out);
+}
+.spend-meter__bar[data-level="high"] span { background: var(--warn); }
+.spend-meter__bar[data-level="over"] span { background: var(--bad); }
+.spend-meter[data-level="high"] .spend-meter__note { color: var(--warn); }
+.spend-meter[data-level="over"] .spend-meter__note { color: var(--bad); font-weight: 500; }
+
+.banner {
+  margin: var(--space-3) var(--space-4) 0; padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md); background: var(--bad-surface); color: var(--bad-ink); font-size: var(--text-md);
+}
+.banner code { color: var(--text); }
+
+.app__main { flex: 1; min-height: 0; padding: var(--space-6) var(--space-4) var(--space-5); }
+.placeholder h1 { font-size: var(--text-xl); font-weight: 600; line-height: 1.2; margin: 0 0 var(--space-2); }
+.placeholder p { color: var(--text-2); margin: 0; max-width: 65ch; }
+
+/* Narrow windows: brand and spend share the first row, the tabs scroll on their own row. */
+@media (max-width: 760px) {
+  .app__top { flex-wrap: wrap; column-gap: var(--space-3); row-gap: var(--space-2); }
+  .nav { order: 3; flex-basis: 100%; gap: 0; margin-inline: calc(-1 * var(--space-2)); overflow-x: auto; }
+  .nav a { padding-inline: var(--space-2); }
+  .spend-meter__bar { width: 48px; }
+}
