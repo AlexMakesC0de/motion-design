@@ -38,7 +38,8 @@ const HELP = `kie -- motion-design execution layer
                  [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]... [--budget U]
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
-                 [--quality Q] [--ar R] [--budget U] [--dry-run]
+                 [--quality Q] [--ar R] [--ref URL:ROLE]... [--background B]
+                 [--budget U] [--dry-run]
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
                  [--voice V] [--budget U] [--dry-run]
 
@@ -78,6 +79,7 @@ const OPTS = {
   budget: { type: "string" },
   resolution: { type: "string" },
   quality: { type: "string" },
+  background: { type: "string" },
   // `--music` is a prompt in `kie audio` and a file in `kie assemble`. Both
   // read naturally in their own command and the two never co-occur.
   music: { type: "string" },
@@ -659,8 +661,13 @@ async function cmdImage(catalog, args) {
     throw unknown(`${model.id} supports qualities ${model.qualities.join(", ")}.`);
   }
 
+  // A reference turns this into an edit on routes that keep image-to-image
+  // under its own model id, the same switch a first frame makes for video.
+  const refs = (args.ref ?? []).map(parseRef);
+
   const dir = runDir(args.run);
   await writeRecord(dir, "image-prompt.txt", args.prompt);
+  if (refs.length) await writeRecord(dir, "image-inputs.json", { model: model.id, refs, background: args.background ?? null });
 
   return generate(catalog, {
     capability: "image",
@@ -670,6 +677,9 @@ async function cmdImage(catalog, args) {
       resolution: args.resolution,
       quality: args.quality,
       aspect_ratio: args.ar,
+      background: args.background,
+      refs,
+      _useI2v: refs.length > 0,
     },
     args,
     artifactBase: "ref",
