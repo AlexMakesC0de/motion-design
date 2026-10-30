@@ -1,5 +1,5 @@
 import { basename, extname, join } from "node:path";
-import { ffmpeg, probe, requireFfmpeg, dimsFor } from "./ffmpeg.mjs";
+import { ffmpegWriting, probe, requireFfmpeg, dimsFor } from "./ffmpeg.mjs";
 import { usage } from "./errors.mjs";
 
 /**
@@ -71,13 +71,14 @@ export async function makeVariants({
   mode = "blur",
   padColor = "black",
   onLine,
+  signal,
 }) {
   requireFfmpeg();
   if (!MODES.includes(mode)) {
     throw usage(`Unknown reframe mode "${mode}". Modes: ${MODES.join(", ")}`);
   }
 
-  const src = await probe(video);
+  const src = await probe(video, { signal });
   const stem = basename(video, extname(video));
   const made = [];
 
@@ -99,7 +100,7 @@ export async function makeVariants({
       out,
     );
 
-    await ffmpeg(args, { onLine });
+    await ffmpegWriting(out, args, { onLine, signal });
     made.push({
       ratio,
       out,

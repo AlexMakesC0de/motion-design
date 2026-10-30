@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { EXIT } from "../cli/lib/errors.mjs";
-import { crossfadePlan } from "../cli/lib/assemble.mjs";
-import { parseSrt } from "../cli/lib/caption.mjs";
-import { MODES, captionOrderWarning } from "../cli/lib/variants.mjs";
-import { dimsFor, RATIOS, escapeFilterPath } from "../cli/lib/ffmpeg.mjs";
+import { assemble, crossfadePlan } from "../cli/lib/assemble.mjs";
+import { burnCaptions, parseSrt } from "../cli/lib/caption.mjs";
+import { MODES, captionOrderWarning, makeVariants } from "../cli/lib/variants.mjs";
+import { dimsFor, RATIOS, escapeFilterPath, run } from "../cli/lib/ffmpeg.mjs";
 import { TEMPLATES, INTERNAL_TEMPLATES, RENDER_DIR, loadBrand, render } from "../cli/lib/render.mjs";
 import { outPath, inPath } from "../cli/lib/run.mjs";
 
@@ -302,6 +302,154 @@ describe("a ratio or template named like an Object.prototype key is unknown", ()
   test("render", { skip: !hasRemotion && "render/ is not installed" }, async () => {
     for (const name of ["constructor", "__proto__", "toString"]) {
       await assert.rejects(render({ template: name, out: "/tmp/never.mp4" }), { code: EXIT.USAGE, message: /Unknown template/ }, name);
+    }
+  });
+});
+
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const until = async (ok, ms = 4000) => {
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    if (await ok()) return true;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return false;
+};
+
+describe("run: an AbortSignal stops the child and everything it started", () => {
+  test("aborting kills the child and its descendants, and rejects", async () => {
+    const ac = new AbortController();
+    let grandchild;
+    const done = run("sh", ["-c", "sleep 30 & echo $! >&2; wait"], {
+      signal: ac.signal,
+      onLine: (text) => {
+        grandchild ??= Number(text.trim());
+        ac.abort();
+      },
+    });
+    await assert.rejects(done, /stopped/);
+    assert.ok(grandchild > 0);
+    assert.ok(await until(() => !alive(grandchild)), "the process the child started is gone too");
+  });
+
+  test("a child that ignores the polite stop is killed after the grace period", async () => {
+    const ac = new AbortController();
+    let pid;
+    const done = run("sh", ["-c", 'trap "" TERM; echo $$ >&2; sleep 30'], {
+      signal: ac.signal,
+      killGraceMs: 100,
+      onLine: (text) => {
+        pid ??= Number(text.trim());
+        ac.abort();
+      },
+    });
+    await assert.rejects(done, /stopped/);
+    assert.ok(await until(() => !alive(pid)));
+  });
+
+  test("a signal that is already aborted starts nothing", async () => {
+    const marker = join(mkdtempSync(join(tmpdir(), "kie-run-")), "ran");
+    await assert.rejects(run("sh", ["-c", `touch ${marker}`], { signal: AbortSignal.abort() }), /stopped/);
+    assert.equal(existsSync(marker), false);
+  });
+
+  test("without an abort, a signal changes nothing; without a signal, nothing changes at all", async () => {
+    const ac = new AbortController();
+    for (const opts of [{ signal: ac.signal }, {}]) {
+      const ok = await run("sh", ["-c", "echo out; echo err >&2"], opts);
+      assert.deepEqual([ok.stdout, ok.stderr], ["out\n", "err\n"]);
+      await assert.rejects(run("sh", ["-c", "echo boom >&2; exit 3"], opts), { code: EXIT.PROVIDER, message: /sh exited 3:\nboom/ });
+    }
+  });
+});
+
+/**
+ * Stand-ins for ffprobe, ffmpeg and npx, first on PATH. ffprobe answers like a
+ * 2 s 1920x1080 clip with no audio. ffmpeg and npx write their output file
+ * half-way, note their pid, then wait to be killed.
+ */
+function standIns() {
+  const dir = mkdtempSync(join(tmpdir(), "kie-bin-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const script = (name, body) => writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  script("ffprobe", `echo '{"streams":[{"codec_type":"video","width":1920,"height":1080,"r_frame_rate":"30/1","codec_name":"h264"}],"format":{"duration":"2.0"}}'`);
+  script("ffmpeg", 'echo $$ > "$KIE_STAND_IN_PID"\nfor last; do :; done\necho half > "$last"\nsleep 30');
+  script("npx", 'echo $$ > "$KIE_STAND_IN_PID"\necho half > "$5"\nsleep 30');
+  const pidFile = join(dir, "pid");
+  const saved = { PATH: process.env.PATH, pid: process.env.KIE_STAND_IN_PID };
+  process.env.PATH = `${bin}:${saved.PATH}`;
+  process.env.KIE_STAND_IN_PID = pidFile;
+  const video = join(dir, "clip.mp4");
+  writeFileSync(video, "not really a video");
+  return {
+    dir,
+    video,
+    /** Resolves the stand-in's pid once it is running, so the test aborts a child that exists. */
+    started: () => until(() => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() !== "").then(() => Number(readFileSync(pidFile, "utf8"))),
+    restore() {
+      process.env.PATH = saved.PATH;
+      if (saved.pid === undefined) delete process.env.KIE_STAND_IN_PID;
+      else process.env.KIE_STAND_IN_PID = saved.pid;
+    },
+  };
+}
+
+describe("finishing functions hand the signal to what they start, and remove the half-written file when stopped", () => {
+  async function stopped(start, outFile, { needsRender = false } = {}) {
+    const t = standIns();
+    const ac = new AbortController();
+    try {
+      const work = start(t, ac.signal);
+      work.catch(() => {});
+      const pid = await t.started();
+      assert.ok(pid > 0, "the tool started");
+      ac.abort();
+      await assert.rejects(work);
+      assert.ok(await until(() => !alive(pid)), "the tool was killed");
+      assert.equal(existsSync(outFile(t)), false, "no half-written output is left behind");
+    } finally {
+      t.restore();
+    }
+  }
+
+  test("assemble", async () => {
+    await stopped((t, signal) => assemble({ shots: [t.video], out: join(t.dir, "film.mp4"), width: 1920, height: 1080, signal }), (t) => join(t.dir, "film.mp4"));
+  });
+
+  test("makeVariants", async () => {
+    await stopped((t, signal) => makeVariants({ video: t.video, ratios: ["9:16"], outDir: t.dir, signal }), (t) => join(t.dir, "clip-9x16.mp4"));
+  });
+
+  test("render", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    await stopped((t, signal) => render({ template: "kinetic-type", out: join(t.dir, "card.mp4"), signal }), (t) => join(t.dir, "card.mp4"));
+  });
+
+  test("burnCaptions, in its render step", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    await stopped((t, signal) => {
+      const srt = join(t.dir, "c.srt");
+      writeFileSync(srt, "1\n00:00:00,000 --> 00:00:01,000\nHello\n");
+      return burnCaptions({ video: t.video, srt, out: join(t.dir, "captioned.mp4"), signal });
+    }, (t) => join(t.dir, "captioned.mp4"));
+  });
+
+  test("an aborted render is not reported as a render failure", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    const t = standIns();
+    const ac = new AbortController();
+    try {
+      const work = render({ template: "kinetic-type", out: join(t.dir, "card.mp4"), signal: ac.signal });
+      work.catch(() => {});
+      await t.started();
+      ac.abort();
+      await assert.rejects(work, (err) => !/Remotion render failed/.test(err.message) && /stopped/.test(err.message));
+    } finally {
+      t.restore();
     }
   });
 });

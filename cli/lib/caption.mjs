@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ffmpeg, probe, requireFfmpeg } from "./ffmpeg.mjs";
+import { ffmpegWriting, probe, requireFfmpeg } from "./ffmpeg.mjs";
 import { render, requireRemotion } from "./render.mjs";
 import { usage } from "./errors.mjs";
 
@@ -86,6 +86,7 @@ export async function burnCaptions({
   brand,
   safeArea,
   onLine,
+  signal,
 }) {
   requireFfmpeg();
   requireRemotion();
@@ -97,7 +98,7 @@ export async function burnCaptions({
   const parsed = parseSrt(readFileSync(srt, "utf8"));
   if (!parsed.cues.length) throw usage(`${srt} contains no readable cues.`);
 
-  const info = await probe(video);
+  const info = await probe(video, { signal });
   if (!info.durationS) throw usage(`Could not read a duration from ${video}.`);
 
   const warnings = [...parsed.problems];
@@ -138,9 +139,11 @@ export async function burnCaptions({
       brand,
       alpha: true,
       onLine,
+      signal,
     });
 
-    await ffmpeg(
+    await ffmpegWriting(
+      out,
       [
         "-i", video,
         "-i", overlay,
@@ -154,7 +157,7 @@ export async function burnCaptions({
         "-movflags", "+faststart",
         out,
       ],
-      { onLine },
+      { onLine, signal },
     );
   } finally {
     await rm(dir, { recursive: true, force: true });

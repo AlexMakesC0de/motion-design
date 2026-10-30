@@ -114,6 +114,38 @@ describe("FinishPanel: tasks", () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
+  test("a running task has a Cancel button; it asks the server to stop it, says so, and the task then ends as cancelled", async () => {
+    const { fetch } = setup({
+      "/api/tasks": () => [task({ outS: 1 })],
+      "/api/tasks/t-0a1b2c3d/cancel": () => ({ task: task({ outS: 1 }) }),
+    });
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    fireEvent.click(cancel);
+    await screen.findByRole("button", { name: "Cancelling…" });
+    expect(screen.getByRole("button", { name: "Cancelling…" })).toBeDisabled();
+    expect(fetch.mock.calls.find(([p]) => String(p) === "/api/tasks/t-0a1b2c3d/cancel")![1]!.method).toBe("POST");
+    act(() => emitForTests({ event: "task", data: task({ state: "failed", endedAt: "2026-10-31T10:10:03.000Z", error: "Cancelled." }) }));
+    expect(screen.getByText("Cancelled.")).toBeInTheDocument();
+    expect(screen.getByText(/Assemble · failed/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cancel/ })).toBeNull();
+  });
+
+  test("a task that has ended has no Cancel button", async () => {
+    setup({ "/api/tasks": () => [task({ state: "done", endedAt: "2026-10-31T10:11:00.000Z" })] });
+    await screen.findByText(/Assemble · done/);
+    expect(screen.queryByRole("button", { name: /Cancel/ })).toBeNull();
+  });
+
+  test("if the server refuses to cancel, says why and lets the user try again", async () => {
+    setup({
+      "/api/tasks": () => [task()],
+      "/api/tasks/t-0a1b2c3d/cancel": () => new Response(JSON.stringify({ error: { code: 5, message: "Assemble has already finished." } }), { status: 409 }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Assemble has already finished.");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
   test("a failed task shows why", async () => {
     setup({ "/api/tasks": () => [task({ state: "failed", endedAt: "2026-10-31T10:11:00.000Z", error: "ffmpeg exited with code 1" })] });
     expect(await screen.findByText("ffmpeg exited with code 1")).toBeInTheDocument();

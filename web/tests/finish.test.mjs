@@ -86,6 +86,127 @@ after(async () => {
 
 const post = (p, path, body) => req(p, path, { method: "POST", body });
 
+/** A finishing tool that ends only when its signal is aborted, and records what it was given. */
+function abortable() {
+  const calls = [];
+  const tool = (args) => {
+    calls.push(args);
+    return new Promise((_, reject) => args.signal.addEventListener("abort", () => reject(new Error("ffmpeg was stopped before it finished."))));
+  };
+  return { calls, tool };
+}
+
+describe("stopping a finishing task", () => {
+  let stopApp, stopPort, hang;
+  before(async () => {
+    hang = abortable();
+    stopApp = createApp({
+      key: KEY,
+      deps,
+      distDir: join(tmp, "nodist"),
+      pollMs: 60_000,
+      finish: { tools: { assemble: hang.tool, burnCaptions: hang.tool, makeVariants: hang.tool, render: hang.tool }, check: allOk },
+    });
+    await new Promise((r) => stopApp.listen(0, "127.0.0.1", r));
+    stopPort = stopApp.address().port;
+  });
+  after(async () => {
+    await stopApp.tasks.stopAll();
+    await stopApp.closeAll();
+  });
+
+  test("every finishing endpoint hands its core function the task's signal", async () => {
+    const starts = [
+      ["assemble", { shots: ["a.mp4"] }],
+      ["caption", { video: "a.mp4", srt: "captions.srt" }],
+      ["variants", { video: "a.mp4", ratios: ["1:1"] }],
+      ["card", { template: "lower-third", props: { name: "Zed" } }],
+    ];
+    for (const [i, [path, body]] of starts.entries()) {
+      const r = await post(stopPort, `/api/films/finish-gated/${path}`, body);
+      assert.equal(r.status, 200, r.text);
+      // A text card writes its props file before it calls core.
+      for (let waited = 0; hang.calls.length <= i && waited < 100; waited++) await new Promise((resolve) => setTimeout(resolve, 10));
+      const args = hang.calls.at(-1);
+      assert.ok(args.signal instanceof AbortSignal, `${path} passes a signal`);
+      assert.equal(args.signal.aborted, false);
+      await stopApp.tasks.stopAll();
+      assert.equal(args.signal.aborted, true, `${path}: stopping the task aborts that signal`);
+    }
+    assert.equal(hang.calls.length, 4);
+  });
+
+  test("POST /api/tasks/:id/cancel stops a running task, which ends failed with 'Cancelled.', and frees the film", async () => {
+    const started = await post(stopPort, "/api/films/finish-gated/assemble", { shots: ["a.mp4"] });
+    assert.equal(started.status, 200, started.text);
+    const again = await post(stopPort, "/api/films/finish-gated/assemble", { shots: ["a.mp4"] });
+    assert.equal(again.status, 409, "the film is busy while it runs");
+    const id = started.json.task.id;
+    const cancel = await post(stopPort, `/api/tasks/${id}/cancel`);
+    assert.equal(cancel.status, 200, cancel.text);
+    assert.equal(cancel.json.task.id, id);
+    await stopApp.tasks.idle();
+    const listed = await req(stopPort, "/api/tasks?run=finish-gated");
+    const task = listed.json.find((t) => t.id === id);
+    assert.equal(task.state, "failed");
+    assert.match(task.error, /^Cancelled/);
+    const free = await post(stopPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["1:1"] });
+    assert.equal(free.status, 200, "the film lock was released");
+    await stopApp.tasks.stopAll();
+  });
+
+  test("through core itself: cancelling a variants task kills ffmpeg, leaves no half-written file, and frees the film", async () => {
+    const bin = join(tmp, "stand-in-bin");
+    mkdirSync(bin, { recursive: true });
+    const pidFile = join(tmp, "stand-in.pid");
+    writeFileSync(join(bin, "ffprobe"), `#!/bin/sh\necho '{"streams":[{"codec_type":"video","width":1920,"height":1080,"r_frame_rate":"30/1"}],"format":{"duration":"2.0"}}'\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "ffmpeg"), `#!/bin/sh\necho $$ > "${pidFile}"\nfor last; do :; done\necho half > "$last"\nsleep 30\n`, { mode: 0o755 });
+    const film = join(RUNS, "finish-core");
+    mkdirSync(film, { recursive: true });
+    writeFileSync(join(film, "clip.mp4"), "\x00\x00\x00\x18ftypisom");
+    const realApp = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000, finish: { check: allOk } });
+    await new Promise((r) => realApp.listen(0, "127.0.0.1", r));
+    const savedPath = process.env.PATH;
+    process.env.PATH = `${bin}:${savedPath}`;
+    try {
+      const started = await post(realApp.address().port, "/api/films/finish-core/variants", { video: "clip.mp4", ratios: ["9:16"] });
+      assert.equal(started.status, 200, started.text);
+      for (let waited = 0; !existsSync(pidFile) && waited < 200; waited++) await new Promise((r) => setTimeout(r, 20));
+      const pid = Number(readFileSync(pidFile, "utf8"));
+      assert.ok(pid > 0, "the stand-in ffmpeg is running");
+      assert.equal((await post(realApp.address().port, `/api/tasks/${started.json.task.id}/cancel`)).status, 200);
+      await realApp.tasks.idle();
+      assert.match(realApp.tasks.get(started.json.task.id).error, /^Cancelled/);
+      let alive = true;
+      for (let waited = 0; alive && waited < 200; waited++) {
+        try {
+          process.kill(pid, 0);
+          await new Promise((r) => setTimeout(r, 20));
+        } catch {
+          alive = false;
+        }
+      }
+      assert.equal(alive, false, "ffmpeg was killed");
+      assert.equal(existsSync(join(film, "clip-9x16.mp4")), false, "no half-written variant is left");
+      assert.equal(realApp.tasks.start("finish-core", "variants", "Variants", async () => ({ outputs: [] })).state, "running", "the film lock is free");
+      await realApp.tasks.idle();
+    } finally {
+      process.env.PATH = savedPath;
+      await realApp.closeAll();
+    }
+  });
+
+  test("cancel of an unknown task is 404, of a finished one 409, and it needs the session key", async () => {
+    assert.equal((await post(stopPort, "/api/tasks/t-nope/cancel")).status, 404);
+    const started = await post(stopPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["1:1"] });
+    const id = started.json.task.id;
+    assert.equal((await req(stopPort, `/api/tasks/${id}/cancel`, { method: "POST", key: null })).status, 403);
+    assert.equal((await post(stopPort, `/api/tasks/${id}/cancel`)).status, 200);
+    await stopApp.tasks.idle();
+    assert.equal((await post(stopPort, `/api/tasks/${id}/cancel`)).status, 409);
+  });
+});
+
 describe("GET /api/finish", () => {
   test("says whether ffmpeg and the render engine are installed, and lists what the tools take", async () => {
     const r = await req(port, "/api/finish");

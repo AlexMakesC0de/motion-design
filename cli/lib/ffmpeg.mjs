@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { usage, provider } from "./errors.mjs";
 
 let checked = false;
@@ -27,11 +27,63 @@ export function requireFfmpeg() {
   checked = true;
 }
 
-export function run(bin, args, { onLine, cwd } = {}) {
+/**
+ * Run a program to completion. With `signal`, aborting it stops the program
+ * and everything it started (npx starts node starts a headless browser), then
+ * rejects: SIGTERM to the whole process group, SIGKILL `killGraceMs` later for
+ * anything that ignored it. Only a call that is given a signal puts the child
+ * in its own process group, so the CLI and MCP server behave as before.
+ */
+export function run(bin, args, { onLine, cwd, signal, killGraceMs = 3000 } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn(bin, args, cwd ? { cwd } : undefined);
+    const stopped = () => provider(`${bin} was stopped before it finished.`);
+    if (signal?.aborted) return reject(stopped());
+
+    const proc = spawn(bin, args, { ...(cwd ? { cwd } : {}), ...(signal ? { detached: true } : {}) });
     let stderr = "";
     let stdout = "";
+    let aborted = false; // the signal fired while the program was running
+    let exited = false;
+    let stoppedByAbort = false; // the program has exited because of it
+    let finished = false;
+    let killer = null;
+
+    const finish = (fn) => {
+      if (finished) return;
+      finished = true;
+      signal?.removeEventListener("abort", onAbort);
+      clearTimeout(killer); // nothing is left to kill, or it already was
+      fn();
+    };
+    const kill = (sig) => {
+      try {
+        process.kill(-proc.pid, sig); // the whole group
+      } catch {
+        try {
+          proc.kill(sig);
+        } catch {
+          /* already gone */
+        }
+      }
+    };
+    const groupGone = () => {
+      try {
+        process.kill(-proc.pid, 0);
+        return false;
+      } catch {
+        return true;
+      }
+    };
+    function onAbort() {
+      aborted = true;
+      kill("SIGTERM");
+      // Whatever is still running when the grace is up is killed outright.
+      killer = setTimeout(() => {
+        kill("SIGKILL");
+        if (exited) finish(() => reject(stopped()));
+      }, killGraceMs);
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
 
     proc.stdout.on("data", (d) => (stdout += d));
     proc.stderr.on("data", (d) => {
@@ -42,19 +94,46 @@ export function run(bin, args, { onLine, cwd } = {}) {
       onLine?.(text);
     });
 
-    proc.on("error", (err) => reject(provider(`Could not run ${bin}: ${err.message}`)));
+    proc.on("error", (err) => finish(() => reject(provider(`Could not run ${bin}: ${err.message}`))));
+    // After an abort the program's exit is what counts, not "close": a browser it
+    // left holding the output pipes would delay that. Anything of its group still
+    // running (the browser) is killed when the grace ends, and only then do we reject.
+    proc.on("exit", () => {
+      exited = true;
+      if (!aborted) return;
+      stoppedByAbort = true;
+      proc.stdout.destroy();
+      proc.stderr.destroy();
+      if (groupGone()) finish(() => reject(stopped()));
+    });
     proc.on("close", (code) => {
-      if (code === 0) return resolve({ stdout, stderr });
-      const tail = stderr.trim().split("\n").slice(-6).join("\n");
-      reject(provider(`${bin} exited ${code}:\n${tail}`));
+      if (stoppedByAbort) return;
+      finish(() => {
+        if (code === 0) return resolve({ stdout, stderr });
+        const tail = stderr.trim().split("\n").slice(-6).join("\n");
+        reject(provider(`${bin} exited ${code}:\n${tail}`));
+      });
     });
   });
 }
 
 export const ffmpeg = (args, opts) => run("ffmpeg", ["-hide_banner", "-y", ...args], opts);
 
+/**
+ * ffmpeg writing the file `out`. When `opts.signal` stops it, the half-written
+ * file is removed rather than left to look like a finished (unplayable) output.
+ */
+export async function ffmpegWriting(out, args, opts = {}) {
+  try {
+    return await ffmpeg(args, opts);
+  } catch (err) {
+    if (opts.signal?.aborted) rmSync(out, { force: true });
+    throw err;
+  }
+}
+
 /** Real numbers off the file. Never assume a generated clip is the length you asked for. */
-export async function probe(path) {
+export async function probe(path, { signal } = {}) {
   requireFfmpeg();
   if (!existsSync(path)) throw usage(`No such file: ${path}`);
 
@@ -64,7 +143,7 @@ export async function probe(path) {
     "-show_format",
     "-show_streams",
     path,
-  ]);
+  ], { signal });
 
   const data = JSON.parse(stdout);
   const v = data.streams.find((s) => s.codec_type === "video");
@@ -93,13 +172,13 @@ export async function probe(path) {
 }
 
 /** EBU R128 measurement. Reported, never silently corrected. */
-export async function measureLoudness(path) {
+export async function measureLoudness(path, { signal } = {}) {
   requireFfmpeg();
   const { stderr } = await ffmpeg([
     "-i", path,
     "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
     "-f", "null", "-",
-  ]);
+  ], { signal });
   return parseLoudnorm(stderr);
 }
 

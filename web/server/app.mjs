@@ -40,6 +40,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
     return undefined;
   });
   router.get("/api/tasks", ({ query }) => tasks.list(query.get("run") || undefined));
+  router.post("/api/tasks/:id/cancel", ({ params }) => ({ task: tasks.cancel(params.id) }));
   registerLook(router, { catalog, deps, following });
   registerGenerate(router, { catalog, deps, follower });
   registerFrames(router);

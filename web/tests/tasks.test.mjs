@@ -3,7 +3,7 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
-const { createTasks, progressSeconds } = await import("../server/tasks.mjs");
+const { createTasks, progressSeconds, TASK_TIMEOUTS_MS } = await import("../server/tasks.mjs");
 const { createApp } = await import("../server/app.mjs");
 
 /** A task body the test finishes by hand. */
@@ -101,6 +101,121 @@ describe("createTasks", () => {
     assert.equal(tasks.list().length, 50);
     assert.equal(tasks.list()[0].label, "V54");
     assert.ok(tasks.list("odd").every((t) => t.run === "odd"));
+  });
+});
+
+/** A task body that runs until its signal is aborted, as a child process does once core kills it. */
+const untilAborted = (seen = {}) => ({ signal }) => {
+  seen.signal = signal;
+  return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("ffmpeg was stopped before it finished."))));
+};
+
+describe("createTasks: stopping a task", () => {
+  test("the limits are 15 minutes for assemble, captions and variants, and 10 for a card", () => {
+    assert.deepEqual(TASK_TIMEOUTS_MS, { assemble: 15 * 60_000, caption: 15 * 60_000, variants: 15 * 60_000, card: 10 * 60_000 });
+  });
+
+  test("a task that runs past its limit is aborted, fails in plain words, and frees the film", async () => {
+    const tasks = createTasks({ timeouts: { assemble: 30 } });
+    const seen = {};
+    const t = tasks.start("zed", "assemble", "Assemble", untilAborted(seen));
+    await new Promise((r) => setImmediate(r));
+    assert.ok(seen.signal instanceof AbortSignal, "the work is handed a signal");
+    assert.equal(seen.signal.aborted, false);
+    await tasks.idle();
+    const ended = tasks.get(t.id);
+    assert.equal(seen.signal.aborted, true);
+    assert.equal(ended.state, "failed");
+    assert.match(ended.error, /still running after 0\.03 seconds|ran longer than/);
+    assert.doesNotMatch(ended.error, /ffmpeg was stopped/, "the studio's own words, not the tool's");
+    assert.ok(ended.endedAt);
+    const next = tasks.start("zed", "variants", "Variants", async () => ({ outputs: [] }));
+    assert.equal(next.state, "running", "the film lock is released");
+    await tasks.idle();
+  });
+
+  test("the limit is per kind: a card is stopped while an assemble with a longer limit is not", async () => {
+    const tasks = createTasks({ timeouts: { assemble: 60_000, card: 30 } });
+    const card = tasks.start("one", "card", "Text card", untilAborted());
+    const seen = {};
+    const assemble = tasks.start("two", "assemble", "Assemble", untilAborted(seen));
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(tasks.get(card.id).state, "failed");
+    assert.equal(tasks.get(assemble.id).state, "running");
+    assert.equal(seen.signal.aborted, false);
+    tasks.cancel(assemble.id);
+    await tasks.idle();
+  });
+
+  test("a task that ends in time is never aborted afterwards, and does not keep the process alive", async () => {
+    const tasks = createTasks({ timeouts: { assemble: 40 } });
+    const seen = {};
+    const t = tasks.start("zed", "assemble", "Assemble", ({ signal }) => {
+      seen.signal = signal;
+      return { outputs: [] };
+    });
+    await tasks.idle();
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(tasks.get(t.id).state, "done");
+    assert.equal(seen.signal.aborted, false);
+  });
+
+  test("cancel aborts a running task: it fails with 'Cancelled.' and frees the film", async () => {
+    const tasks = createTasks();
+    const seen = {};
+    const t = tasks.start("zed", "caption", "Captions", untilAborted(seen));
+    await new Promise((r) => setImmediate(r));
+    const answered = tasks.cancel(t.id);
+    assert.equal(answered.id, t.id);
+    await tasks.idle();
+    assert.equal(seen.signal.aborted, true);
+    assert.equal(tasks.get(t.id).state, "failed");
+    assert.match(tasks.get(t.id).error, /^Cancelled/);
+    assert.equal(tasks.start("zed", "caption", "Captions", async () => ({ outputs: [] })).state, "running");
+    await tasks.idle();
+  });
+
+  test("cancel of a task that is unknown is 404, and of one that already ended is 409", async () => {
+    const tasks = createTasks();
+    assert.throws(() => tasks.cancel("t-nope"), (e) => e.status === 404);
+    const t = tasks.start("zed", "variants", "Variants", async () => ({ outputs: [] }));
+    await tasks.idle();
+    assert.throws(() => tasks.cancel(t.id), (e) => e.status === 409 && /already finished/.test(e.message));
+    assert.equal(tasks.get(t.id).state, "done", "a finished task is left as it was");
+  });
+
+  test("stopAll aborts every running task, says the studio shut down, and resolves when they have ended", async () => {
+    const tasks = createTasks();
+    const a = tasks.start("one", "assemble", "Assemble", untilAborted());
+    const b = tasks.start("two", "card", "Text card", untilAborted());
+    await tasks.stopAll();
+    for (const t of [a, b]) {
+      assert.equal(tasks.get(t.id).state, "failed");
+      assert.match(tasks.get(t.id).error, /studio was shut down/);
+    }
+  });
+
+  test("a task stopped before its work has begun never runs the work", async () => {
+    const tasks = createTasks();
+    let ran = false;
+    const t = tasks.start("zed", "assemble", "Assemble", async () => {
+      ran = true;
+      return { outputs: [] };
+    });
+    tasks.cancel(t.id);
+    await tasks.idle();
+    assert.equal(ran, false);
+    assert.equal(tasks.get(t.id).state, "failed");
+    assert.match(tasks.get(t.id).error, /^Cancelled/);
+  });
+
+  test("a task that fails on its own keeps its own message", async () => {
+    const tasks = createTasks({ timeouts: { assemble: 60_000 } });
+    const t = tasks.start("zed", "assemble", "Assemble", async () => {
+      throw new Error("ffmpeg exited 1:\nInvalid data");
+    });
+    await tasks.idle();
+    assert.match(tasks.get(t.id).error, /Invalid data/);
   });
 });
 

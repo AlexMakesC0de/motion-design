@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ffmpeg, probe, requireFfmpeg, measureLoudness } from "./ffmpeg.mjs";
+import { ffmpeg, ffmpegWriting, probe, requireFfmpeg, measureLoudness } from "./ffmpeg.mjs";
 import { usage } from "./errors.mjs";
 
 /**
@@ -153,13 +153,14 @@ export async function assemble({
   musicGainDb = -14,
   duck = true,
   onLine,
+  signal,
 }) {
   requireFfmpeg();
   if (!shots.length) throw usage("assemble needs at least one --shot.");
 
   const probed = [];
   for (const s of shots) {
-    const info = await probe(s);
+    const info = await probe(s, { signal });
     if (!info.hasVideo) throw usage(`${s} has no video stream.`);
     if (!info.durationS) throw usage(`Could not read a duration from ${s}.`);
     probed.push(info);
@@ -200,57 +201,61 @@ export async function assemble({
   let loudness = null;
   let tmpDir = null;
 
-  if (a) {
-    tmpDir = await mkdtemp(join(tmpdir(), "kie-mix-"));
-    mixedAudio = join(tmpDir, "mix.wav");
+  // The temp mix is removed whether the film is made, fails or is stopped.
+  try {
+    if (a) {
+      tmpDir = await mkdtemp(join(tmpdir(), "kie-mix-"));
+      mixedAudio = join(tmpDir, "mix.wav");
 
-    const mixArgs = [];
-    for (const i of inputs) mixArgs.push("-i", i);
-    mixArgs.push(
-      "-filter_complex", a.filter,
-      "-map", a.out,
-      "-c:a", "pcm_s24le",
-      "-ar", "48000",
-      "-t", String(totalS),
-      mixedAudio,
+      const mixArgs = [];
+      for (const i of inputs) mixArgs.push("-i", i);
+      mixArgs.push(
+        "-filter_complex", a.filter,
+        "-map", a.out,
+        "-c:a", "pcm_s24le",
+        "-ar", "48000",
+        "-t", String(totalS),
+        mixedAudio,
+      );
+      await ffmpeg(mixArgs, { onLine, signal });
+      loudness = await measureLoudness(mixedAudio, { signal });
+    }
+
+    const args = [];
+    for (const i of inputs) args.push("-i", i);
+    if (mixedAudio) args.push("-i", mixedAudio);
+
+    const audioFilter =
+      mixedAudio && loudness && Object.values(loudness).every((v) => v != null)
+        ? `[${inputs.length}:a]loudnorm=I=-16:TP=-1.5:LRA=11:` +
+          `measured_I=${loudness.inputI}:measured_TP=${loudness.inputTp}:` +
+          `measured_LRA=${loudness.inputLra}:measured_thresh=${loudness.inputThresh}:` +
+          `offset=${loudness.targetOffset}:linear=true[aout]`
+        : null;
+
+    args.push("-filter_complex", audioFilter ? `${v.filter};${audioFilter}` : v.filter);
+    args.push("-map", v.out);
+    if (mixedAudio) args.push("-map", audioFilter ? "[aout]" : `${inputs.length}:a`);
+    args.push(
+      "-c:v", "libx264",
+      "-preset", "medium",
+      "-crf", "18",
+      "-pix_fmt", "yuv420p",
+      "-movflags", "+faststart",
+      "-r", String(fps),
     );
-    await ffmpeg(mixArgs, { onLine });
-    loudness = await measureLoudness(mixedAudio);
+    if (mixedAudio) args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000");
+    args.push("-t", String(totalS), out);
+
+    await ffmpegWriting(out, args, { onLine, signal });
+  } finally {
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
   }
-
-  const args = [];
-  for (const i of inputs) args.push("-i", i);
-  if (mixedAudio) args.push("-i", mixedAudio);
-
-  const audioFilter =
-    mixedAudio && loudness && Object.values(loudness).every((v) => v != null)
-      ? `[${inputs.length}:a]loudnorm=I=-16:TP=-1.5:LRA=11:` +
-        `measured_I=${loudness.inputI}:measured_TP=${loudness.inputTp}:` +
-        `measured_LRA=${loudness.inputLra}:measured_thresh=${loudness.inputThresh}:` +
-        `offset=${loudness.targetOffset}:linear=true[aout]`
-      : null;
-
-  args.push("-filter_complex", audioFilter ? `${v.filter};${audioFilter}` : v.filter);
-  args.push("-map", v.out);
-  if (mixedAudio) args.push("-map", audioFilter ? "[aout]" : `${inputs.length}:a`);
-  args.push(
-    "-c:v", "libx264",
-    "-preset", "medium",
-    "-crf", "18",
-    "-pix_fmt", "yuv420p",
-    "-movflags", "+faststart",
-    "-r", String(fps),
-  );
-  if (mixedAudio) args.push("-c:a", "aac", "-b:a", "192k", "-ar", "48000");
-  args.push("-t", String(totalS), out);
-
-  await ffmpeg(args, { onLine });
-  if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
 
   // Measure the delivered file rather than reporting the target. Two-pass gets
   // close but AAC encoding and loudnorm's own gating move it a little, and this
   // project's rule everywhere else is that a measurement outranks an intention.
-  const delivered = a ? await measureLoudness(out) : null;
+  const delivered = a ? await measureLoudness(out, { signal }) : null;
 
   return {
     out,

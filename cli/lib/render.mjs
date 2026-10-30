@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, isAbsolute } from "node:path";
@@ -121,6 +121,7 @@ export async function render({
   brand: brandName,
   alpha = false,
   onLine,
+  signal,
 }) {
   requireRemotion();
   if (!Object.hasOwn(ALL_TEMPLATES, template)) {
@@ -180,8 +181,13 @@ export async function render({
   }
 
   try {
-    await run("npx", args.map(String), { onLine, cwd: RENDER_DIR });
+    await run("npx", args.map(String), { onLine, cwd: RENDER_DIR, signal });
   } catch (err) {
+    // Stopped on purpose: not a render failure, and no half-written file is left.
+    if (signal?.aborted) {
+      rmSync(resolve(out), { force: true });
+      throw err;
+    }
     throw provider(`Remotion render failed.\n${err.message}`);
   }
 

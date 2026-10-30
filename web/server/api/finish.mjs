@@ -123,8 +123,8 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     };
     need(check, "ffmpeg");
     const [width, height] = dimsFor(a.ratio);
-    const task = tasks.start(params.slug, "assemble", "Assemble", async ({ progress }) => {
-      const result = await tools.assemble({ ...a, width, height, out: outPath(dir, undefined, "film", ".mp4"), onLine: progress });
+    const task = tasks.start(params.slug, "assemble", "Assemble", async ({ progress, signal }) => {
+      const result = await tools.assemble({ ...a, width, height, out: outPath(dir, undefined, "film", ".mp4"), onLine: progress, signal });
       await writeRecord(dir, "assembly.json", result);
       return { outputs: [output(result.out)] };
     });
@@ -138,8 +138,8 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     const srt = srtFile(dir, f.text(body, "srt", { required: true }));
     const style = oneOf(body, "style", CAPTION_STYLES, "social");
     need(check, "ffmpeg", "render");
-    const task = tasks.start(params.slug, "caption", "Captions", async ({ progress }) => {
-      const result = await tools.burnCaptions({ video, srt, style, out: outPath(dir, undefined, "captioned", ".mp4"), onLine: progress });
+    const task = tasks.start(params.slug, "caption", "Captions", async ({ progress, signal }) => {
+      const result = await tools.burnCaptions({ video, srt, style, out: outPath(dir, undefined, "captioned", ".mp4"), onLine: progress, signal });
       await writeRecord(dir, "captions.json", result);
       return { outputs: [output(result.out)], warnings: result.warnings ?? [] };
     });
@@ -161,8 +161,8 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     const mode = oneOf(body, "mode", MODES, "blur");
     need(check, "ffmpeg");
     const warning = captionOrderWarning(video, dir, readJson);
-    const task = tasks.start(params.slug, "variants", "Variants", async ({ progress }) => {
-      const result = await tools.makeVariants({ video, ratios, mode, outDir: dir, onLine: progress });
+    const task = tasks.start(params.slug, "variants", "Variants", async ({ progress, signal }) => {
+      const result = await tools.makeVariants({ video, ratios, mode, outDir: dir, onLine: progress, signal });
       await writeRecord(dir, "variants.json", result);
       return { outputs: result.variants.map((v) => output(v.out)), warnings: warning ? [warning] : [] };
     });
@@ -199,10 +199,10 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     const durationS = f.amount(body, "duration_s");
     if (durationS > MAX_CARD_S) throw f.invalid("duration_s", `A text card runs ${MAX_CARD_S} seconds at most.`);
     need(check, "render");
-    const task = tasks.start(params.slug, "card", `Text card (${template})`, async ({ progress }) => {
+    const task = tasks.start(params.slug, "card", `Text card (${template})`, async ({ progress, signal }) => {
       const propsPath = join(dir, `props-${template}.json`);
       await writeFile(propsPath, JSON.stringify(confined, null, 2) + "\n");
-      const result = await tools.render({ template, propsPath, ratio, durationS, out: outPath(dir, undefined, template, ".mp4"), onLine: progress });
+      const result = await tools.render({ template, propsPath, ratio, durationS, out: outPath(dir, undefined, template, ".mp4"), onLine: progress, signal });
       await writeRecord(dir, `render-${template}.json`, result);
       return { outputs: [output(result.out)] };
     });

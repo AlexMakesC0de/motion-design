@@ -46,6 +46,18 @@ function openBrowser(url) {
   spawn(cmd, [url], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
 }
 
+/**
+ * Stop the studio: abort the running finishing tasks (which kills their ffmpeg
+ * and render processes, so none is left running with no studio to show it),
+ * give them `waitMs` to end, then close the server. Resolves when that is done.
+ */
+export async function shutdown(app, { waitMs = 8000 } = {}) {
+  let timer;
+  await Promise.race([app.tasks.stopAll(), new Promise((r) => (timer = setTimeout(r, waitMs)))]);
+  clearTimeout(timer);
+  await app.closeAll();
+}
+
 async function main() {
   const args = new Set(process.argv.slice(2));
   if (!existsSync(join(WEB_DIR, "node_modules"))) {
@@ -63,7 +75,13 @@ async function main() {
   const url = `http://127.0.0.1:${port}/`;
   process.stdout.write(`Studio running at ${url}  (Ctrl-C to stop)\n`);
   if (!args.has("--no-open")) openBrowser(url);
-  const stop = () => app.closeAll().then(() => process.exit(0));
+  let stopping = false;
+  const stop = () => {
+    // A second Ctrl-C does not wait for the tools to die.
+    if (stopping) process.exit(1);
+    stopping = true;
+    shutdown(app).then(() => process.exit(0));
+  };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 }
