@@ -76,6 +76,40 @@ describe("Variants", () => {
     expect(within(screen.getByLabelText("Video to caption")).getByText("film-9x16.mp4")).toBeInTheDocument();
   });
 
+  const captioned = (modified = "2026-10-31T10:30:00.000Z") => filmFile({ name: "captioned.mp4", origin: "captioned", url: "/media/runs/zed/captioned.mp4", modified });
+
+  test("starts from the newest video that is not captioned, even when captioned.mp4 is the newest file", async () => {
+    const { fetch } = setup({ "/api/films/zed/variants": () => ({ task: task({ tool: "variants", label: "Variants" }) }) }, film({ files: [...film().files, captioned()] }));
+    const picker = await screen.findByLabelText("Video to reframe");
+    expect(picker).toHaveValue("film.mp4");
+    expect(screen.queryByText(/already has captions burned in/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Make variants" }));
+    await waitFor(() => expect(sent(fetch, "/api/films/zed/variants")).toMatchObject({ video: "film.mp4" }));
+  });
+
+  test("marks a captioned video in the list, and warns when it is the one chosen", async () => {
+    setup({}, film({ files: [...film().files, captioned()] }));
+    const picker = await screen.findByLabelText("Video to reframe");
+    const option = within(picker).getByRole("option", { name: "captioned.mp4 (captioned — reframe before captioning)" });
+    expect(option).toHaveValue("captioned.mp4");
+    expect(within(picker).getByRole("option", { name: "film.mp4" })).toBeInTheDocument();
+    fireEvent.change(picker, { target: { value: "captioned.mp4" } });
+    expect(screen.getByText(/captioned\.mp4 already has captions burned in/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make variants" })).toBeEnabled();
+    fireEvent.change(picker, { target: { value: "film.mp4" } });
+    expect(screen.queryByText(/already has captions burned in/)).toBeNull();
+  });
+
+  test("with only captioned videos, offers them and shows the warning before anything runs", async () => {
+    const { fetch } = setup({}, film({ files: [captioned()] }));
+    const picker = await screen.findByLabelText("Video to reframe");
+    expect(picker).toHaveValue("captioned.mp4");
+    expect(screen.getByText(/captioned\.mp4 already has captions burned in/)).toBeInTheDocument();
+    expect(screen.getByText(/Reframe the film first, then burn captions onto each variant/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make variants" })).toBeEnabled();
+    expect(fetch.mock.calls.some(([p]) => String(p) === "/api/films/zed/variants")).toBe(false);
+  });
+
   test("Make variants sends the video, the ratios ticked and the mode", async () => {
     const { fetch } = setup({ "/api/films/zed/variants": () => ({ task: task({ tool: "variants", label: "Variants" }) }) });
     expect(await screen.findByLabelText("Video to reframe")).toHaveValue("film.mp4");

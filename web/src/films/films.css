@@ -72,6 +72,7 @@
 .finish input[type="number"] { width: 6em; }
 .finish__hint { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
 .finish__note { margin: 0; color: var(--text-2); font-size: var(--text-xs); }
+.finish__warning { margin: 0; color: var(--warn); font-size: var(--text-xs); }
 .finish__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); white-space: pre-line; }
 .finish__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .finish__missing { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--warn); border-radius: var(--radius-sm); font-size: var(--text-sm); }

@@ -19,7 +19,10 @@ export function VariantsForm({ film, info, busy, onStarted }: Props) {
   const [ratios, setRatios] = useState<string[]>(OFFERED);
   const [mode, setMode] = useState(info.variantModes[0] ?? "blur");
   const { start, error, sending } = useStart(onStarted);
-  const chosenVideo = video || videos[0]?.name || "";
+  // Until the user picks: the newest video that does not have captions burned in (reframing
+  // that moves them out of the safe area), or the newest of any when every video is captioned.
+  const chosenVideo = video || (videos.find((f) => f.origin !== "captioned") ?? videos[0])?.name || "";
+  const warn = videos.find((f) => f.name === chosenVideo)?.origin === "captioned";
 
   return (
     <section className="finish__tool" aria-labelledby="variants-title">
@@ -28,7 +31,9 @@ export function VariantsForm({ film, info, busy, onStarted }: Props) {
         <label htmlFor="variants-video">Video to reframe</label>
         <select id="variants-video" value={chosenVideo} onChange={(e) => setVideo(e.target.value)}>
           {videos.map((f) => (
-            <option key={f.name}>{f.name}</option>
+            <option key={f.name} value={f.name}>
+              {f.origin === "captioned" ? `${f.name} (captioned — reframe before captioning)` : f.name}
+            </option>
           ))}
         </select>
         <span className="finish__inline">Frames</span>
@@ -51,6 +56,11 @@ export function VariantsForm({ film, info, busy, onStarted }: Props) {
           ))}
         </select>
       </div>
+      {warn && (
+        <p className="finish__warning">
+          {chosenVideo} already has captions burned in. Reframing it moves them out of the safe area. Reframe the film first, then burn captions onto each variant.
+        </p>
+      )}
       <p className="finish__hint">
         Blur fills the edges with a blurred copy; crop cuts to the new frame; pad adds bars. Burn captions after reframing so they stay in frame.
       </p>
