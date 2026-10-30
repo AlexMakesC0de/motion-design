@@ -21,6 +21,19 @@ describe("api", () => {
     expect(init.headers["content-type"]).toBe("application/json");
   });
 
+  test("a file goes as the raw body, named in X-File-Name, never as JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const data = new Blob([new Uint8Array([1, 2, 3])]);
+    await api("/api/library/incoming", { file: { data, name: "zed pose.png" } });
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(data);
+    expect(init.headers["content-type"]).toBe("application/octet-stream");
+    expect(init.headers["x-file-name"]).toBe("zed%20pose.png");
+    expect(init.headers["x-studio-key"]).toBe("k-123");
+  });
+
   test("an error response becomes an ApiError with core's code", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 2, message: "Over the cap." } }), { status: 402 })));
     await expect(api("/api/x")).rejects.toMatchObject({ code: 2, status: 402, message: "Over the cap." });

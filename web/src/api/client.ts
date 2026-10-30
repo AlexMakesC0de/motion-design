@@ -37,16 +37,28 @@ export async function refreshKey(): Promise<boolean> {
   }
 }
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+export interface ApiInit {
+  method?: string;
+  /** Sent as JSON. */
+  body?: unknown;
+  /** Sent as the raw request body (uploads), with its name in X-File-Name. */
+  file?: { data: Blob; name: string };
+  signal?: AbortSignal;
+}
+
+export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   const send = () => {
     const headers: Record<string, string> = { "x-studio-key": key };
-    if (init.body !== undefined) headers["content-type"] = "application/json";
-    return fetch(path, {
-      method: init.method ?? "GET",
-      headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      signal: init.signal,
-    });
+    let body: BodyInit | undefined;
+    if (init.file) {
+      headers["content-type"] = "application/octet-stream";
+      headers["x-file-name"] = encodeURIComponent(init.file.name);
+      body = init.file.data;
+    } else if (init.body !== undefined) {
+      headers["content-type"] = "application/json";
+      body = JSON.stringify(init.body);
+    }
+    return fetch(path, { method: init.method ?? (init.file ? "POST" : "GET"), headers, body, signal: init.signal });
   };
   let res: Response;
   try {
