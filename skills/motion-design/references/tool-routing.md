@@ -61,6 +61,31 @@ The CLI refuses an unknown model locally rather than forwarding it, so a guessed
 
 Provider fields without a flag of their own (Seedance 2.5's `generate_audio`, for a silent film) go through `--param key=value`; `kie models --json` shows which fields each route declares.
 
+## Which model for which job
+
+Quality tiers from third-party model reviews Alex read on 2026-10-31 (S is
+best). They are judgements of output quality, not capabilities, and we have not
+verified them ourselves; `kie models` still decides what a model can do and
+costs, and an explicit user choice always wins.
+
+| Job | S tier | A tier |
+|---|---|---|
+| Motion graphics | `minimax-h3` | |
+| Cinematic | `seedance-2-5` | |
+| Working from reference images | `seedance-2-5` | `wan-3-0` |
+| UGC-style footage | `wan-3-0` | |
+| Lip sync | `seedance-2-5` | `wan-3-0` |
+| Text to video | | `seedance-2-5` |
+| Video edit | | `seedance-2-5`, `wan-3-0` |
+| Animation | | `seedance-2-5`, Kling 4.0 Flash |
+
+When the user has not chosen a model, start from the S-tier entry for the job
+and say why; drop to an A-tier entry when it is the cheaper or the only one
+that fits the duration, ratio or references (read the price from
+`kie preflight`). Kling 4.0 Flash is not in the catalog yet (the kie.ai page
+listed it as coming soon on 2026-10-30), so it cannot be chosen until
+`models.json` has a verified route for it.
+
 ## Native routes versus adaptations
 
 `kie presets` labels each preset:
