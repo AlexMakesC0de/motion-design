@@ -12,7 +12,8 @@
 // at a time, by cursor, instead of "mcpServers" in one page.
 // "$thread" and "$turn" anywhere in params become the current ids.
 // A step with "early": true is sent before the turn/start response.
-// The log gets { argv } first, then { in: message } for every line received.
+// The log gets { argv, envNames } first (variable names only, never values),
+// then { in: message } for every line received.
 // The shapes follow web/server/chat/codex-protocol; initialize and account/read
 // are copied from a real codex-cli 0.154.0 (email replaced).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
@@ -20,7 +21,7 @@ import { createInterface } from "node:readline";
 
 const [exchangeFile, logFile, ...argv] = process.argv.slice(2);
 const ex = JSON.parse(readFileSync(exchangeFile, "utf8"));
-writeFileSync(logFile, `${JSON.stringify({ argv })}\n`);
+writeFileSync(logFile, `${JSON.stringify({ argv, envNames: Object.keys(process.env) })}\n`);
 
 let threadId = null;
 let nextId = 1000;

@@ -92,6 +92,43 @@ describe("how Codex is started", () => {
     assert.ok(!args.join(" ").includes(process.env.KIE_API_KEY), "names only, never the key");
   });
 
+  test("the features that would let Codex read local images or run code are off too", () => {
+    // Both names checked against `codex features list` in codex-cli 0.154.0, which refuses unknown --disable names.
+    assert.ok(codex.DISABLED_FEATURES.includes("view_image"));
+    assert.ok(codex.DISABLED_FEATURES.includes("code_mode_host"));
+  });
+
+  test("the config.toml parser finds servers in every TOML layout, ours left out", () => {
+    const found = (lines) => codex.configuredMcpServers(lines.join("\n"));
+    assert.deepEqual(found(["[mcp_servers.'literal']", 'command = "npx"']), ["literal"], "a single-quoted literal key");
+    assert.deepEqual(
+      found(["[mcp_servers]", 'dotted.command = "npx"', "'lit-dot'.url = \"https://x\"", '"basic dot".command = "y"', 'motion-design.command = "node"']),
+      ["dotted", "lit-dot", "basic dot"],
+      "[mcp_servers] then dotted keys",
+    );
+    assert.deepEqual(
+      found(["[mcp_servers]", 'inline = { command = "npx", args = ["-y", "a = b"] }', "'lit' = { url = \"https://x\" }", 'motion-design = { command = "node" }']),
+      ["inline", "lit"],
+      "[mcp_servers] then inline tables",
+    );
+    assert.deepEqual(
+      found(['model = "gpt-5"', 'mcp_servers.toplevel.command = "npx"', 'mcp_servers . "spaced q" . url = "https://x"', "[other]", 'mcp_servers.not_ours.command = "x"']),
+      ["toplevel", "spaced q"],
+      "dotted keys outside any table header; inside [other] they belong to other",
+    );
+    assert.deepEqual(
+      found(['mcp_servers = { a = { command = "x" }, "b c" = { url = "https://y" }, \'d\' = { command = "z" } }']),
+      ["a", "b c", "d"],
+      "one inline table of servers",
+    );
+    assert.deepEqual(found(['[mcp_servers."quoted".env]', 'X = "1"', "[profiles.mcp_servers.nope]", "x = 1"]), ["quoted"], "a sub-table; mcp_servers under another table is not ours");
+    assert.deepEqual(
+      found(['notes = """', "[mcp_servers.in_string]", "mcp_servers.also_string.x = 1", '"""', "[mcp_servers.after_string]", "command = 'x' # [mcp_servers.comment]"]),
+      ["after_string"],
+      "nothing inside a multi-line string or a comment",
+    );
+  });
+
   test("every request Codex can send has an answer, and approvals are declined", () => {
     assert.deepEqual(codex.ANSWERS["item/commandExecution/requestApproval"](), { decision: "decline" });
     assert.deepEqual(codex.ANSWERS["item/fileChange/requestApproval"](), { decision: "decline" });
@@ -110,6 +147,20 @@ describe("login status", () => {
     assert.deepEqual(sent("initialize")[0].clientInfo.name, "motion_design_studio");
     assert.deepEqual(sent("account/read"), [{ refreshToken: false }]);
     assert.equal(sent("thread/start").length, 0, "status never starts a thread");
+  });
+
+  test("Codex starts without OPENAI_API_KEY in its environment; the provider key variables stay for the MCP server", async () => {
+    process.env.OPENAI_API_KEY = "placeholder-not-a-key";
+    try {
+      const { backend, log } = fakeCodex({});
+      await backend.status();
+      const { envNames } = log()[0];
+      assert.ok(!envNames.includes("OPENAI_API_KEY"));
+      assert.ok(envNames.includes("KIE_API_KEY"));
+      assert.equal(process.env.OPENAI_API_KEY, "placeholder-not-a-key", "the studio's own environment is untouched");
+    } finally {
+      delete process.env.OPENAI_API_KEY;
+    }
   });
 
   test("logged out, and not installed, are one sentence each", async () => {

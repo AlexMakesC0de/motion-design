@@ -9,7 +9,8 @@
 // the studio's runs/, library/ and limits file) from -c overrides given at
 // spawn. Every other MCP server in ~/.codex/config.toml is turned off, and
 // so are the features that bring tools of their own (the shell, plugins,
-// apps, computer and browser use, image generation, sub-agents). Any approval
+// apps, computer and browser use, image generation and viewing, code mode,
+// sub-agents). Codex gets the studio's environment without OPENAI_API_KEY. Any approval
 // request that still arrives (a command, a file change, more permissions) is
 // declined. Before a turn, every other server must report disabled, failed or
 // cancelled; during one, a call to any other server interrupts it.
@@ -42,6 +43,8 @@ export const DISABLED_FEATURES = [
   "shell_tool",
   "unified_exec",
   "in_app_browser",
+  "view_image",
+  "code_mode_host",
 ];
 
 export const NOT_INSTALLED = "Codex isn't installed. Install it with npm install -g @openai/codex, or use an OpenAI API key.";
@@ -49,10 +52,105 @@ export const NOT_LOGGED_IN = "Codex isn't logged in. Run codex login in a termin
 
 export const codexConfigPath = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "config.toml");
 
-/** The MCP servers named in config.toml's [mcp_servers.<name>] tables, ours left out. */
+/**
+ * A TOML key at `s[i]`: dotted segments, each bare, "basic" or 'literal',
+ * with spaces around the dots. Returns { path, end } or null.
+ */
+function readKey(s, i) {
+  const path = [];
+  for (;;) {
+    while (s[i] === " " || s[i] === "\t") i++;
+    let m;
+    if (s[i] === '"') {
+      m = s.slice(i).match(/^"((?:[^"\\]|\\.)*)"/);
+      if (!m) return null;
+      try {
+        path.push(JSON.parse(m[0]));
+      } catch {
+        path.push(m[1]);
+      }
+    } else if (s[i] === "'") {
+      m = s.slice(i).match(/^'([^']*)'/);
+      if (!m) return null;
+      path.push(m[1]);
+    } else {
+      m = s.slice(i).match(/^[A-Za-z0-9_-]+/);
+      if (!m) return null;
+      path.push(m[0]);
+    }
+    i += m[0].length;
+    while (s[i] === " " || s[i] === "\t") i++;
+    if (s[i] !== ".") return { path, end: i };
+    i++;
+  }
+}
+
+/** The first-level key names of the inline table that starts at `s[i]` ("{"). */
+function inlineKeys(s, i) {
+  const names = [];
+  let depth = 0;
+  let expectKey = false;
+  for (; i < s.length; i++) {
+    const c = s[i];
+    if (expectKey && depth === 1 && !/\s/.test(c)) {
+      expectKey = false;
+      const k = readKey(s, i);
+      if (k) {
+        names.push(k.path[0]);
+        i = k.end - 1;
+        continue;
+      }
+    }
+    if (c === '"' || c === "'") {
+      const close = c === '"' ? /^"(?:[^"\\]|\\.)*"/ : /^'[^']*'/;
+      const m = s.slice(i).match(close);
+      if (m) i += m[0].length - 1;
+    } else if (c === "{" || c === "[") {
+      depth++;
+      if (depth === 1) expectKey = true;
+    } else if (c === "}" || c === "]") {
+      depth--;
+      if (depth === 0) break;
+    } else if (c === "," && depth === 1) expectKey = true;
+  }
+  return names;
+}
+
+/**
+ * The MCP servers config.toml names, ours left out, in every layout TOML
+ * allows: [mcp_servers.<name>] headers (bare, "basic" or 'literal' names),
+ * [mcp_servers] followed by dotted keys or inline tables, dotted keys before
+ * any header, and mcp_servers = { ... }. Lines inside multi-line strings are
+ * skipped. Not a full TOML parser: a server still missed is caught during a
+ * turn, when its first tool call interrupts it.
+ */
 export function configuredMcpServers(text) {
   const names = new Set();
-  for (const m of text.matchAll(/^\s*\[mcp_servers\.(?:"([^"]+)"|([A-Za-z0-9_-]+))[\].]/gm)) names.add(m[1] ?? m[2]);
+  let table = [];
+  let inString = null; // the closing """ or ''' of a multi-line string
+  for (const raw of text.split(/\r?\n/)) {
+    if (inString) {
+      if (raw.includes(inString)) inString = null;
+      continue;
+    }
+    const line = raw.trimStart();
+    if (line.startsWith("[")) {
+      const k = readKey(line, line.startsWith("[[") ? 2 : 1);
+      table = k ? k.path : [];
+      if (table[0] === "mcp_servers" && table.length > 1) names.add(table[1]);
+      continue;
+    }
+    const k = readKey(line, 0);
+    if (!k || line[k.end] !== "=") continue;
+    const path = [...table, ...k.path];
+    const value = line.slice(k.end + 1).trimStart();
+    if (path[0] === "mcp_servers") {
+      if (path.length > 1) names.add(path[1]);
+      else if (value.startsWith("{")) for (const n of inlineKeys(value, 0)) names.add(n);
+    }
+    const quote = value.match(/^("""|''')/)?.[1];
+    if (quote && !value.slice(3).includes(quote)) inString = quote;
+  }
   names.delete(MCP_NAME);
   return [...names];
 }
@@ -223,7 +321,9 @@ export function createCodex({
 
   function start() {
     if (proc) return proc.ready;
-    const child = spawn(command, [...prefixArgs, ...build()], { cwd: repo, stdio: ["pipe", "pipe", "pipe"] });
+    // Codex logs in with ChatGPT; an OpenAI key in the studio's environment is not its to see.
+    const { OPENAI_API_KEY: _openaiKey, ...env } = process.env;
+    const child = spawn(command, [...prefixArgs, ...build()], { cwd: repo, env, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); // Codex logs there; not ours to keep
     child.stdin.on("error", () => {}); // a write after exit; the exit handler reports it
     const rpc = openRpc(child, {
