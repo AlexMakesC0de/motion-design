@@ -9,7 +9,7 @@ import { loadPresets, findPreset, routeFor } from "../../../cli/lib/presets.mjs"
 import { RUNS_DIR, runDir, writeRecord } from "../../../cli/lib/run.mjs";
 import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { unknown, usage } from "../../../cli/lib/errors.mjs";
-import { submitJob } from "../../../cli/core/generate.mjs";
+import { submitJob, waitJob } from "../../../cli/core/generate.mjs";
 import { expandRefs } from "../../../cli/core/refs.mjs";
 import { context, jobView } from "../state.mjs";
 import * as f from "./fields.mjs";
@@ -143,4 +143,30 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
     );
   });
 
+  /**
+   * Check again: one free status read through waitJob (a 1 ms deadline means
+   * a single poll). An uncertain job with no upstream id is code 5 with core's
+   * resolve instruction; resolving stays a human step in the CLI.
+   */
+  router.post("/api/jobs/:id/check", async ({ params }) => {
+    const { store } = context();
+    if (follower.has(params.id)) {
+      return { outcome: "pending", following: true, message: "The studio is already watching this job; it updates by itself.", job: jobView(store.get(params.id)) };
+    }
+    const w = await waitJob(catalog, store, params.id, { timeoutMs: 1, deps: deps.generate });
+    return { outcome: w.outcome, following: false, message: checkMessage(w), job: jobView(w.job) };
+  });
+}
+
+function checkMessage(w) {
+  const job = w.job;
+  if (w.outcome === "succeeded") return "Finished.";
+  if (w.outcome === "failed") {
+    return job.state === "failed-confirmed-free" ? `Failed, not charged: ${job.error ?? "no reason given"}` : `Failed, may have been charged: ${job.error ?? "no reason given"}`;
+  }
+  if (w.outcome === "pending") {
+    // A 1 ms deadline makes core say "after 0 s"; say what actually happened.
+    return /still running after/.test(w.message ?? "") ? `Still running at ${job.provider}. Checked just now; check again later.` : (w.message ?? "Still running.");
+  }
+  return w.message ?? "The task finished without a file. Do not resubmit.";
 }

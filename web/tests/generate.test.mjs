@@ -117,3 +117,85 @@ describe("POST /api/generate/image", () => {
     assert.equal(r.json.error.field, "resolution");
   });
 });
+
+describe("when a provider has trouble", () => {
+  test("a create kie rejects outright falls over to WaveSpeed, and both jobs show their provider", async () => {
+    generate.createTask = async (prov, ...rest) => {
+      if (prov.name === "kie") throw provider("kie.ai rejected the request (code 500: busy)");
+      return realCreate(prov, ...rest);
+    };
+    const r = await post("/api/generate/video", { ...video, run: "gen-fallback" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.provider, "wavespeed");
+    assert.equal(r.json.failedOver, true);
+    await app.follower.idle();
+    const jobs = (await req(port, "/api/jobs?run=gen-fallback")).json;
+    const kie = jobs.find((j) => j.provider === "kie");
+    const ws = jobs.find((j) => j.provider === "wavespeed");
+    assert.equal(kie.state, "failed-confirmed-free");
+    assert.equal(kie.countedUsd, 0);
+    assert.equal(ws.failedOver, true);
+  });
+
+  test("a create that dies without an id: 409, code 5 with the local id; the job is kept as uncertain, never resubmitted", async () => {
+    let sent = 0;
+    generate.createTask = async () => {
+      sent += 1;
+      throw new Error("socket hang up");
+    };
+    const r = await post("/api/generate/video", { ...video, run: "gen-uncertain" });
+    assert.equal(r.status, 409);
+    assert.equal(r.json.error.code, 5);
+    assert.match(r.json.error.localJobId, /^j-/);
+    assert.match(r.json.error.message, /Do not resubmit/);
+    assert.equal(sent, 1, "no fallback after an ambiguous create");
+    const [job] = (await req(port, "/api/jobs?run=gen-uncertain")).json;
+    assert.equal(job.id, r.json.error.localJobId);
+    assert.equal(job.state, "uncertain");
+    assert.equal(job.countedUsd, 0.56, "an uncertain job keeps holding its estimate");
+  });
+});
+
+describe("POST /api/jobs/:id/check", () => {
+  test("an uncertain job with no upstream id: 409, code 5, core's resolve instruction; the job stays uncertain", async () => {
+    const [job] = (await req(port, "/api/jobs?run=gen-uncertain")).json;
+    const waits = calls.wait;
+    const r = await post(`/api/jobs/${job.id}/check`);
+    assert.equal(r.status, 409);
+    assert.equal(r.json.error.code, 5);
+    assert.match(r.json.error.message, /kie job resolve/);
+    assert.equal(calls.wait, waits, "nothing to poll without an upstream id");
+    assert.equal(store.get(job.id).state, "uncertain");
+  });
+
+  test("an uncertain job that has an upstream id is read once and settles", async () => {
+    let j = store.create({ run: "gen-check", capability: "video", model: "seedance-2-5", provider: "kie", family: "jobs", providerModel: "bytedance/seedance-2-5", artifactBase: "out", estimateUsd: 0.56, input: { prompt: "x", duration: 4 } });
+    j = store.transition(j.id, "sending");
+    j = store.transition(j.id, "uncertain", { upstreamTaskId: "task-late" });
+    const r = await post(`/api/jobs/${j.id}/check`);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.outcome, "succeeded");
+    assert.equal(r.json.job.state, "succeeded");
+  });
+
+  test("a submitted job still running is reported as pending and left submitted", async () => {
+    let j = store.create({ run: "gen-check", capability: "video", model: "seedance-2-5", provider: "kie", family: "jobs", providerModel: "bytedance/seedance-2-5", artifactBase: "out", estimateUsd: 0.56, input: { prompt: "x", duration: 4 } });
+    j = store.transition(j.id, "sending");
+    j = store.transition(j.id, "submitted", { upstreamTaskId: "task-slow" });
+    const realWait = generate.waitForTask;
+    const { uncertain } = await import("../../cli/lib/errors.mjs");
+    generate.waitForTask = async () => {
+      throw uncertain("still running", "task-slow", { timedOut: true });
+    };
+    const r = await post(`/api/jobs/${j.id}/check`);
+    generate.waitForTask = realWait;
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.outcome, "pending");
+    assert.match(r.json.message, /Still running at kie/);
+    assert.equal(store.get(j.id).state, "submitted");
+  });
+
+  test("a job id that is not one is 400", async () => {
+    assert.equal((await post("/api/jobs/nope/check")).status, 400);
+  });
+});
