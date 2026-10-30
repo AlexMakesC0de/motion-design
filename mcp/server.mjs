@@ -424,7 +424,226 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
     );
   }
 
-  function registerGenerate() {} // Task 5
+  function registerGenerate() {
+    const Submit = {
+      localJobId: z.string(),
+      upstreamTaskId: z.string().nullable(),
+      state: z.string(),
+      provider: z.string(),
+      providerModel: z.string(),
+      estimateUsd: z.number(),
+      basis: z.string(),
+      refMapping: z.array(z.string()),
+      next: z.string(),
+    };
+    const common = {
+      run: z.string().describe("Run folder slug: lowercase letters, digits, hyphens."),
+      prompt: z.string().min(1).describe("The full prompt. Never edited by the server."),
+      refs: z.array(Ref).optional(),
+      resolution: z.string().optional(),
+      aspect_ratio: z.string().optional(),
+      params: z.record(z.string(), z.unknown()).optional().describe("Route fields such as generate_audio, checked against the route's captured contract."),
+      budget_usd: z.number().positive().optional().describe("Per-job budget; defaults to the catalog's."),
+      provider: z.string().optional().describe("Only this provider (e.g. kie)."),
+    };
+
+    /** Expand refs, record the inputs, then reserve and submit through the core. */
+    async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {} }) {
+      const dir = runDir(a.run);
+      const { store, limits, roots, library } = ctx();
+      const expanded = await expandRefs(a.refs ?? [], {
+        catalog,
+        library,
+        roots,
+        baseDir: RUNS_DIR,
+        upload: deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts)),
+      });
+      await writeRecord(dir, promptFile, a.prompt);
+      await writeRecord(dir, inputsFile, {
+        model: model.id,
+        ...extra,
+        refs: expanded.refs,
+        refMapping: expanded.refMapping,
+        params: a.params ?? {},
+        via: "mcp",
+      });
+
+      const sub = await submitJob(
+        catalog,
+        {
+          capability,
+          model,
+          run: a.run,
+          artifactBase,
+          budgetUsd: a.budget_usd,
+          only: a.provider,
+          values: { ...values, refs: expanded.refs, params: a.params ?? {}, _useI2v: useI2v(expanded.refs) },
+          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "mcp" },
+        },
+        { store, limits, deps: deps.generate },
+      );
+      for (const name of expanded.assets) library.recordUse(name, a.run);
+
+      const out = {
+        localJobId: sub.job.id,
+        upstreamTaskId: sub.job.upstreamTaskId ?? null,
+        state: sub.job.state,
+        provider: sub.job.provider,
+        providerModel: sub.job.providerModel,
+        estimateUsd: sub.estimateUsd,
+        basis: sub.basis,
+        refMapping: expanded.refMapping,
+        next: `Call wait_job with job_id "${sub.job.id}".`,
+      };
+      const text = [
+        `submitted ${out.localJobId} (${out.provider} · ${out.providerModel}), estimate $${out.estimateUsd.toFixed(2)}`,
+        ...(out.refMapping.length ? [`refs: ${out.refMapping.join("; ")}`] : []),
+        out.next,
+      ];
+      return ok(text.join("\n"), out);
+    }
+
+    tool(
+      "generate_image",
+      {
+        title: "Generate image",
+        description:
+          "Spends kie credits. Generates a still. Reserves the estimate against the daily cap, submits, and returns a local job id at once; then call wait_job. " +
+          "refs: [{ source, role }] with an asset name, name#n, an https URL or a file in runs/. Write the prompt against the returned refMapping (@Image1 = zed#1).",
+        inputSchema: {
+          ...common,
+          model: z.string().optional().describe("Defaults to gpt-image-2. See list_models."),
+          quality: z.string().optional(),
+          background: z.string().optional(),
+        },
+        outputSchema: Submit,
+        annotations: SPEND,
+      },
+      async (a) => {
+        const model = resolveModel(catalog, a.model ?? "gpt-image-2", "image");
+        if (a.resolution && model.resolutions && !model.resolutions.includes(a.resolution)) {
+          throw unknown(`${model.id} supports resolutions ${model.resolutions.join(", ")}.`);
+        }
+        if (a.quality && model.qualities && !model.qualities.includes(a.quality)) {
+          throw unknown(`${model.id} supports qualities ${model.qualities.join(", ")}.`);
+        }
+        return submit(
+          "image",
+          model,
+          a,
+          { prompt: a.prompt, resolution: a.resolution, quality: a.quality, aspect_ratio: a.aspect_ratio, background: a.background },
+          { promptFile: "image-prompt.txt", inputsFile: "image-inputs.json", artifactBase: "ref", useI2v: (refs) => refs.length > 0 },
+        );
+      },
+    );
+
+    tool(
+      "generate_video",
+      {
+        title: "Generate video",
+        description:
+          "Spends kie credits. Generates a video. Reserves the estimate against the daily cap, submits, and returns a local job id at once; then call wait_job. " +
+          "A preset supplies model, duration and aspect ratio defaults only: the prompt is always yours (adapt the preset's source prompt; never send it unmodified). " +
+          "A first_frame ref makes it image-to-video. Write the prompt against the returned refMapping.",
+        inputSchema: {
+          ...common,
+          model: z.string().optional(),
+          preset: z.string().optional(),
+          duration_s: z.number().int().positive().optional(),
+        },
+        outputSchema: Submit,
+        annotations: SPEND,
+      },
+      async (a) => {
+        let modelId = a.model;
+        let durationS = a.duration_s;
+        let aspectRatio = a.aspect_ratio;
+        let presetId = null;
+        if (a.preset) {
+          const preset = findPreset(loadPresets(), a.preset);
+          const route = routeFor(preset, catalog, { override: a.model });
+          modelId ??= route.modelId;
+          durationS ??= route.defaults.duration_s;
+          aspectRatio ??= route.defaults.aspect_ratio;
+          presetId = preset.id;
+        }
+        if (!modelId) throw usage("Need model, or a preset that supplies one. See list_models and list_presets.");
+
+        const model = resolveModel(catalog, modelId, "video");
+        const problems = validateVideoRequest(catalog, model, { durationS, aspectRatio, refs: a.refs ?? [] });
+        if (problems.length) {
+          throw unknown(`Refused before submitting — nothing was spent:\n${problems.map((p) => `  · ${p}`).join("\n")}`);
+        }
+        return submit(
+          "video",
+          model,
+          a,
+          { prompt: a.prompt, duration: durationS, aspect_ratio: aspectRatio, resolution: a.resolution },
+          {
+            promptFile: "prompt.txt",
+            inputsFile: "inputs.json",
+            artifactBase: "out",
+            useI2v: (refs) => refs.some((r) => r.role === "first_frame"),
+            extra: { preset: presetId, durationS, aspectRatio },
+          },
+        );
+      },
+    );
+
+    tool(
+      "wait_job",
+      {
+        title: "Wait for a job",
+        description:
+          "Wait for a generate_image or generate_video job, up to max_wait_s (default 60, at most 120). Still running is a normal result (outcome pending): call again. " +
+          "On success the files are in the run folder, the actual cost is recorded, and a preview is shown. Free.",
+        inputSchema: {
+          job_id: z.string(),
+          max_wait_s: z.number().int().min(1).max(120).optional(),
+        },
+        outputSchema: {
+          localJobId: z.string(),
+          outcome: z.enum(["succeeded", "failed", "pending", "no-artifact"]),
+          state: z.string(),
+          artifacts: z.array(z.string()),
+          estimateUsd: z.number().nullable(),
+          actualUsd: z.number().nullable(),
+          costSource: z.string().nullable(),
+          message: z.string(),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ job_id, max_wait_s }) => {
+        const { store } = ctx();
+        const w = await waitJob(catalog, store, job_id, { timeoutMs: (max_wait_s ?? 60) * 1000, deps: deps.generate });
+        const job = w.job;
+        const charged = job.state !== "failed-confirmed-free";
+        const message = {
+          succeeded: `Done: ${(w.artifacts ?? []).join(", ") || "no files"}.`,
+          pending: `${w.message ?? "Still running."} Call wait_job again with job_id "${job.id}".`,
+          failed:
+            `Job ended ${job.state}: ${job.error ?? "no message"}. ` +
+            (charged
+              ? "It may have been charged; tell the user before generating again."
+              : "Nothing was charged; generating again is safe."),
+          "no-artifact": w.message ?? "The task succeeded but returned no file. Do not resubmit; tell the user.",
+        }[w.outcome];
+        const out = {
+          localJobId: job.id,
+          outcome: w.outcome,
+          state: job.state,
+          artifacts: w.artifacts ?? [],
+          estimateUsd: job.estimateUsd ?? null,
+          actualUsd: job.actualUsd ?? null,
+          costSource: job.costSource ?? null,
+          message,
+        };
+        const preview = w.outcome === "succeeded" && out.artifacts.length ? await artifactPreview(out.artifacts[0]) : null;
+        const cost = out.actualUsd != null ? ` Cost $${out.actualUsd.toFixed(2)} (${out.costSource}).` : "";
+        return ok(`${message}${cost}`, out, preview ? [preview] : []);
+      },
+    );
+  }
   function registerFinish() {} // Task 6
 }
 

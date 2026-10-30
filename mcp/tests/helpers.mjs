@@ -13,6 +13,11 @@ process.env.KIE_LIBRARY_DIR = join(tmp, "library");
 process.env.KIE_LIMITS_FILE = join(tmp, "limits.json");
 process.env.KIE_API_KEY = "test-key-not-real";
 mkdirSync(RUNS, { recursive: true });
+// Belt and braces: a real key file may exist on this machine, so any code path that
+// slips past the injected deps must fail loudly instead of reaching a provider.
+globalThis.fetch = () => {
+  throw new Error("network call attempted in an MCP test");
+};
 
 const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
 const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
