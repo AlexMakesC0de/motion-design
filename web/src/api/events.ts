@@ -1,4 +1,4 @@
-import { studioKey } from "./client";
+import { refreshKey, studioKey } from "./client";
 import type { StudioEvent } from "./types";
 
 /** Complete SSE events in `buf`, plus the incomplete tail. Comments (": ping") are dropped. */
@@ -20,7 +20,8 @@ export function parseSse(buf: string): { events: StudioEvent[]; rest: string } {
 
 /**
  * Read /api/events with fetch (EventSource cannot send the key header).
- * Reconnects with backoff; `onConnection(false)` while the server is away.
+ * Reconnects with backoff and picks up a restarted server's new key;
+ * `onConnection(false)` while the server is away.
  */
 export function subscribe(onEvent: (e: StudioEvent) => void, onConnection: (up: boolean) => void): () => void {
   let stopped = false;
@@ -31,6 +32,8 @@ export function subscribe(onEvent: (e: StudioEvent) => void, onConnection: (up: 
     while (!stopped) {
       try {
         const res = await fetch("/api/events", { headers: { "x-studio-key": studioKey() }, signal: ctrl.signal });
+        // Refused after a restart: take the new key and reconnect straight away.
+        if (res.status === 403 && (await refreshKey())) continue;
         if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
         onConnection(true);
         delay = 500;

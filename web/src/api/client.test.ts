@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { api, ApiError, setKeyForTests } from "./client";
+import { api, ApiError, setKeyForTests, studioKey } from "./client";
 
 beforeEach(() => setKeyForTests("k-123"));
 
@@ -31,5 +31,30 @@ describe("api", () => {
     const err = (await api("/api/x").catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.offline).toBe(true);
+  });
+
+  test("a refused key after a server restart picks up the new key from the page and retries once", async () => {
+    const page = '<html><head><meta name="studio-key" content="k-new"></head></html>';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "Missing or wrong studio key." } }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(page, { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await api("/api/spend")).toEqual({ ok: true });
+    expect(fetchMock.mock.calls[1][0]).toBe("/");
+    expect(fetchMock.mock.calls[2][1].headers["x-studio-key"]).toBe("k-new");
+    expect(studioKey()).toBe("k-new");
+  });
+
+  test("a second refusal is reported, not retried forever", async () => {
+    const page = '<meta name="studio-key" content="k-same">';
+    const refused = () => new Response(JSON.stringify({ error: { message: "Missing or wrong studio key." } }), { status: 403 });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(refused())
+      .mockResolvedValueOnce(new Response(page, { status: 200 }))
+      .mockResolvedValueOnce(refused());
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api("/api/spend")).rejects.toMatchObject({ status: 403 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
