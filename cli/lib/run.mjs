@@ -1,12 +1,19 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, join, extname, isAbsolute, resolve } from "node:path";
+import { dirname, join, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { usage } from "./errors.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(HERE, "..", "..");
 export const RUNS_DIR = process.env.KIE_RUNS_DIR || join(REPO_ROOT, "runs");
+export const LIBRARY_DIR = process.env.KIE_LIBRARY_DIR || join(REPO_ROOT, "library");
+
+/** True when `path` is strictly inside `root`. Both should already be real paths. */
+export function isInside(path, root) {
+  const rel = relative(root, path);
+  return rel !== "" && !isAbsolute(rel) && rel.split(sep)[0] !== "..";
+}
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
