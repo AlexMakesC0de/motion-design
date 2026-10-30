@@ -28,6 +28,8 @@ export const TRANSITIONS = ["fade", "fadeblack", "fadewhite", "dissolve", "wipel
 export const CAPTION_STYLES = ["social", "subtle"];
 const SHOT_AUDIO = ["auto", "keep", "drop"];
 const MAX_CARD_S = 60;
+/** Props the composition computes itself (core drops them too): a client may not set a card's length, size or rate through props. */
+const COMPOSITION_PROPS = { durationS: "Set the card's length with duration_s, up to 60 seconds.", width: "The card's size follows its aspect ratio.", height: "The card's size follows its aspect ratio.", fps: "The frame rate is fixed." };
 // Size limits are for files sent to a provider; finishing reads local files only.
 const ANY_SIZE = { image: Infinity, video: Infinity, audio: Infinity };
 
@@ -154,7 +156,7 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     const video = mediaFile(dir, "video", f.text(body, "video", { required: true }), ["video"]);
     const ratios = [...new Set(f.strings(body, "ratios"))];
     if (!ratios.length) throw f.invalid("ratios", "Choose at least one ratio, such as 9:16 or 1:1.");
-    const unknownRatio = ratios.find((r) => !RATIOS[r]);
+    const unknownRatio = ratios.find((r) => !Object.hasOwn(RATIOS, r));
     if (unknownRatio) throw f.invalid("ratios", `Unknown ratio "${unknownRatio}". Known: ${Object.keys(RATIOS).join(", ")}.`);
     const mode = oneOf(body, "mode", MODES, "blur");
     need(check, "ffmpeg");
@@ -176,8 +178,12 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
   router.post("/api/films/:slug/card", ({ params, body = {} }) => {
     const dir = filmDir(params.slug);
     const template = f.text(body, "template", { required: true });
-    if (!TEMPLATES[template]) throw f.invalid("template", `Unknown template "${template}". Templates: ${Object.keys(TEMPLATES).join(", ")}.`);
+    // Own keys only: "constructor" and "__proto__" are not templates.
+    if (!Object.hasOwn(TEMPLATES, template)) throw f.invalid("template", `Unknown template "${template}". Templates: ${Object.keys(TEMPLATES).join(", ")}.`);
     const props = f.params({ params: body.props }); // a plain object, or {} when absent
+    for (const [name, why] of Object.entries(COMPOSITION_PROPS)) {
+      if (Object.hasOwn(props, name)) throw f.invalid(`props.${name}`, `${name} cannot be set in props. ${why}`);
+    }
     for (const field of TEMPLATE_FIELDS[template].fields) {
       const v = props[field.name];
       const empty = v == null || v === "" || (Array.isArray(v) && !v.length);

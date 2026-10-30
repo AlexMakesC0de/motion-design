@@ -149,7 +149,8 @@ export const RATIOS = {
 };
 
 export function dimsFor(ratio) {
-  const d = RATIOS[ratio];
+  // Own keys only: "constructor" or "__proto__" is not a ratio.
+  const d = Object.hasOwn(RATIOS, ratio) ? RATIOS[ratio] : null;
   if (!d) {
     throw usage(`Unknown aspect ratio "${ratio}". Known: ${Object.keys(RATIOS).join(", ")}`);
   }

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -9,7 +9,7 @@ import { crossfadePlan } from "../cli/lib/assemble.mjs";
 import { parseSrt } from "../cli/lib/caption.mjs";
 import { MODES, captionOrderWarning } from "../cli/lib/variants.mjs";
 import { dimsFor, RATIOS, escapeFilterPath } from "../cli/lib/ffmpeg.mjs";
-import { TEMPLATES, INTERNAL_TEMPLATES, RENDER_DIR, loadBrand } from "../cli/lib/render.mjs";
+import { TEMPLATES, INTERNAL_TEMPLATES, RENDER_DIR, loadBrand, render } from "../cli/lib/render.mjs";
 import { outPath, inPath } from "../cli/lib/run.mjs";
 
 describe("crossfade timing is arithmetic, not vibes", () => {
@@ -244,5 +244,64 @@ describe("filter paths are escaped before they reach ffmpeg", () => {
 
   test("an ordinary path is unchanged", () => {
     assert.equal(escapeFilterPath("/Users/alex/run/cap.srt"), "/Users/alex/run/cap.srt");
+  });
+});
+
+const hasRemotion = existsSync(join(RENDER_DIR, "node_modules", "remotion"));
+
+/**
+ * Runs core's render() with a stand-in `npx` first on PATH that copies the
+ * props file the renderer would be given, so nothing is rendered and no
+ * browser starts. Resolves what the renderer would have been handed.
+ */
+async function propsHandedToRenderer(props, options) {
+  const dir = mkdtempSync(join(tmpdir(), "kie-render-"));
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "npx"), '#!/bin/sh\nfor a in "$@"; do case "$a" in --props=*) cp "${a#--props=}" "$KIE_SEEN_PROPS" ;; esac; done\n', { mode: 0o755 });
+  const propsPath = join(dir, "props.json");
+  writeFileSync(propsPath, JSON.stringify(props));
+  const saved = { PATH: process.env.PATH, seen: process.env.KIE_SEEN_PROPS };
+  process.env.PATH = `${bin}:${saved.PATH}`;
+  process.env.KIE_SEEN_PROPS = join(dir, "seen.json");
+  try {
+    const result = await render({ template: "kinetic-type", propsPath, out: join(dir, "out.mp4"), ...options });
+    return { seen: JSON.parse(readFileSync(process.env.KIE_SEEN_PROPS, "utf8")), result };
+  } finally {
+    process.env.PATH = saved.PATH;
+    if (saved.seen === undefined) delete process.env.KIE_SEEN_PROPS;
+    else process.env.KIE_SEEN_PROPS = saved.seen;
+  }
+}
+
+describe("render: the composition's size, rate and length come from the call, never from props", () => {
+  const sneaky = { lines: ["Exactly"], durationS: 36000, width: 1, height: 1, fps: 1 };
+
+  test("width, height and fps follow the ratio and fps asked for, and durationS the duration asked for", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    const { seen, result } = await propsHandedToRenderer(sneaky, { ratio: "9:16", fps: 24, durationS: 5 });
+    assert.deepEqual([seen.width, seen.height, seen.fps, seen.durationS], [1080, 1920, 24, 5]);
+    assert.deepEqual(seen.lines, ["Exactly"], "the other props are untouched");
+    assert.deepEqual([result.width, result.height, result.fps, result.durationS], [1080, 1920, 24, 5]);
+  });
+
+  test("with no duration asked for, a durationS in props is dropped, so the template's own length applies", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    const { seen, result } = await propsHandedToRenderer(sneaky, {});
+    assert.deepEqual([seen.width, seen.height, seen.fps], [1920, 1080, 30]);
+    assert.equal("durationS" in seen, false);
+    assert.equal(result.durationS, null);
+  });
+});
+
+describe("a ratio or template named like an Object.prototype key is unknown", () => {
+  test("dimsFor", () => {
+    for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      assert.throws(() => dimsFor(name), { code: EXIT.USAGE, message: /Unknown aspect ratio/ }, name);
+    }
+  });
+
+  test("render", { skip: !hasRemotion && "render/ is not installed" }, async () => {
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      await assert.rejects(render({ template: name, out: "/tmp/never.mp4" }), { code: EXIT.USAGE, message: /Unknown template/ }, name);
+    }
   });
 });

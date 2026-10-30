@@ -106,28 +106,54 @@ export function confinePath(path, roots) {
 }
 
 const IMAGE_PATH = /\.(png|jpe?g|webp|gif|svg)$/i;
+// A prop name that holds a picture or address, in any template (logo, image, src, brand.logo, thumbnailUrl ...).
+const IMAGE_KEY = /image|img|logo|src|icon|photo|picture|poster|avatar|thumb|background|url|href|uri|path|file/i;
+// A scheme with something after the colon: "ftp://host/x", "blob:https://h/1". "NEW:" or "Note: read this" is text.
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\S/i;
+const REMOTE =
+  "render props may only name local files in the allowed folders; remote URLs would be fetched from this machine.";
+
+/**
+ * Whether the headless browser could turn `text` into a request to somewhere
+ * else. Browsers drop tabs and newlines inside a URL and leading control
+ * characters and spaces, read a backslash as a slash, and treat `//host` as
+ * "same scheme, other host", so the text is normalised that way first.
+ *
+ * No template says which props are images (core does not know the templates),
+ * so: a protocol-relative start is remote in any prop; a URL scheme is remote
+ * in a prop named like an image or address, and in any prop whose value is a
+ * single word with no spaces ("ftp://host/x"); data: is inline and never
+ * fetched. Ordinary copy ("Breaking: the launch is on", "NEW:", "4:30 pm",
+ * "// a comment") has a space after the colon, or no scheme, and passes.
+ */
+function isRemote(text, key) {
+  const probe = text.replace(/[\t\n\r]/g, "").replace(/^[\x00-\x20]+/, "");
+  if (/^[\\/]{2}\S/.test(probe.replace(/\\/g, "/"))) return true;
+  if (!URL_SCHEME.test(probe) || /^data:/i.test(probe)) return false;
+  return IMAGE_KEY.test(key) || !/\s/.test(text.trim());
+}
 
 /**
  * Render template props, confined like any other file a client names. The
  * renderer turns every image path in props into a file:// URL for a headless
  * browser, so each such path must sit in an allowed root (relative means
  * inside runs/), and file: or http(s) URLs are refused outright: a remote URL
- * would be fetched from this machine. Returns the props with real paths.
+ * would be fetched from this machine, and so would a protocol-relative one
+ * (isRemote). `key` is the name of the prop the value sits under, for arrays and
+ * nested objects too. Returns the props with real paths.
  */
-export function confineProps(value, roots) {
+export function confineProps(value, roots, key = "") {
   if (typeof value === "string") {
     if (/^file:/i.test(value)) {
       throw unknown(`props may not contain file: URLs ("${value}"); name a file inside runs/ or library/ instead.`);
     }
-    if (/^\s*https?:/i.test(value)) {
-      throw unknown("render props may only name local files in the allowed folders; remote URLs would be fetched from this machine.");
-    }
+    if (/^\s*https?:/i.test(value) || isRemote(value, key)) throw unknown(REMOTE);
     if (!IMAGE_PATH.test(value) || /^data:/i.test(value)) return value;
     return confinePath(isAbsolute(value) ? value : join(RUNS_DIR, value), roots);
   }
-  if (Array.isArray(value)) return value.map((v) => confineProps(v, roots));
+  if (Array.isArray(value)) return value.map((v) => confineProps(v, roots, key));
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, confineProps(v, roots)]));
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, confineProps(v, roots, k)]));
   }
   return value;
 }

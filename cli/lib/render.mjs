@@ -91,6 +91,26 @@ function resolveAssets(value, seen = []) {
   return value;
 }
 
+/**
+ * The props the renderer is given: the caller's props, then the composition's
+ * own size, frame rate and length. Those four come from the ratio, fps and
+ * duration asked for and are never read from props (an MCP client or a studio
+ * form could otherwise ask for a ten-hour or a 100000-pixel render and skip
+ * the limits checked on the real arguments). With no duration asked for, none
+ * is passed and the template's own length applies.
+ */
+export function compositionProps(props, { brand, width, height, fps, durationS }) {
+  const { width: _w, height: _h, fps: _f, durationS: _d, ...rest } = props;
+  return {
+    ...rest,
+    brand: { ...brand, ...(props.brand ?? {}) },
+    width,
+    height,
+    fps,
+    ...(durationS ? { durationS } : {}),
+  };
+}
+
 export async function render({
   template,
   propsPath,
@@ -103,7 +123,7 @@ export async function render({
   onLine,
 }) {
   requireRemotion();
-  if (!ALL_TEMPLATES[template]) {
+  if (!Object.hasOwn(ALL_TEMPLATES, template)) {
     throw usage(
       `Unknown template "${template}". Available:\n` +
         Object.entries(TEMPLATES)
@@ -124,17 +144,7 @@ export async function render({
 
   const [width, height] = dimsFor(ratio);
   const assets = [];
-  const merged = resolveAssets(
-    {
-      ...props,
-      brand: { ...loadBrand(brandName), ...(props.brand ?? {}) },
-      width,
-      height,
-      fps,
-      ...(durationS ? { durationS } : {}),
-    },
-    assets,
-  );
+  const merged = resolveAssets(compositionProps(props, { brand: loadBrand(brandName), width, height, fps, durationS }), assets);
 
   const dir = await mkdtemp(join(tmpdir(), "kie-render-"));
   const propsFile = join(dir, "props.json");

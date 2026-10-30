@@ -133,4 +133,44 @@ describe("confineProps, for render template props", () => {
     assert.throws(() => confineProps({ steps: [{ image: "file:///etc/x.png" }] }, [root]), /file: URLs/);
     assert.throws(() => confineProps({ background: "HTTPS://example.com/page" }, [root]), /remote URLs would be fetched from this machine/);
   });
+
+  test("protocol-relative and other scheme-prefixed values are refused where the renderer would fetch them", () => {
+    const remote = /remote URLs would be fetched from this machine/;
+    for (const props of [
+      { logo: "//example.invalid/logo" },
+      { logo: "  //example.invalid/logo.png" },
+      { logo: "\\\\example.invalid\\logo" }, // \\host\path: browsers read a backslash as a slash
+      { logo: "\t//example.invalid/logo" }, // browsers drop leading controls and embedded tabs and newlines
+      { logo: "ht\ntps://example.invalid/logo" },
+      { logo: "ftp://example.invalid/logo" },
+      { logo: "ftp://example.invalid/my logo" }, // spaces in an address are encoded by the browser, and it is still fetched
+      { logo: "blob:https://example.invalid/1" },
+      { logo: "javascript:alert(1)" },
+      { steps: [{ image: "//example.invalid/shot" }] },
+      { brand: { logo: "//example.invalid/logo" } },
+      { logos: ["//example.invalid/a", "b"] },
+      { screenshot_src: "wss://example.invalid/x" },
+      { anything: "//example.invalid/x" }, // protocol-relative: refused whatever the prop is called
+      { anything: "ftp://example.invalid/x" }, // a value with no spaces that is a URL: refused whatever the prop is called
+      { nested: { deeper: ["gopher://example.invalid/x"] } },
+    ]) {
+      assert.throws(() => confineProps(props, [root]), (e) => e.code === EXIT.UNKNOWN && remote.test(e.message), JSON.stringify(props));
+    }
+  });
+
+  test("ordinary text, numbers, data: images and local paths still pass", () => {
+    const logo = put(root, "ok-logo.png", png(10, 10));
+    const props = {
+      lines: ["Breaking: the launch is on", "Step 1: open the inbox", "// still a comment, with a space", "https is the default", "4:30 pm", "Q3:2026 results"],
+      kicker: "NEW:",
+      profile: "Founder: Zed", // "file" is in the name, but there is a space after the colon: text, not an address
+      footer: "see example.com/pricing",
+      title: "Mail at 10 a.m. -- no c: drive",
+      logo,
+      thumb: "data:image/png;base64,iVBORw0KGgo=",
+      stats: [{ label: "Replies", value: 128, bar: 0.5, suffix: "x" }],
+    };
+    const out = confineProps(props, [root]);
+    assert.deepEqual(out, props);
+  });
 });

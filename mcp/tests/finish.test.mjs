@@ -120,4 +120,16 @@ describe("what a client may smuggle into a local render or filter", () => {
       assert.match(r.content[0].text, /render props may only name local files in the allowed folders; remote URLs would be fetched from this machine\./);
     }
   });
+
+  test("render props naming a protocol-relative or other remote address are refused with code 3 too", async () => {
+    for (const props of [
+      { logo: "//example.invalid/logo" },
+      { shots: [{ src: "ftp://example.invalid/clip" }] },
+      { brand: { logo: "//example.invalid/logo.png" } },
+    ]) {
+      const r = await call(client, "render", { run: "finish-demo", template: "logo-reveal", props });
+      assert.equal(errorOf(r).code, 3, JSON.stringify(props));
+      assert.match(r.content[0].text, /remote URLs would be fetched from this machine\./);
+    }
+  });
 });

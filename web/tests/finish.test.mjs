@@ -316,6 +316,52 @@ describe("POST /api/films/:slug/card", () => {
     assert.match(remote.json.error.message, /remote URLs would be fetched from this machine/);
   });
 
+  test("props cannot set the card's length, size or frame rate: durationS: 36000 would skip the one-minute limit", async () => {
+    const rendered = calls.render.length;
+    const tasks = slowApp.tasks.list().length;
+    for (const [key, value] of [["durationS", 36000], ["width", 99999], ["height", 1], ["fps", 1000]]) {
+      const r = await post(slowPort, "/api/films/finish-gated/card", { template: "lower-third", props: { name: "Zed", [key]: value } });
+      assert.equal(r.status, 400, key);
+      assert.equal(r.json.error.field, `props.${key}`);
+      assert.match(r.json.error.message, new RegExp(key));
+    }
+    await slowApp.tasks.idle();
+    assert.equal(calls.render.length, rendered, "nothing was rendered");
+    assert.equal(slowApp.tasks.list().length, tasks, "no task started");
+  });
+
+  test("props naming a protocol-relative or other remote address are refused, not fetched by the renderer", async () => {
+    for (const logo of ["//example.invalid/logo", "ftp://example.invalid/logo.png", "\\\\example.invalid\\logo"]) {
+      const r = await post(slowPort, "/api/films/finish-gated/card", { template: "logo-reveal", props: { wordmark: "Zed", logo } });
+      assert.equal(r.status, 400, logo);
+      assert.equal(r.json.error.field, "props");
+      assert.match(r.json.error.message, /remote URLs would be fetched from this machine/);
+    }
+    const steps = await post(slowPort, "/api/films/finish-gated/card", { template: "ui-demo", props: { steps: [{ image: "//example.invalid/shot" }] } });
+    assert.equal(steps.json.error.field, "props");
+  });
+
+  test("a template, ratio or mode named like an Object.prototype key is unknown, not found on the prototype", async () => {
+    for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      const card = await post(slowPort, "/api/films/finish-gated/card", { template: name, props: {} });
+      assert.equal(card.status, 400, name);
+      assert.equal(card.json.error.field, "template");
+      const ratio = await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: [name] });
+      assert.equal(ratio.status, 400, name);
+      assert.equal(ratio.json.error.field, "ratios");
+      const cardRatio = await post(slowPort, "/api/films/finish-gated/card", { template: "lower-third", props: { name: "Zed" }, aspect_ratio: name });
+      assert.equal(cardRatio.json.error.field, "aspect_ratio");
+      const mode = await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["1:1"], mode: name });
+      assert.equal(mode.json.error.field, "mode");
+      const style = await post(slowPort, "/api/films/finish-gated/caption", { video: "a.mp4", srt: "captions.srt", style: name });
+      assert.equal(style.json.error.field, "style");
+    }
+    // The same text as a JSON key: a template named __proto__ in the body itself.
+    const raw = await req(slowPort, "/api/films/finish-gated/card", { method: "POST", body: Buffer.from('{"template":"__proto__","props":{"__proto__":{"durationS":36000}}}') });
+    assert.equal(raw.status, 400);
+    assert.equal(raw.json.error.field, "template");
+  });
+
   test("a missing required prop, an unknown template or a duration over a minute is refused on its field", async () => {
     const noLines = await post(slowPort, "/api/films/finish-gated/card", { template: "kinetic-type", props: { lines: [] } });
     assert.equal(noLines.status, 400);
