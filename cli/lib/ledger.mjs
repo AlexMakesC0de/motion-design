@@ -72,10 +72,17 @@ export function summarise(entries) {
     0,
   );
 
+  // Per-task figures from the provider's own record (kie's creditsConsumed).
+  // Unlike balance deltas, these stay right when jobs overlap.
+  const measured = entries.filter((e) => e.costSource === "task-record" && typeof e.actualUsd === "number");
+  const actualUsd = Math.round(measured.reduce((s, e) => s + e.actualUsd, 0) * 100) / 100;
+
   return {
     jobs,
     failures,
     estimatedUsd: Math.round(estimated * 100) / 100,
+    actualUsd: measured.length ? actualUsd : null,
+    actualSamples: measured.length,
     creditsUsed: withCredits.length ? creditsUsed : null,
     creditSamples: withCredits.length,
     failovers: entries.filter((e) => e.failedOver).length,

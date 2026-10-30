@@ -9,7 +9,7 @@ import { parseArgs } from "node:util";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
+import { EXIT, CliError, usage, unknown, uncertain, provider as providerError } from "./lib/errors.mjs";
 import { loadCatalog, resolveModel, validateVideoRequest, parseRef, parseParams, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
 import { createTask, redact } from "./lib/client.mjs";
 import { getProvider, providerKey, hasKey, canFailOver, providerCredits } from "./lib/providers.mjs";
@@ -18,6 +18,9 @@ import { uploadFile } from "./lib/upload.mjs";
 import { preflight, creditsAfter, estimateUsd, priceLabel } from "./lib/budget.mjs";
 import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
+import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
+import { readLimits, setDailyLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
+import { submitJob, waitJob } from "./core/generate.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
 import { extractFrames } from "./lib/frames.mjs";
@@ -45,7 +48,10 @@ const HELP = `kie -- motion-design execution layer
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
                  [--voice V] [--budget U] [--dry-run]
 
-  kie job        <taskId> [--provider P] [--family F] [--run SLUG]
+  kie job        <local job id>            wait for a job and download it
+  kie job resolve <local job id> (--task ID | --not-created)
+                                           settle an uncertain job after checking the provider's log
+  kie limits     [--daily USD] [--json]    the daily cap, today's spend and unsettled jobs
   kie spend      [--today] [--run SLUG] [--since YYYY-MM-DD] [--json]
 
 Finishing (local ffmpeg — no key, no spend):
@@ -118,6 +124,9 @@ const OPTS = {
   today: { type: "boolean", default: false },
   since: { type: "string" },
   "no-wait": { type: "boolean", default: false },
+  daily: { type: "string" },
+  task: { type: "string" },
+  "not-created": { type: "boolean", default: false },
   "dry-run": { type: "boolean", default: false },
   help: { type: "boolean", default: false },
 };
@@ -131,16 +140,6 @@ function warnIfStale(catalog) {
     warn(
       `! cli/models.json was captured ${catalogAgeDays(catalog)} days ago. kie.ai's catalog ` +
         `moves fast; prices and schemas here may be wrong. Re-verify before trusting a budget.`,
-    );
-  }
-}
-
-function warnIfUnverified(route, model) {
-  if (!route.verified) {
-    warn(
-      `! ${model.id} via ${route.prov.label} is unverified: no job has ever succeeded on this ` +
-        `route, so its price ($${route.priceUsd}) is unconfirmed. Flip "verified" in models.json ` +
-        `once you have seen real output.`,
     );
   }
 }
@@ -279,6 +278,8 @@ function cmdPreflight(catalog, args) {
 
   say(`model:   ${model.id} (${model.capability})`);
   say(`budget:  $${Number(cap).toFixed(2)}`);
+  const pos = dailyPosition(openJobs(), readLimits());
+  say(`today:   $${pos.availableUsd.toFixed(2)} of the $${pos.capUsd.toFixed(2)} daily cap available`);
   say(`routes:`);
   const priced = routes.map((r) => ({
     ...r,
@@ -298,7 +299,7 @@ function cmdPreflight(catalog, args) {
     for (const p of problems) say(`  · ${p}`);
     return EXIT.UNKNOWN;
   }
-  const affordable = priced.filter((r) => r.usable && r.estimate.usd <= cap);
+  const affordable = priced.filter((r) => r.usable && r.estimate.usd <= cap && r.estimate.usd <= pos.availableUsd);
   if (!affordable.length) {
     say(`\nWould be refused: no usable route within budget.`);
     return EXIT.BUDGET;
@@ -318,6 +319,7 @@ function cmdSpend(args) {
 
   say(`jobs:           ${s.jobs}${s.failures ? `  (${s.failures} failed)` : ""}`);
   say(`estimated:      $${s.estimatedUsd.toFixed(2)}   (from models.json — a guess)`);
+  if (s.actualUsd != null) say(`actual:         $${s.actualUsd.toFixed(2)}   (from ${s.actualSamples} task record(s) — a fact)`);
   say(
     s.creditsUsed == null
       ? `credits used:   not sampled`
@@ -333,184 +335,113 @@ function cmdSpend(args) {
   }
 }
 
+function cmdLimits(args) {
+  if (args.daily != null) {
+    const next = setDailyLimit(args.daily);
+    say(`daily cap set to $${next.dailyUsd.toFixed(2)}  (${limitsPath()})`);
+  }
+  const store = openJobs();
+  store.sweep();
+  const pos = dailyPosition(store, readLimits());
+  if (args.json) return say(JSON.stringify(pos, null, 2));
+
+  say(`daily cap:  $${pos.capUsd.toFixed(2)}`);
+  say(`today:      $${pos.spentUsd.toFixed(2)} spent or held, $${pos.availableUsd.toFixed(2)} available`);
+  if (pos.unsettled.length) {
+    say(`\nunsettled jobs (each holds its estimate until settled)`);
+    for (const j of pos.unsettled) {
+      say(
+        `  ${j.id}  ${j.state.padEnd(10)} ${j.model} via ${j.provider}  ` +
+          `$${(j.estimateUsd ?? 0).toFixed(2)}  ${j.upstreamTaskId ?? "(no task id: kie job resolve)"}`,
+      );
+    }
+  }
+}
+
 // -------------------------------------------------------------- generation
 
+const onTick = (state, sec) => process.stderr.write(`\r  ${state} ${sec}s   `);
+
+function costLine(job) {
+  return job.costSource === "task-record"
+    ? `cost: $${job.actualUsd.toFixed(2)} from the provider's task record (estimated $${job.estimateUsd.toFixed(2)})`
+    : `cost: not reported by ${job.provider}; counted at the $${job.estimateUsd.toFixed(2)} estimate`;
+}
+
+/** Print a waitJob result, or throw the error its outcome calls for. */
+function finishWait(w) {
+  if (w.outcome === "succeeded") {
+    for (const p of w.artifacts) say(`  → ${p}`);
+    say(costLine(w.job));
+    return EXIT.OK;
+  }
+  if (w.outcome === "pending") {
+    throw uncertain(`${w.message}\n${uncertainMessage(w.job)}`, w.job.upstreamTaskId, { localJobId: w.job.id });
+  }
+  throw w.error ?? providerError(`Job ${w.job.id} ended ${w.job.state}: ${w.job.error ?? "no message"}`);
+}
+
 /**
- * Shared submit -> poll -> download -> record path, with provider failover.
- *
- * Routes are tried in order. Falling over means paying twice if the first
- * provider already did chargeable work, so it happens ONLY on a clean provider
- * error (exit 4) -- see canFailOver in providers.mjs for why a budget refusal,
- * an invalid request and especially an UNCERTAIN result must never trigger one.
+ * Submit through the core, then wait unless --no-wait. A job that FAILS
+ * upstream may fall over to the same model at the next reseller, as before;
+ * an uncertain one never does.
  */
 async function generate(catalog, { capability, model, values, args, artifactBase }) {
-  const dir = runDir(args.run);
   warnIfStale(catalog);
+  const store = openJobs();
+  const limits = readLimits();
+  const onEvent = (e) => (e.type === "submitted" ? say(e.message) : warn(`! ${e.message}`));
+  const tried = [];
 
-  const routes = routesFor(catalog, model, { only: args.provider });
-  const usable = routes.filter((r) => r.usable);
-
-  if (!usable.length) {
-    throw usage(
-      `No usable route for ${model.id}:\n` +
-        routes.map((r) => `  · ${r.provider}: ${r.skipReason}`).join("\n"),
+  for (;;) {
+    const sub = await submitJob(
+      catalog,
+      {
+        capability,
+        model,
+        values,
+        run: args.run,
+        artifactBase,
+        budgetUsd: num(args.budget),
+        only: args.provider,
+        exclude: tried,
+        dryRun: args["dry-run"],
+      },
+      { store, limits, onEvent },
     );
-  }
-  for (const r of routes.filter((r) => !r.usable)) {
-    warn(`  (skipping ${r.provider}: ${r.skipReason})`);
-  }
 
-  const attempts = [];
-  let lastError = null;
-
-  for (const [i, route] of usable.entries()) {
-    const key = providerKey(route.prov);
-    const label = `${route.prov.label} · ${values._useI2v && route.i2vModel ? route.i2vModel : route.model}`;
-
-    if (i > 0) {
-      warn(
-        `\n! ${lastError?.message?.split("\n")[0] ?? "previous route failed"}\n` +
-          `  Falling back to ${label}. Note this is a different reseller of the same model — ` +
-          `output may differ slightly from the primary route.`,
-      );
-    }
-
-    warnIfUnverified(route, model);
-
-    const callRoute = effectiveRoute(route, values._useI2v);
-    const { _useI2v, ...inputValues } = values;
-    const built = buildInput(callRoute, inputValues);
-    if (built.problems.length) {
-      // Our request is wrong for this route's contract. Not a provider fault,
-      // so it does not consume the failover budget -- but a sibling route may
-      // have a different contract that accepts it, so try the next one.
-      const err = unknown(
-        `${label} refused before submitting — nothing was spent:\n` +
-          built.problems.map((p) => `  · ${p}`).join("\n"),
-      );
-      attempts.push({ provider: route.provider, model: route.model, outcome: "invalid-request", error: err.message });
-      lastError = err;
-      if (i === usable.length - 1) throw err;
-      continue;
-    }
-    if (built.unverified) {
-      warn(
-        `! ${label}'s request contract was never captured from its doc page; ` +
-          `the body being sent is a guess and may be rejected.`,
-      );
-    }
-
-    const { estimatedUsd, cap, creditsBefore } = await preflight(catalog, callRoute, {
-      budgetUsd: num(args.budget),
-      key,
-      modelId: model.id,
-      capability,
-      durationS: built.input.duration,
-      resolution: built.input.resolution,
-    });
-
-    if (args["dry-run"]) {
+    if (sub.dryRun) {
+      const pos = dailyPosition(store, limits);
       say(`dry run — nothing submitted.`);
-      say(`  route:    ${label}`);
-      say(`  estimate: $${estimatedUsd.toFixed(2)} (budget $${Number(cap).toFixed(2)})`);
-      say(`  body:     ${JSON.stringify(built.input).slice(0, 600)}`);
-      await writeRecord(dir, "planned.json", {
+      say(`  route:    ${sub.label}`);
+      say(`  estimate: $${sub.estimateUsd.toFixed(2)} (${sub.basis}; job budget $${Number(sub.budgetUsd).toFixed(2)})`);
+      say(`  today:    $${pos.availableUsd.toFixed(2)} of $${pos.capUsd.toFixed(2)} available`);
+      say(`  body:     ${JSON.stringify(sub.input).slice(0, 600)}`);
+      await writeRecord(runDir(args.run), "planned.json", {
         model: model.id,
-        route: { provider: route.provider, model: route.model },
-        input: built.input,
-        estimatedUsd,
-        allRoutes: routes.map((r) => ({ provider: r.provider, usable: r.usable, skipReason: r.skipReason })),
+        route: sub.route,
+        input: sub.input,
+        estimatedUsd: sub.estimateUsd,
+        basis: sub.basis,
+        allRoutes: sub.routes,
       });
       return EXIT.OK;
     }
 
-    const base = {
-      run: args.run,
-      capability,
-      model: model.id,
-      provider: route.provider,
-      providerModel: route.model,
-      estimatedUsd,
-      creditsBefore,
-    };
-
-    let taskId = null;
-    try {
-      const created = await createTask(route.prov, route.family, callRoute.model, built.input, { key });
-      taskId = created.taskId;
-      say(`submitted ${taskId} (${label})`);
-
-      if (args["no-wait"]) {
-        ledger.append({ ...base, taskId, status: "submitted" });
-        await writeRecord(dir, "job.json", { ...base, taskId, create: created.raw, state: "submitted" });
-        say(`not waiting. Rejoin: kie job ${taskId} --provider ${route.provider} --family ${route.family} --run ${args.run}`);
-        return EXIT.OK;
-      }
-
-      const result = await waitForTask(route.prov, route.family, taskId, {
-        key,
-        onTick: (state, sec) => process.stderr.write(`\r  ${state} ${sec}s   `),
-      });
-      process.stderr.write("\n");
-
-      const saved = [];
-      for (const url of result.urls) {
-        const { path } = nextArtifact(dir, artifactBase, extFromUrl(url, ".bin"));
-        await download(url, path);
-        saved.push(path);
-        say(`  → ${path}`);
-      }
-
-      const after = await creditsAfter(route.prov, key);
-      attempts.push({ provider: route.provider, model: route.model, outcome: "success", taskId });
-      ledger.append({ ...base, taskId, status: "success", creditsAfter: after, elapsedS: result.elapsedS, failedOver: i > 0 });
-      await writeRecord(dir, "job.json", {
-        ...base,
-        taskId,
-        state: "success",
-        elapsedS: result.elapsedS,
-        urls: result.urls,
-        artifacts: saved.map((p) => basename(p)),
-        creditsAfter: after,
-        attempts,
-        raw: result.data,
-      });
-      await writeRecord(dir, "cost.json", {
-        estimatedUsd,
-        creditsBefore,
-        creditsAfter: after,
-        creditsUsed:
-          typeof creditsBefore === "number" && typeof after === "number" ? creditsBefore - after : null,
-        attempts,
-        note: "estimatedUsd is from cli/models.json and is a guess; credit figures are measured. A failed-over run may have been charged by BOTH providers.",
-      });
-
-      if (typeof creditsBefore === "number" && typeof after === "number") {
-        say(`cost: ${Math.round((creditsBefore - after) * 10) / 10} ${route.prov.creditUnit ?? "units"} (estimated $${estimatedUsd.toFixed(2)})`);
-      }
+    tried.push(...sub.attempts.map((a) => a.provider));
+    if (args["no-wait"]) {
+      say(`not waiting. Rejoin: kie job ${sub.job.id}`);
       return EXIT.OK;
-    } catch (err) {
-      process.stderr.write("\n");
-      const after = await creditsAfter(route.prov, key);
-      const outcome = err.code === EXIT.UNCERTAIN ? "uncertain" : err.code === EXIT.PROVIDER ? "provider-error" : "refused";
-      attempts.push({ provider: route.provider, model: route.model, outcome, taskId, error: redact(err.message) });
-      ledger.append({ ...base, taskId, status: outcome, creditsAfter: after, error: redact(err.message) });
-      await writeRecord(dir, "job.json", { ...base, taskId, state: outcome, attempts, error: redact(err.message), raw: err.data ?? null });
-
-      lastError = err;
-      const more = i < usable.length - 1;
-      if (more && canFailOver(err)) continue;
-
-      if (more && err.code === EXIT.UNCERTAIN) {
-        warn(
-          `! NOT falling back: this job may exist at ${route.prov.label}. ` +
-            `Failing over would pay twice and abandon the handle. Rejoin instead.`,
-        );
-      }
-      throw err;
     }
+
+    const w = await waitJob(catalog, store, sub.job.id, { onTick });
+    process.stderr.write("\n");
+    if (w.outcome !== "failed") return finishWait(w);
+
+    const more = routesFor(catalog, model, { only: args.provider }).some((r) => r.usable && !tried.includes(r.provider));
+    if (!more || !canFailOver(w.error)) return finishWait(w);
+    warn(`! ${w.job.error}`);
   }
-  throw lastError ?? usage("No route produced a result.");
 }
 
 /**
@@ -732,15 +663,24 @@ async function cmdAudio(catalog, args) {
   });
 }
 
-async function cmdJob(catalog, args, taskId) {
-  if (!taskId) throw usage("kie job <taskId>");
+async function cmdJob(catalog, args, positionals) {
+  const [first, second] = positionals;
+  if (first === "resolve") return cmdJobResolve(args, second);
+  if (!first) throw usage("kie job <local job id>   (or a provider task id with --provider and --run)");
+  if (first.startsWith("j-")) {
+    const w = await waitJob(catalog, openJobs(), first, { onTick });
+    process.stderr.write("\n");
+    return finishWait(w);
+  }
+  // A provider task id from before local job ids existed, or from elsewhere.
+  const taskId = first;
   const prov = getProvider(catalog, args.provider ?? "kie");
   const key = providerKey(prov);
   const family = args.family ?? Object.keys(prov.families)[0];
 
   const result = await waitForTask(prov, family, taskId, {
     key,
-    onTick: (state, s) => process.stderr.write(`\r  ${state} ${s}s   `),
+    onTick,
   });
   process.stderr.write("\n");
 
@@ -765,6 +705,19 @@ async function cmdJob(catalog, args, taskId) {
     urls: result.urls,
     raw: result.data,
   });
+  return EXIT.OK;
+}
+
+function cmdJobResolve(args, id) {
+  if (!id || Boolean(args.task) === Boolean(args["not-created"])) {
+    throw usage("kie job resolve <local job id> (--task <provider task id> | --not-created)");
+  }
+  const job = resolveUncertain(openJobs(), id, { task: args.task, notCreated: args["not-created"] });
+  say(
+    job.state === "submitted"
+      ? `${job.id} rejoined as task ${job.upstreamTaskId}. Wait for it with: kie job ${job.id}`
+      : `${job.id} recorded as never created. Its $${job.estimateUsd.toFixed(2)} hold is released.`,
+  );
   return EXIT.OK;
 }
 
@@ -1036,7 +989,9 @@ async function main(argv) {
     case "audio":
       return cmdAudio(catalog, args);
     case "job":
-      return cmdJob(catalog, args, positionals[0]);
+      return cmdJob(catalog, args, positionals);
+    case "limits":
+      return cmdLimits(args) ?? EXIT.OK;
     case "spend":
       return cmdSpend(args) ?? EXIT.OK;
     case "probe":
@@ -1063,7 +1018,7 @@ main(process.argv.slice(2))
   .catch((err) => {
     if (err instanceof CliError) {
       warn(`\n${err.message}`);
-      if (err.taskId) warn(`\nTask id: ${err.taskId}  →  kie job ${err.taskId}`);
+      if (!err.localJobId && err.taskId) warn(`\nTask id: ${err.taskId}  →  kie job ${err.taskId}`);
       process.exit(err.code);
     }
     warn(`\nUnexpected: ${redact(err?.stack ?? String(err))}`);
