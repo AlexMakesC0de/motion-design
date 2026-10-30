@@ -35,6 +35,8 @@
       "bodyOkCode": 200,
       "credits": "/api/v1/chat/credit",
       "creditUnit": "credits",
+      "usdPerCredit": 0.005,
+      "usdPerCreditSource": "kie.ai pricing page: 1,000 credits = $5 at the base tier (read 2026-10-24).",
       "upload": {
         "host": "https://kieai.redpandaai.co",
         "base64": "/api/file-base64-upload",

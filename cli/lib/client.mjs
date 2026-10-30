@@ -125,6 +125,11 @@ export async function queryTask(prov, family, taskId, { key, attempts = 4 } = {}
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await request(url, { key, timeoutMs: 30_000 });
+      // kie reports a FAILED task with a non-200 body code but a full task
+      // record. That is an answer -- the task failed -- not an unreadable
+      // response, and treating it as one turns a dead job into "uncertain".
+      const record = res.json?.data;
+      if (res.ok && record && typeof record === "object" && "state" in record) return record;
       const failure = readFailure(prov, res);
       if (!failure) return res.json?.data ?? res.json;
       last = failure;

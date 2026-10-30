@@ -132,4 +132,16 @@ export async function providerCredits(prov, key) {
   return typeof d === "number" ? d : (d?.credits ?? d?.balance ?? null);
 }
 
+/**
+ * What a finished task cost, from the provider's own record. kie reports
+ * `creditsConsumed` per task (0 for a failed one). Balance differences cannot
+ * stand in for it once two jobs overlap. Providers with no per-task figure
+ * return null, and the caller keeps the estimate.
+ */
+export function taskCost(prov, data) {
+  const credits = data?.creditsConsumed;
+  if (typeof credits !== "number" || typeof prov.usdPerCredit !== "number") return null;
+  return { usd: Math.round(credits * prov.usdPerCredit * 10_000) / 10_000, credits };
+}
+
 export { uncertain };
