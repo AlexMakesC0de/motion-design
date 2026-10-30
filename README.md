@@ -87,9 +87,12 @@ questions without spending. Nothing here submits a job to probe anything.
 See **[cli/README.md](cli/README.md)** for the exit-code contract, the design
 decisions, and how to keep `models.json` honest.
 
-> **Licensing.** Upstream ships no license and says so; the source prompts come
-> from a Higgsfield blog post. See [ATTRIBUTION.md](ATTRIBUTION.md). This fork is
-> for private use — do not publish it.
+> **Licensing.** Our code (the kie CLI, the MCP server, the render engine and the
+> installer) is by Alexandros Karayiannis under the
+> [PolyForm Noncommercial License 1.0.0](LICENSE.md): free for any noncommercial
+> use, not for sale. Upstream ships no license, and the source prompts come from a
+> Higgsfield blog post; neither is covered (see [ATTRIBUTION.md](ATTRIBUTION.md)).
+> Keep this repository private while it contains that material.
 
 ---
 
