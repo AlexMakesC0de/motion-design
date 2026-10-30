@@ -9,9 +9,16 @@ const { createApp } = await import("../server/app.mjs");
 
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 mkdirSync(join(RUNS, "frames-demo"), { recursive: true });
+mkdirSync(join(RUNS, "frames-other"), { recursive: true });
+mkdirSync(join(tmp, "elsewhere"), { recursive: true });
+const clip = (path) =>
+  spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=24:duration=2", "-pix_fmt", "yuv420p", path]);
 if (hasFfmpeg) {
-  spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=24:duration=2", "-pix_fmt", "yuv420p", join(RUNS, "frames-demo", "out.mp4")]);
+  clip(join(RUNS, "frames-demo", "out.mp4"));
+  clip(join(RUNS, "frames-other", "out.mp4"));
+  clip(join(tmp, "elsewhere", "out.mp4"));
 }
+writeFileSync(join(tmp, "limits.json"), JSON.stringify({ dailyUsd: 10, allowRoots: [join(tmp, "elsewhere")] }));
 writeFileSync(join(tmp, "outside.mp4"), "not inside any allowed root");
 
 let app, port;
@@ -32,6 +39,21 @@ describe("POST /api/frames", () => {
     assert.equal(r.json.firstPath, "frames-demo/out-frames/first.png");
     assert.equal(r.json.times.length, 8);
     assert.ok(existsSync(join(RUNS, "frames-demo", "out-frames", "last.png")));
+  });
+
+  test("a video from another run gets its frames beside it, not over this run's", { skip: !hasFfmpeg && "ffmpeg not installed" }, async () => {
+    const r = await frames({ run: "frames-demo", video: "frames-other/out.mp4" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.firstPath, "frames-other/out-frames/first.png");
+    assert.ok(existsSync(join(RUNS, "frames-other", "out-frames", "sheet.jpg")));
+  });
+
+  test("a video outside runs/ gets a frames folder in the run named for its path, so two out.mp4 never share one", { skip: !hasFfmpeg && "ffmpeg not installed" }, async () => {
+    const r = await frames({ run: "frames-demo", video: join(tmp, "elsewhere", "out.mp4") });
+    assert.equal(r.status, 200, r.text);
+    assert.match(r.json.firstPath, /^frames-demo\/out-[0-9a-f]{8}-frames\/first\.png$/);
+    const again = await frames({ run: "frames-demo", video: join(tmp, "elsewhere", "out.mp4") });
+    assert.equal(again.json.firstPath, r.json.firstPath, "the same source reuses its folder");
   });
 
   test("a video outside the allowed folders is refused: 400, code 3, nothing read", async () => {

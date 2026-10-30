@@ -15,6 +15,7 @@ import { context, jobView } from "../state.mjs";
 import * as f from "./fields.mjs";
 
 export function registerGenerate(router, { catalog, deps = {}, follower }) {
+  const view = (j) => jobView(j, follower.has);
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
 
   /** The fields generate_video and generate_image share. */
@@ -35,32 +36,48 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
     const dir = runDir(a.run);
     const { store, limits, roots, library } = context();
     const expanded = await expandRefs(a.refs, { catalog, library, roots, baseDir: RUNS_DIR, upload });
-    await writeRecord(dir, promptFile, a.prompt);
-    await writeRecord(dir, inputsFile, {
-      model: model.id,
-      ...extra,
-      refs: expanded.refs,
-      refMapping: expanded.refMapping,
-      params: a.params,
-      via: "studio",
-    });
+    // The run's record of what was sent. Written only once a job exists, so an
+    // attempt refused by a limit or a check never replaces an earlier take's.
+    const record = async () => {
+      await writeRecord(dir, promptFile, a.prompt);
+      await writeRecord(dir, inputsFile, {
+        model: model.id,
+        ...extra,
+        refs: expanded.refs,
+        refMapping: expanded.refMapping,
+        params: a.params,
+        via: "studio",
+      });
+    };
 
-    const sub = await submitJob(
-      catalog,
-      {
-        capability,
-        model,
-        run: a.run,
-        artifactBase,
-        budgetUsd: a.budget_usd,
-        only: a.provider,
-        values: { ...values, refs: expanded.refs, params: a.params, _useI2v: useI2v(expanded.refs) },
-        record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "studio" },
-      },
-      { store, limits, deps: deps.generate },
-    );
+    let sub;
+    try {
+      sub = await submitJob(
+        catalog,
+        {
+          capability,
+          model,
+          run: a.run,
+          artifactBase,
+          budgetUsd: a.budget_usd,
+          only: a.provider,
+          values: { ...values, refs: expanded.refs, params: a.params, _useI2v: useI2v(expanded.refs) },
+          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "studio" },
+        },
+        { store, limits, deps: deps.generate },
+      );
+    } catch (err) {
+      // An ambiguous create (code 5) left a job that may still produce a take: keep its record.
+      if (err.localJobId) await record().catch(() => {});
+      throw err;
+    }
     // Submitted and paid for: nothing after this may throw, or the page loses the job id.
     const warnings = [];
+    try {
+      await record();
+    } catch (err) {
+      warnings.push(`Could not write ${promptFile} and ${inputsFile} in ${a.run} (${err.message}); the job is submitted.`);
+    }
     for (const name of expanded.assets) {
       try {
         library.recordUse(name, a.run);
@@ -80,7 +97,7 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
       basis: sub.basis,
       refMapping: expanded.refMapping,
       warnings,
-      job: jobView(sub.job),
+      job: view(sub.job),
     };
   }
 
@@ -151,10 +168,10 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
   router.post("/api/jobs/:id/check", async ({ params }) => {
     const { store } = context();
     if (follower.has(params.id)) {
-      return { outcome: "pending", following: true, message: "The studio is already watching this job; it updates by itself.", job: jobView(store.get(params.id)) };
+      return { outcome: "pending", following: true, message: "The studio is already watching this job; it updates by itself.", job: view(store.get(params.id)) };
     }
     const w = await waitJob(catalog, store, params.id, { timeoutMs: 1, deps: deps.generate });
-    return { outcome: w.outcome, following: false, message: checkMessage(w), job: jobView(w.job) };
+    return { outcome: w.outcome, following: false, message: checkMessage(w), job: view(w.job) };
   });
 }
 
@@ -162,7 +179,12 @@ function checkMessage(w) {
   const job = w.job;
   if (w.outcome === "succeeded") return "Finished.";
   if (w.outcome === "failed") {
-    return job.state === "failed-confirmed-free" ? `Failed, not charged: ${job.error ?? "no reason given"}` : `Failed, may have been charged: ${job.error ?? "no reason given"}`;
+    // Worded from the recorded state: only failed-unconfirmed is a "maybe".
+    const reason = job.error ?? (job.reason === "abandoned" ? "abandoned before it was sent" : job.reason) ?? "no reason given";
+    if (job.state === "refused") return `Refused before sending, not charged: ${reason}`;
+    if (job.state === "failed-confirmed-free") return `Failed, not charged: ${reason}`;
+    if (job.state === "failed-charged") return `Failed and charged: ${reason}`;
+    return `Failed, may have been charged: ${reason}`;
   }
   if (w.outcome === "pending") {
     // A 1 ms deadline makes core say "after 0 s"; say what actually happened.

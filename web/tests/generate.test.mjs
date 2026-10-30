@@ -50,6 +50,35 @@ describe("POST /api/generate/video", () => {
     assert.match(job.media[0], /^\/media\/runs\/gen-web\/out/);
   });
 
+  test("the answer marks the new job as followed; once settled it is not", async () => {
+    const r = await post("/api/generate/video", { ...video, run: "gen-follow", provider: "kie" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.job.following, true);
+    await app.follower.idle();
+    const [job] = (await req(port, "/api/jobs?run=gen-follow")).json;
+    assert.equal(job.following, false);
+  });
+
+  test("a refused attempt leaves the earlier take's prompt and inputs alone", async () => {
+    const first = await post("/api/generate/video", { ...video, run: "gen-keep", provider: "kie", prompt: "Take one." });
+    assert.equal(first.status, 200, first.text);
+    await app.follower.idle();
+    writeFileSync(LIMITS, JSON.stringify({ dailyUsd: 0.1 }));
+    const r = await post("/api/generate/video", { ...video, run: "gen-keep", provider: "kie", prompt: "Take two.", duration_s: 8 });
+    assert.equal(r.status, 402);
+    assert.equal(readFileSync(join(RUNS, "gen-keep", "prompt.txt"), "utf8"), "Take one.");
+    assert.equal(JSON.parse(readFileSync(join(RUNS, "gen-keep", "inputs.json"), "utf8")).durationS, 4);
+  });
+
+  test("an ambiguous create still records the prompt it sent, since a take may yet arrive", async () => {
+    generate.createTask = async () => {
+      throw new Error("socket hang up");
+    };
+    const r = await post("/api/generate/video", { ...video, run: "gen-maybe", prompt: "Maybe a take." });
+    assert.equal(r.status, 409);
+    assert.equal(readFileSync(join(RUNS, "gen-maybe", "prompt.txt"), "utf8"), "Maybe a take.");
+  });
+
   test("over the per-job limit: 402, code 2, nothing sent, no job written", async () => {
     writeFileSync(LIMITS, JSON.stringify({ dailyUsd: 10, perJobUsd: 0.5 }));
     const sent = calls.create.length;
@@ -193,6 +222,24 @@ describe("POST /api/jobs/:id/check", () => {
     assert.equal(r.json.outcome, "pending");
     assert.match(r.json.message, /Still running at kie/);
     assert.equal(store.get(j.id).state, "submitted");
+  });
+
+  test("a refused job is reported as refused and not charged, never as maybe charged", async () => {
+    const j = store.create({ run: "gen-check", capability: "video", model: "seedance-2-5", provider: "kie", family: "jobs", providerModel: "bytedance/seedance-2-5", artifactBase: "out", estimateUsd: 0.56, input: { prompt: "x", duration: 4 } });
+    store.transition(j.id, "refused", { reason: "abandoned" });
+    const r = await post(`/api/jobs/${j.id}/check`);
+    assert.equal(r.status, 200, r.text);
+    assert.match(r.json.message, /^Refused before sending, not charged/);
+    assert.doesNotMatch(r.json.message, /may have been charged/);
+  });
+
+  test("a failed job whose record shows a charge says it was charged", async () => {
+    let j = store.create({ run: "gen-check", capability: "video", model: "seedance-2-5", provider: "kie", family: "jobs", providerModel: "bytedance/seedance-2-5", artifactBase: "out", estimateUsd: 0.56, input: { prompt: "x", duration: 4 } });
+    j = store.transition(j.id, "sending");
+    j = store.transition(j.id, "submitted", { upstreamTaskId: "task-x" });
+    store.transition(j.id, "failed-charged", { actualUsd: 0.5, error: "content policy" });
+    const r = await post(`/api/jobs/${j.id}/check`);
+    assert.equal(r.json.message, "Failed and charged: content policy");
   });
 
   test("a job id that is not one is 400", async () => {

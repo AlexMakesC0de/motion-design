@@ -23,8 +23,8 @@ import * as f from "./fields.mjs";
 
 const TOKEN = /^incoming:([0-9a-f]{32}\.(?:png|jpg|webp))$/;
 const STALE_MS = 24 * 3_600_000;
-/** The largest file any core check accepts; core then applies the per-kind limit with its own message. */
-export const MAX_UPLOAD = Math.max(...Object.values(MAX_BYTES));
+/** The library takes images only, so nothing past core's image limit is worth streaming to disk. */
+export const MAX_UPLOAD = MAX_BYTES.image;
 
 export const incomingDir = () => {
   const dir = join(LIBRARY_DIR, ".incoming");
@@ -71,7 +71,7 @@ async function saveBody(req, path, limit) {
   return size;
 }
 
-export function assetDetail(name) {
+export function assetDetail(name, following) {
   const { library, store } = context();
   const a = library.get(name);
   return {
@@ -88,11 +88,11 @@ export function assetDetail(name) {
       .list()
       .filter((j) => Array.isArray(j.assets) && j.assets.includes(a.name))
       .reverse()
-      .map(jobView),
+      .map((j) => jobView(j, following)),
   };
 }
 
-export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD } = {}) {
+export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, following } = {}) {
   router.get("/api/vocab", () => ({ kinds: KINDS, roles: catalog.roles }));
 
   router.get("/api/library", () => {
@@ -103,7 +103,7 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD }
     });
   });
 
-  router.get("/api/library/:name", ({ params }) => assetDetail(params.name));
+  router.get("/api/library/:name", ({ params }) => assetDetail(params.name, following));
 
   router.post(
     "/api/library/incoming",
@@ -167,6 +167,6 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD }
     // incoming first: it sits inside library/ under a hidden name, which the library root would refuse.
     library.save({ name, kind, description, images: paths, replace }, { roots: [incoming, ...roots] });
     for (const p of uploads) rmSync(p, { force: true });
-    return assetDetail(name);
+    return assetDetail(name, following);
   });
 }

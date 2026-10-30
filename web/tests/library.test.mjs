@@ -8,7 +8,8 @@ import { png, mp4 } from "../../tests/fixtures/images.mjs";
 
 const { createApp } = await import("../server/app.mjs");
 const { createRouter, createHandler } = await import("../server/http.mjs");
-const { registerLibrary } = await import("../server/api/library.mjs");
+const { registerLibrary, MAX_UPLOAD } = await import("../server/api/library.mjs");
+const { MAX_BYTES } = await import("../../cli/core/inputs.mjs");
 const { openJobs } = await import("../../cli/core/jobs.mjs");
 const { loadCatalog } = await import("../../cli/lib/models.mjs");
 
@@ -60,14 +61,17 @@ describe("upload", () => {
     assert.equal(leftovers().length, before);
   });
 
-  test("an image over core's 30 MB limit is refused with the size, and nothing is kept", async () => {
+  test("the upload ceiling is core's image limit, since the library takes images only", () => {
+    assert.equal(MAX_UPLOAD, MAX_BYTES.image);
+  });
+
+  test("an image over the 30 MB image limit is 413, and nothing is kept", async () => {
     const before = leftovers().length;
     const big = Buffer.alloc(30_500_000);
     png(100, 100).copy(big);
     const r = await drop(big, "huge.png");
-    assert.equal(r.status, 400);
-    assert.equal(r.json.error.code, 3);
-    assert.match(r.json.error.message, /^huge\.png is 30\.5MB, over the 30\.0MB limit for image/);
+    assert.equal(r.status, 413);
+    assert.match(r.json.error.message, /^huge\.png is over 30 MB/);
     assert.equal(leftovers().length, before);
   });
 
