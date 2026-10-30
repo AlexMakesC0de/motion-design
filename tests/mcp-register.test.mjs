@@ -24,7 +24,7 @@ describe("Codex config.toml", () => {
     const twice = planCodex(once.text, want);
     assert.equal(twice.action, "none");
     assert.equal(twice.text, once.text);
-    assert.match(once.text, /\[mcp_servers\.motion-design\]\ncommand = "\/usr\/local\/bin\/node"\nargs = \["\/repo\/mcp\/server\.mjs"\]/);
+    assert.match(once.text, /\[mcp_servers\.motion-design\]\ncommand = "\/usr\/local\/bin\/node"\nargs = \["\/repo\/mcp\/server\.mjs"\]\ntool_timeout_sec = 300\n/);
   });
 
   test("uninstall restores the original byte for byte", () => {
@@ -47,6 +47,26 @@ describe("Codex config.toml", () => {
     assert.equal(plan.action, "update");
     assert.ok(plan.text.startsWith(UNRELATED));
     assert.match(plan.text, /\/opt\/node\/bin\/node/);
+  });
+
+  test("anything else inside our markers is a conflict for install and uninstall, text untouched", () => {
+    const installed = planCodex(UNRELATED, want).text;
+    // toml_edit can put a new table between our last line and the trailing END comment.
+    const withForeign = installed.replace("# <<<", '[projects."/x"]\ntrust_level = "trusted"\n# <<<');
+    assert.notEqual(withForeign, installed);
+    for (const uninstall of [false, true]) {
+      const plan = planCodex(withForeign, want, { uninstall });
+      assert.equal(plan.action, "conflict");
+      assert.equal(plan.text, withForeign);
+    }
+  });
+
+  test("a block from before tool_timeout_sec existed is still ours and gets updated", () => {
+    const legacy = `${UNRELATED}\n# >>> motion-design >>>\n[mcp_servers.motion-design]\ncommand = "/usr/local/bin/node"\nargs = ["/repo/mcp/server.mjs"]\n# <<< motion-design <<<\n`;
+    const plan = planCodex(legacy, want);
+    assert.equal(plan.action, "update");
+    assert.match(plan.text, /tool_timeout_sec = 300/);
+    assert.equal(planCodex(legacy, want, { uninstall: true }).text, UNRELATED);
   });
 
   test("applyCodex backs the file up before writing, and a dry run writes nothing", () => {

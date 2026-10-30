@@ -132,6 +132,7 @@ if (!argv.has("--no-mcp")) {
     remove: DRY ? "would remove" : "removed",
     none: "ok, nothing to change",
     conflict: "SKIP: a motion-design entry exists that is not ours; left alone",
+    conflictCodex: "SKIP: our marked block in config.toml contains other settings; move them outside the markers, then run again",
     skip: "skip",
     failed: "FAIL: the claude CLI returned an error",
   };
@@ -143,7 +144,7 @@ if (!argv.has("--no-mcp")) {
   if (existsSync(codexDir)) {
     const x = applyCodex(join(codexDir, "config.toml"), want, { uninstall: UNINSTALL, dryRun: DRY });
     if (["add", "update", "remove"].includes(x.action)) changed += 1;
-    log(`  Codex:       ${say[x.action]}${x.backup ? ` (backup ${x.backup})` : ""}`);
+    log(`  Codex:       ${say[x.action === "conflict" ? "conflictCodex" : x.action]}${x.backup ? ` (backup ${x.backup})` : ""}`);
   } else {
     log("  Codex:       skip (~/.codex not found)");
   }

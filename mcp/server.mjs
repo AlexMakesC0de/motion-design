@@ -37,8 +37,9 @@ const INSTRUCTIONS =
   "Motion-design studio over kie.ai. Look first (status, list_models, list_presets, estimate), " +
   "then generate_image or generate_video, then wait_job until it finishes. Generating spends real money " +
   "against a per-job budget and a daily cap. Error 2 means nothing was spent: ask the user. " +
-  "Error 5 means a job may exist: never resubmit it. Relative paths are inside runs/; only runs/, " +
-  "library/ and folders the user allowed can be read.";
+  "Error 5 means a job may exist: never resubmit it. " +
+  "If a call times out or its result is lost, call status before generating again: an unsettled job may already exist. " +
+  "Relative paths are inside runs/; only runs/, library/ and folders the user allowed can be read.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };

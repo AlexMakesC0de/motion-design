@@ -34,6 +34,12 @@ describe("the tool list", () => {
   });
 });
 
+describe("instructions", () => {
+  test("tell the client to call status after a timeout before generating again", () => {
+    assert.match(client.getInstructions(), /If a call times out or its result is lost, call status before generating again/);
+  });
+});
+
 describe("look", () => {
   test("status: cap, balance through the stub, no unsettled jobs", async () => {
     const r = await call(client, "status");

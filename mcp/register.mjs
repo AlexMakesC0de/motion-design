@@ -13,6 +13,17 @@ export const END = `# <<< ${NAME} <<<`;
 // The optional leading newline is the blank line we add before the block, so
 // removing it restores the file exactly.
 const BLOCK = new RegExp(`\\n?${BEGIN}\\n[\\s\\S]*?${END}\\n`);
+// What codexBlock can produce, and nothing else. The timeout line is optional
+// only so a block written before it existed is still recognised as ours.
+// Codex rewrites config.toml with toml_edit, which can put a table it adds
+// between our last line and END (a trailing end-of-file comment); that text is
+// not ours to replace or delete.
+const OWNED = new RegExp(
+  `^\\[mcp_servers\\.${NAME}\\]\\ncommand = "(?:[^"\\\\\\n]|\\\\.)*"\\nargs = \\[[^\\n]*\\]\\n(?:tool_timeout_sec = \\d+\\n)?$`,
+);
+const BODY = new RegExp(`${BEGIN}\\n([\\s\\S]*?)${END}\\n`);
+// Codex defaults to 60 s per tool call; wait_job alone can wait 120 s.
+export const TOOL_TIMEOUT_SEC = 300;
 const FOREIGN = new RegExp(`^\\s*\\[mcp_servers\\.(?:${NAME}|"${NAME}")\\]\\s*$`, "m");
 
 /** The command hosts run: this node (absolute, so a GUI-launched host without our PATH still finds it). */
@@ -21,12 +32,13 @@ export function serverCommand(root, node = process.execPath) {
 }
 
 export function codexBlock(want) {
-  return [BEGIN, `[mcp_servers.${NAME}]`, `command = ${JSON.stringify(want.command)}`, `args = ${JSON.stringify(want.args)}`, END, ""].join("\n");
+  return [BEGIN, `[mcp_servers.${NAME}]`, `command = ${JSON.stringify(want.command)}`, `args = ${JSON.stringify(want.args)}`, `tool_timeout_sec = ${TOOL_TIMEOUT_SEC}`, END, ""].join("\n");
 }
 
 /** What to do to config.toml's text. Nothing outside our markers ever changes. */
 export function planCodex(text, want, { uninstall = false } = {}) {
   const has = BLOCK.test(text);
+  if (has && !OWNED.test(text.match(BODY)?.[1] ?? "\0")) return { action: "conflict", text };
   if (uninstall) return has ? { action: "remove", text: text.replace(BLOCK, "") } : { action: "none", text };
   if (FOREIGN.test(text.replace(BLOCK, ""))) return { action: "conflict", text };
   if (has) {
