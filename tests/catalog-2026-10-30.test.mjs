@@ -39,12 +39,14 @@ describe("MiniMax H3 is called on kie with its documented contract", () => {
     assert.equal(estimateUsd(kie, { durationS: 4, resolution: "768P" }).usd, 0.16);
   });
 
-  test("the WaveSpeed route is priced per second, so a 10s job is not the flat $0.10", () => {
+  test("the WaveSpeed route is priced per second at its listed rates", () => {
     const wsRoute = h3.routes.find((r) => r.provider === "wavespeed");
     assert.equal(wsRoute.pricing.per, "second");
-    assert.equal(wsRoute.priceUsd, 0.1);
-    assert.equal(estimateUsd(wsRoute, { durationS: 10, resolution: "1080p" }).usd, 1);
-    assert.equal(estimateUsd(wsRoute, { durationS: 10 }).usd, 1);
+    assert.equal(wsRoute.priceUsd, 0.2);
+    assert.equal(estimateUsd(wsRoute, { durationS: 10, resolution: "480p" }).usd, 0.4);
+    assert.equal(estimateUsd(wsRoute, { durationS: 10, resolution: "1080p" }).usd, 1.6);
+    // No resolution given: the route's captured default (480p) is what is sent.
+    assert.equal(estimateUsd(wsRoute, { durationS: 10 }).usd, 0.4);
   });
 
   test("audio is declared native, because it cannot be switched off", () => {

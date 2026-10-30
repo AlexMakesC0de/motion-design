@@ -22,7 +22,7 @@
     "an image there, so budget in credits rather than in the USD guesses.",
     "WaveSpeed's docs describe outputs as { video: url }; the live API returns outputs as an ARRAY of urls. extractUrls is deliberately liberal and absorbed the difference -- do not tighten it to a documented shape."
   ],
-  "captured": "2026-09-10",
+  "captured": "2026-10-30",
   "staleAfterDays": 30,
   "providers": {
     "kie": {
@@ -138,7 +138,7 @@
               "768P": 0.04,
               "2K": 0.065
             },
-            "source": "kie.ai/hailuo-h3, read 2026-10-30: 8 and 13 credits/s. Input video is billed at the same rate; images after the fifth cost 4 credits each (not modelled here)."
+            "source": "kie.ai/hailuo-h3, read 2026-10-30 (direct page text, re-checked): 8 and 13 credits/s. Input video is billed at the same rate; images after the fifth cost 4 credits each (not modelled here)."
           },
           "verified": false,
           "schemaVerified": true,
@@ -219,17 +219,17 @@
           "family": "v3",
           "model": "wavespeed-ai/minimax-h3/text-to-video",
           "i2vModel": "wavespeed-ai/minimax-h3/image-to-video",
-          "priceUsd": 0.1,
-          "priceNote": "Never measured: WaveSpeed exposes no balance. Search results (2026-10-30, not a direct read) put it at about $0.10 per SECOND, so a 5s job may cost ~$0.50. Treat 0.1 as a floor.",
+          "priceUsd": 0.2,
+          "priceNote": "priceUsd is 5s at 480p (the route default), list price. The playground showed 50% off ($0.02/s at 480p); WaveSpeed says the final task charge prevails, so real charges may be lower.",
           "pricing": {
             "per": "second",
             "usdPerSecond": {
-              "480p": 0.1,
-              "540p": 0.1,
-              "768p": 0.1,
-              "1080p": 0.1
+              "480p": 0.04,
+              "540p": 0.06,
+              "768p": 0.08,
+              "1080p": 0.16
             },
-            "source": "unverified: search results 2026-10-30 said about $0.10/s; treat as a floor until read from the live page"
+            "source": "wavespeed.ai/models/wavespeed-ai/minimax-h3/text-to-video, read 2026-10-30 (direct page text): billed per generated second, 480p $0.04, 540p $0.06, 768p $0.08, 1080p $0.16 (list)."
           },
           "verified": true,
           "schemaVerified": true,
@@ -299,7 +299,8 @@
           "i2vModel": "minimax/hailuo-h3-max-i2v",
           "priceUsd": 0.9,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "Not found on 2026-10-30: kie.ai/hailuo-h3-max and docs.kie.ai/market/minimax/hailuo-h3-max-t2v return 404, the docs index has no H3 Max and the pricing page has no row. The model was probably withdrawn; expect the create to be rejected (free). 0.9 is unsupported."
         }
       ]
     },
@@ -341,7 +342,7 @@
           "family": "v3",
           "model": "bytedance/seedance-2.0/text-to-video",
           "i2vModel": "bytedance/seedance-2.0/image-to-video",
-          "priceUsd": 0.54,
+          "priceUsd": 1.2,
           "verified": false,
           "schemaVerified": true,
           "input": {
@@ -382,15 +383,37 @@
               "last_frame": "last_image"
             },
             "note": "i2v requires `image`. `last_image` drives the end frame -- the pair is what lets a long film be split into segments that share a frame at the seam."
-          }
+          },
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "480p": 0.12,
+              "720p": 0.24,
+              "1080p": 0.6,
+              "4k": 1.2
+            },
+            "source": "wavespeed.ai/models/bytedance/seedance-2.0/text-to-video, read 2026-10-30 (direct page text): output-only 480p $0.12/s, 720p $0.24/s, 1080p $0.60/s, 4k $1.20/s (list). With reference videos 0.075/0.15/0.375/0.75 per second (not modelled here)."
+          },
+          "priceNote": "priceUsd is 5s at 720p (the route default), list price. The playground showed 10% off. The earlier 0.54 was 5s at 480p after that discount."
         },
         {
           "provider": "kie",
           "family": "jobs",
           "model": "bytedance/seedance-2",
-          "priceUsd": 1.2,
+          "priceUsd": 1.025,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "480p": 0.095,
+              "720p": 0.205,
+              "1080p": 0.51,
+              "4k": 1.04
+            },
+            "source": "kie.ai/seedance-2-0, Seedance 2 tab (in the page's embedded pricing; the visible default tab is Fast), read 2026-10-30 (direct page text): 19/41/102/208 credits/s without video input. With video input 11.5/25/62/128 credits/s billed on input plus output seconds (not modelled here). kie marks these beta prices."
+          },
+          "priceNote": "priceUsd is 5s at 720p. The earlier 1.2 could not be reproduced from the page."
         }
       ]
     },
@@ -431,7 +454,7 @@
           "provider": "kie",
           "family": "jobs",
           "model": "bytedance/seedance-2-fast",
-          "priceUsd": 0.4,
+          "priceUsd": 0.62,
           "verified": true,
           "schemaVerified": true,
           "measuredCredits": 46.8,
@@ -476,7 +499,16 @@
               "identity": "reference_image_urls",
               "motion": "reference_video_urls"
             }
-          }
+          },
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "480p": 0.0585,
+              "720p": 0.124
+            },
+            "source": "kie.ai/seedance-2-0, Fast tab, read 2026-10-30 (direct page text): 11.7 credits/s at 480p and 24.8 at 720p without video input (6.8 and 15 with video input, not modelled here). Matches the measured 46.8 credits for 4s at 480p."
+          },
+          "priceNote": "priceUsd is 5s at 720p (the route default)."
         }
       ]
     },
@@ -662,9 +694,10 @@
             "usdPerSecond": {
               "480p": 0.18,
               "720p": 0.36,
-              "1080p": 0.9
+              "1080p": 0.9,
+              "4k": 1.8
             },
-            "source": "wavespeed.ai/models/bytedance/seedance-2.5/text-to-video, read 2026-10-30 (list price; the playground showed 10% off)."
+            "source": "wavespeed.ai/models/bytedance/seedance-2.5/text-to-video, read 2026-10-30 (direct page text): 480p $0.18, 720p $0.36, 1080p $0.90, 4k $1.80 per second (list; the playground showed 10% off). With reference videos 0.11/0.22/0.55/1.10 per second (not modelled here)."
           },
           "priceNote": "The earlier 0.81 was 480p for 5s at 10% off, not a per-job price. priceUsd is 5s at 720p.",
           "verified": false,
@@ -696,9 +729,18 @@
           "provider": "kie",
           "family": "jobs",
           "model": "kling/kling-3-0",
-          "priceUsd": 1.4,
+          "priceUsd": 1.35,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "720p": 0.1,
+              "1080p": 0.135
+            },
+            "source": "kie.ai/kling-3-0, read 2026-10-30 (direct page text): Standard 14 credits/s without audio, 20 with; Pro 18 without, 27 with; 4K 67 credits/s. Rates here assume audio on (Standard = 720p, Pro = 1080p); 4K is a separate mode, not modelled."
+          },
+          "priceNote": "priceUsd is 10s Pro with audio, the most a job in this route's 5/10s range costs short of 4K. The docs name the model kling-3.0/video; this route's id is unverified and may be rejected (free)."
         }
       ]
     },
@@ -751,7 +793,16 @@
             },
             "refFields": {},
             "note": "No aspect_ratio parameter exists on this model."
-          }
+          },
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "720p": 0.07,
+              "1080p": 0.105
+            },
+            "source": "kie.ai/wan-2-6, read 2026-10-30 (direct page text): 70/140/210 credits for 5/10/15s at 720p and 105/210/315 at 1080p, i.e. 14 and 21 credits/s."
+          },
+          "priceNote": "priceUsd is 5s at 720p (the route default)."
         }
       ]
     },
@@ -778,9 +829,19 @@
           "family": "v3",
           "model": "alibaba/wan-3.0/text-to-video",
           "i2vModel": "alibaba/wan-3.0/image-to-video",
-          "priceUsd": 0.475,
+          "priceUsd": 0.5,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "480p": 0.05,
+              "720p": 0.1,
+              "1080p": 0.2
+            },
+            "source": "wavespeed.ai/models/alibaba/wan-3.0/text-to-video, read 2026-10-30 (direct page text): per second 480p $0.05, 720p $0.10, 1080p $0.20 (list; the playground showed 5% off), durations 2-30s."
+          },
+          "priceNote": "priceUsd is 5s at 720p, list price. The earlier 0.475 was the 5%-off playground figure."
         }
       ]
     },
@@ -803,9 +864,10 @@
           "provider": "kie",
           "family": "veo",
           "model": "veo3_1",
-          "priceUsd": 2.0,
+          "priceUsd": 1.275,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "kie.ai/veo-3-1, read 2026-10-30: per video, Lite 30/35/150 credits, Fast 60/65/180, Quality 250/255/370 at 720p/1080p/4K. priceUsd is Quality at 1080p, the dearest non-4K tier, because which tier this route's model id selects is not known. The docs list veo3, veo3_fast and veo3_lite; this route sends veo3_1, which may be rejected (free)."
         }
       ]
     },
@@ -832,7 +894,7 @@
           "family": "jobs",
           "model": "seedream/5-pro-text-to-image",
           "i2vModel": "seedream/5-pro-image-to-image",
-          "priceUsd": 0.06,
+          "priceUsd": 0.07,
           "verified": true,
           "schemaVerified": true,
           "measuredCredits": 7,
@@ -866,16 +928,18 @@
               ]
             },
             "refFields": {}
-          }
+          },
+          "priceNote": "kie.ai/seedream-5-0-pro, read 2026-10-30: 7 credits ($0.035) at 1K, 14 ($0.07) at 2K; input images after the first 0.5 credits each. The measured basic 1:1 job was 7 credits; priceUsd assumes 2K because whether quality \"high\" means 2K is unconfirmed."
         },
         {
           "provider": "wavespeed",
           "family": "v3",
           "model": "bytedance/seedream-v5.0-pro",
           "i2vModel": "bytedance/seedream-v5.0-pro/edit",
-          "priceUsd": 0.0405,
+          "priceUsd": 0.09,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "wavespeed.ai/models/bytedance/seedream-v5.0-pro, read 2026-10-30: 1k and 1.5k $0.045, 2k $0.09 (list; the playground showed 10% off). priceUsd assumes 2k."
         }
       ]
     },
@@ -895,9 +959,10 @@
           "family": "jobs",
           "model": "gpt/gpt-image-2-text-to-image",
           "i2vModel": "gpt/gpt-image-2-image-to-image",
-          "priceUsd": 0.12,
+          "priceUsd": 0.05,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "kie.ai/gpt-image-2, read 2026-10-30: 6/10/16 credits ($0.03/$0.05/$0.08) at 1K/2K/4K. priceUsd assumes 2K, as for gpt-image-2-5."
         }
       ]
     },
@@ -986,9 +1051,10 @@
           "provider": "kie",
           "family": "jobs",
           "model": "google/nanobanana2",
-          "priceUsd": 0.08,
+          "priceUsd": 0.06,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "kie.ai/nano-banana-2, read 2026-10-30: 8/12/18 credits ($0.04/$0.06/$0.09) at 1K/2K/4K. priceUsd assumes 2K."
         }
       ]
     },
@@ -1001,9 +1067,10 @@
           "provider": "kie",
           "family": "jobs",
           "model": "elevenlabs/text-to-speech-multilingual-v2",
-          "priceUsd": 0.1,
+          "priceUsd": 0.12,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "kie.ai/elevenlabs-tts, read 2026-10-30: 12 credits ($0.06) per 1,000 characters (Turbo v2.5 is 6). Billed by length: priceUsd assumes a script of up to 2,000 characters; longer ones cost proportionally more."
         }
       ]
     },
@@ -1016,9 +1083,10 @@
           "provider": "kie",
           "family": "jobs",
           "model": "suno/generate-music",
-          "priceUsd": 0.25,
+          "priceUsd": 0.06,
           "verified": false,
-          "schemaVerified": false
+          "schemaVerified": false,
+          "priceNote": "kie.ai/suno-api, read 2026-10-30: 12 credits ($0.06) per Generate Music request (Extend is also 12). The docs name the model ai-music-api/generate with input.model V6; this route's id is unverified and may be rejected (free)."
         }
       ]
     }

@@ -94,3 +94,11 @@ Output tokens extra, not priced.
 ## Not verified
 
 Seedance 2 standard kie prices; Kling 3.0 omni/turbo pages; Gemini Omni video; Runway generation prices; Kling 4.0 Flash; whether Veo 3.1 on kie is flat across 4/6/8s; which Grok Imagine version kie prices; Replicate prices directly; Google GA Veo pricing; the BytePlus price table.
+
+## Direct re-read, later on 2026-10-30
+
+Every route in `cli/models.json` was re-read from the raw page HTML (not a summary), and the catalog was updated from that read; each route's `pricing.source` or `priceNote` quotes it. Where the two disagree, `models.json` wins. Corrections to the table above:
+- The kie.ai/seedance-2-0 page's visible default tab is **Fast**; standard Seedance 2 is 19/41/102/208 credits/s (480p/720p/1080p/4K) without video input, found in the page's embedded pricing.
+- MiniMax H3 on WaveSpeed is $0.04/$0.06/$0.08/$0.16 per second (480p/540p/768p/1080p), not about $0.10/s.
+- MiniMax H3 Max (`minimax/hailuo-h3-max-t2v`) could not be found anywhere on kie.ai or its docs.
+- The kie docs name Veo's models `veo3`, `veo3_fast` and `veo3_lite`, Kling 3.0's `kling-3.0/video`, and Suno's `ai-music-api/generate`; the catalog's ids for those three routes are unverified.
