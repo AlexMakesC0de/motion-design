@@ -6,7 +6,8 @@ import { status, listModels, estimate, listRuns, getRun } from "../../../cli/cor
 import { context, jobView, spendView } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
 
-export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}) {
+export function registerLook(router, { catalog = loadCatalog(), deps = {}, following } = {}) {
+  const view = (j) => jobView(j, following);
   router.get("/api/status", () => {
     const { store, limits } = context();
     return status(catalog, { store, limits, ...(deps.credits ? { credits: deps.credits } : {}) });
@@ -24,7 +25,7 @@ export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}
     return {
       ...run,
       media: artifacts.map(mediaUrl).filter(Boolean),
-      jobs: store.list().filter((j) => j.run === params.slug).reverse().map(jobView),
+      jobs: store.list().filter((j) => j.run === params.slug).reverse().map(view),
     };
   });
 
@@ -37,7 +38,7 @@ export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}
       .filter((j) => !run || j.run === run)
       .reverse()
       .slice(0, limit)
-      .map(jobView);
+      .map(view);
   });
 
   router.get("/api/spend", () => {

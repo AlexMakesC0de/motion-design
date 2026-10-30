@@ -58,7 +58,7 @@ async function main() {
     if (b.status !== 0) process.exit(b.status ?? 1);
   }
   const key = randomBytes(24).toString("base64url");
-  const app = createApp({ key });
+  const app = createApp({ key, resume: true });
   const port = await listenOnFreePort(app, Number(process.env.STUDIO_PORT) || 4317);
   const url = `http://127.0.0.1:${port}/`;
   process.stdout.write(`Studio running at ${url}  (Ctrl-C to stop)\n`);

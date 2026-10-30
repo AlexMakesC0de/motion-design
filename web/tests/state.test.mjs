@@ -38,6 +38,14 @@ describe("jobView", () => {
     assert.deepEqual(v.media, ["/media/runs/zed/out.mp4"]);
     assert.equal(v.countedUsd, 1.03);
     assert.ok(!("input" in v), "the raw provider input is not sent to the page");
+    assert.equal(v.following, false, "nobody follows a job unless a predicate says so");
+  });
+
+  test("following comes from the predicate it is given", () => {
+    const store = openJobs(join(RUNS, ".jobs"));
+    const job = store.create({ run: "zed", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 });
+    assert.equal(jobView(job, (id) => id === job.id).following, true);
+    assert.equal(jobView(job, () => false).following, false);
   });
 });
 

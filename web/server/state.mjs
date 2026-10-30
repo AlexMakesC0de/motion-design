@@ -14,8 +14,12 @@ export function context() {
 
 const round = (n) => Math.round(n * 10_000) / 10_000;
 
-/** A job as a take tile needs it. The raw provider input stays on disk. */
-export function jobView(j) {
+/**
+ * A job as a take tile needs it. The raw provider input stays on disk.
+ * `following(id)` says whether this server is waiting on the job (the
+ * follower's `has`); a pure predicate, so the view stays a plain function.
+ */
+export function jobView(j, following = () => false) {
   const input = j.input ?? {};
   return {
     ...jobSummary(j),
@@ -31,6 +35,7 @@ export function jobView(j) {
     error: j.error ?? null,
     media: (j.artifacts ?? []).map(mediaUrl).filter(Boolean),
     updatedAt: j.history?.at(-1)?.at ?? j.createdAt,
+    following: Boolean(following(j.id)),
   };
 }
 

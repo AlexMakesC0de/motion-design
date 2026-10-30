@@ -8,11 +8,11 @@ import { context, jobView, spendView } from "./state.mjs";
 
 export const formatEvent = ({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-export function takeSnapshot() {
+export function takeSnapshot({ following } = {}) {
   const { store, limits, library } = context();
   store.sweep();
   return {
-    jobs: new Map(store.list().map((j) => [j.id, jobView(j)])),
+    jobs: new Map(store.list().map((j) => [j.id, jobView(j, following)])),
     spend: spendView(store, limits),
     library: library.list(),
   };
@@ -67,6 +67,8 @@ export function createEvents({ pollMs = 2_000, snapshot = takeSnapshot } = {}) {
   check();
 
   return {
+    /** Look again soon: something changed that no file watcher sees (a job stopped being followed). */
+    nudge: soon,
     /** How many responses are subscribed right now. */
     size: () => clients.size,
     /** Attach an HTTP response as a subscriber. */
