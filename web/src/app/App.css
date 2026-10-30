@@ -45,8 +45,6 @@
 .app__main { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-6) var(--space-4) var(--space-5); }
 /* The Studio scrolls its feed itself, so the prompt bar stays on screen. */
 .app__main[data-tab="studio"] { overflow: hidden; padding-top: var(--space-4); padding-bottom: var(--space-4); }
-.placeholder h1 { font-size: var(--text-xl); font-weight: 600; line-height: 1.2; margin: 0 0 var(--space-2); }
-.placeholder p { color: var(--text-2); margin: 0; max-width: 65ch; }
 
 /* Narrow windows: brand and spend share the first row, the tabs scroll on their own row. */
 @media (max-width: 760px) {

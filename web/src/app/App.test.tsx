@@ -16,17 +16,22 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Studio" })).toHaveAttribute("aria-current", "page");
   });
 
-  test("each built tab shows its screen; the rest keep their placeholder", async () => {
+  test("each tab shows its screen", async () => {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise(() => {})));
     window.location.hash = "#/presets";
     const { unmount } = render(<App />);
     expect(screen.getByRole("heading", { name: "Presets" })).toBeInTheDocument();
     unmount();
     window.location.hash = "#/spend";
-    render(<App />);
+    const second = render(<App />);
     expect(screen.getByRole("heading", { name: "Spend" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument();
-    expect(screen.queryByText("Daily totals and every job will show here.")).toBeNull();
+    second.unmount();
+    window.location.hash = "#/settings";
+    render(<App />);
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+    expect(screen.queryByText("Chat connection, limits and provider keys will show here.")).toBeNull();
   });
 
   test("#/films/<name> opens that film's page", async () => {

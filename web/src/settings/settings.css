@@ -1,0 +1,40 @@
+/* Settings: limits, provider keys, kie doctor, and the chat place. Tokens only; no amber here. */
+
+.settings { display: flex; flex-direction: column; gap: var(--space-4); max-width: 760px; }
+.settings__head h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
+.settings__section {
+  display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); font-size: var(--text-sm);
+}
+.settings__section h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.settings__hint { margin: 0; color: var(--text-2); max-width: 70ch; }
+.settings__grid { display: grid; grid-template-columns: max-content max-content; gap: var(--space-2) var(--space-3); align-items: center; }
+.settings__grid > label { color: var(--text-2); }
+.settings__money { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-2); }
+.settings__money input {
+  width: 8em; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 5px var(--space-2); font-size: var(--text-sm);
+}
+.settings__actions { display: flex; align-items: center; gap: var(--space-3); }
+.settings__note { margin: 0; color: var(--text-2); }
+.settings__problem { margin: 0; color: var(--warn); }
+.settings__error { margin: 0; color: var(--bad-ink); }
+
+.providers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.provider { display: grid; grid-template-columns: 120px 90px minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.provider__name { font-weight: 500; }
+.provider__key { font-size: var(--text-xs); color: var(--warn); }
+.provider__key[data-ok="true"] { color: var(--ok); }
+.provider__where { color: var(--text-2); font-size: var(--text-xs); }
+.provider__signup { color: var(--text); font-size: var(--text-xs); }
+
+.doctor { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); }
+.doctor li { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); gap: var(--space-2); }
+.doctor__tag { color: var(--text-3); }
+.doctor li[data-level="ok"] .doctor__tag { color: var(--ok); }
+.doctor li[data-level="warn"] .doctor__tag { color: var(--warn); }
+.doctor li[data-level="fail"] .doctor__tag { color: var(--bad-ink); }
+
+@media (max-width: 760px) {
+  .provider { grid-template-columns: minmax(0, 1fr) auto; }
+}

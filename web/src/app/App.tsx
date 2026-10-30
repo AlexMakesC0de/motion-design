@@ -1,6 +1,5 @@
 import { Nav } from "./Nav";
 import { SpendMeter } from "./SpendMeter";
-import { Placeholder } from "./Placeholder";
 import { parseRoute, type TabId } from "./route";
 import { useRoute, useStudio } from "./useStudio";
 import { StudioScreen } from "../studio/StudioScreen";
@@ -8,11 +7,8 @@ import { LibraryScreen } from "../library/LibraryScreen";
 import { PresetsScreen } from "../presets/PresetsScreen";
 import { FilmsScreen } from "../films/FilmsScreen";
 import { SpendScreen } from "../spend/SpendScreen";
+import { SettingsScreen } from "../settings/SettingsScreen";
 import "./App.css";
-
-const LATER = {
-  settings: ["Settings", "Chat connection, limits and provider keys will show here."],
-} as const;
 
 function Screen({ tab, rest }: { tab: TabId; rest: string[] }) {
   if (tab === "studio") return <StudioScreen />;
@@ -20,8 +16,7 @@ function Screen({ tab, rest }: { tab: TabId; rest: string[] }) {
   if (tab === "presets") return <PresetsScreen />;
   if (tab === "films") return <FilmsScreen slug={rest[0]} />;
   if (tab === "spend") return <SpendScreen />;
-  const [title, next] = LATER[tab];
-  return <Placeholder title={title} next={next} />;
+  return <SettingsScreen />;
 }
 
 export function App() {
