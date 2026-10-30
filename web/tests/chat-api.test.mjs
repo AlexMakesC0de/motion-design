@@ -80,6 +80,12 @@ describe("not connected", () => {
     assert.equal(existsSync(join(RUNS, "chat-none")), false);
   });
 
+  test("Codex's status says when it isn't installed", async () => {
+    const r = await call("/api/chat-settings/codex");
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json, { installed: false, loggedIn: false, plan: null, message: "Codex isn't installed. Install it with npm install -g @openai/codex, or use an OpenAI API key." });
+  });
+
   test("the model list needs a key first", async () => {
     const r = await call("/api/chat-settings/models");
     assert.equal(r.status, 409);

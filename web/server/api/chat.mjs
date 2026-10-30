@@ -24,7 +24,7 @@ export function connectionView() {
   };
 }
 
-export function registerChat(router, { chat, openai }) {
+export function registerChat(router, { chat, openai, codex }) {
   router.get("/api/chat/:film", ({ params }) => chat.view(film(params)));
   router.post("/api/chat/:film", ({ params, body }) => chat.send(film(params), body?.text));
   router.post("/api/chat/:film/stop", ({ params }) => ({ stopped: chat.stop(film(params)) }));
@@ -55,4 +55,7 @@ export function registerChat(router, { chat, openai }) {
       throw err;
     }
   });
+
+  /** Codex login: starts `codex app-server`, sends initialize and account/read, nothing else. */
+  router.get("/api/chat-settings/codex", () => codex.status());
 }
