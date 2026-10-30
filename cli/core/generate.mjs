@@ -261,7 +261,7 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   try {
     for (const url of result.urls) {
       const { path } = nextArtifact(dir, job.artifactBase ?? "out", extFromUrl(url, ".bin"));
-      await d.download(url, path);
+      await d.download(url, path, { within: dir });
       artifacts.push(path);
     }
   } catch (err) {

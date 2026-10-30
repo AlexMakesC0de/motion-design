@@ -1,7 +1,10 @@
-import { writeFile } from "node:fs/promises";
+import { createWriteStream, realpathSync, rmSync } from "node:fs";
+import { once } from "node:events";
+import { dirname } from "node:path";
+import { isInside } from "./run.mjs";
 import { queryTask } from "./client.mjs";
 import { redact } from "./redact.mjs";
-import { provider, uncertain } from "./errors.mjs";
+import { provider, uncertain, usage } from "./errors.mjs";
 
 const SUCCESS = new Set(["success", "succeeded", "completed", "done", "finished"]);
 const FAILURE = new Set([
@@ -141,11 +144,39 @@ export async function waitForTask(
   }
 }
 
-export async function download(url, destPath) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw provider(`Download failed (${res.status}) for ${redact(url)}`);
+/**
+ * Fetch a result the provider returned for this task. https only, streamed
+ * with a size ceiling, and written only inside `within` (the run directory),
+ * so a strange URL in a task record cannot fill the disk or land elsewhere.
+ */
+export async function download(url, destPath, { within, maxBytes = 500_000_000 } = {}) {
+  if (!/^https:\/\//i.test(url)) throw provider(`Refusing to download a non-https result URL: ${redact(url)}`);
+  if (within) {
+    const destDir = realpathSync(dirname(destPath));
+    const root = realpathSync(within);
+    if (destDir !== root && !isInside(destDir, root)) {
+      throw usage(`${destPath} is outside the run directory ${within}; results are only written there.`);
+    }
   }
-  await writeFile(destPath, Buffer.from(await res.arrayBuffer()));
+
+  const res = await fetch(url);
+  if (!res.ok) throw provider(`Download failed (${res.status}) for ${redact(url)}`);
+  const declared = Number(res.headers.get("content-length"));
+  if (declared > maxBytes) throw provider(`Result is ${declared} bytes, over the ${maxBytes}-byte limit: ${redact(url)}`);
+
+  const out = createWriteStream(destPath);
+  let total = 0;
+  try {
+    for await (const chunk of res.body) {
+      total += chunk.length;
+      if (total > maxBytes) throw provider(`Result grew over the ${maxBytes}-byte limit; download stopped: ${redact(url)}`);
+      if (!out.write(chunk)) await once(out, "drain");
+    }
+    await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
+  } catch (err) {
+    out.destroy();
+    rmSync(destPath, { force: true });
+    throw err;
+  }
   return destPath;
 }
