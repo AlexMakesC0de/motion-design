@@ -1,0 +1,52 @@
+/* Films: run folders as cards, then a film page with shots and outputs. Tokens only.
+   Amber is for costs only here. */
+
+.films, .film { display: flex; flex-direction: column; gap: var(--space-4); }
+.films__head h1, .film__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
+.films__head p, .film__prompt { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
+.film__error { margin: 0; color: var(--bad-ink); }
+.film__none { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+
+.films__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
+.film-card {
+  display: flex; flex-direction: column; gap: var(--space-1); padding-bottom: var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1);
+  color: var(--text); text-decoration: none; overflow: hidden;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.film-card:hover { border-color: var(--text-3); }
+.film-card__cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); margin-bottom: var(--space-1); }
+.film-card__name { padding: 0 var(--space-3); font-size: var(--text-md); }
+.film-card__meta { padding: 0 var(--space-3); color: var(--text-2); font-size: var(--text-xs); }
+
+.film__back { color: var(--text-2); font-size: var(--text-sm); }
+.film__back:hover { color: var(--text); }
+.film__body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-5); align-items: start; }
+.film__main { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.film__section { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.film__section h2 { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.film__section-head { display: flex; justify-content: space-between; align-items: baseline; }
+.film__count { font-size: var(--text-xs); color: var(--text-2); }
+
+.shots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.shot {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3);
+  padding: var(--space-1) var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-1);
+}
+.shot[data-on="false"] { opacity: 0.55; }
+.shot__thumb { display: block; width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-2); }
+.shot__use { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); min-width: 0; }
+.shot__use .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shot__cost { color: var(--accent); font-size: var(--text-xs); }
+.shot__move { display: flex; gap: var(--space-1); }
+
+.outputs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-3); }
+.output { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); overflow: hidden; }
+.output__player { display: block; width: 100%; max-height: 320px; background: var(--bg); }
+.output__info { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) var(--space-3) var(--space-3); font-size: var(--text-sm); }
+.output__meta { color: var(--text-2); font-size: var(--text-xs); }
+.output__info .button { align-self: flex-start; margin-top: var(--space-1); text-decoration: none; }
+
+@media (max-width: 1100px) {
+  .film__body { grid-template-columns: minmax(0, 1fr); }
+}

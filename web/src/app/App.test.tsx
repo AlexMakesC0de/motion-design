@@ -28,6 +28,14 @@ describe("App", () => {
     expect(screen.getByText("Daily totals and every job will show here.")).toBeInTheDocument();
   });
 
+  test("#/films/<name> opens that film's page", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise(() => {})));
+    window.location.hash = "#/films/zed";
+    render(<App />);
+    expect(screen.getByRole("heading", { name: "zed" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Films" })).toHaveAttribute("aria-current", "page");
+  });
+
   test("the Studio is the default screen, with its prompt bar", () => {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise(() => {})));
     render(<App />);

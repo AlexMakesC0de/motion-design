@@ -6,24 +6,25 @@ import { useRoute, useStudio } from "./useStudio";
 import { StudioScreen } from "../studio/StudioScreen";
 import { LibraryScreen } from "../library/LibraryScreen";
 import { PresetsScreen } from "../presets/PresetsScreen";
+import { FilmsScreen } from "../films/FilmsScreen";
 import "./App.css";
 
 const LATER = {
-  films: ["Films", "Your run folders, ready to finish, will show here."],
   spend: ["Spend", "Daily totals and every job will show here."],
   settings: ["Settings", "Chat connection, limits and provider keys will show here."],
 } as const;
 
-function Screen({ tab }: { tab: TabId }) {
+function Screen({ tab, rest }: { tab: TabId; rest: string[] }) {
   if (tab === "studio") return <StudioScreen />;
   if (tab === "library") return <LibraryScreen />;
   if (tab === "presets") return <PresetsScreen />;
+  if (tab === "films") return <FilmsScreen slug={rest[0]} />;
   const [title, next] = LATER[tab];
   return <Placeholder title={title} next={next} />;
 }
 
 export function App() {
-  const { tab } = parseRoute(useRoute());
+  const { tab, rest } = parseRoute(useRoute());
   const { spend, online } = useStudio();
   return (
     <div className="app">
@@ -38,7 +39,7 @@ export function App() {
         </div>
       )}
       <main className="app__main" data-tab={tab}>
-        <Screen tab={tab} />
+        <Screen tab={tab} rest={rest} />
       </main>
     </div>
   );
