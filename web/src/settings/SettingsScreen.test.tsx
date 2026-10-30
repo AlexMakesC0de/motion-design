@@ -190,13 +190,30 @@ describe("SettingsScreen: chat connection", () => {
     expect(JSON.parse(String(put[1]!.body))).toEqual({ backend: "openai", model: "gpt-b" });
   });
 
+  test("the connection already in use shows In use; choosing another option offers Use this connection again", async () => {
+    setup({
+      "/api/chat-settings": () => keyed({ backend: "openai", model: "gpt-test-1" }),
+      "/api/chat-settings/models": () => ({ models: ["gpt-test-2", "gpt-test-1"] }),
+      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: true, plan: "ChatGPT Plus", message: null }),
+    });
+    const model = await screen.findByRole("combobox", { name: "Model" });
+    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
+    fireEvent.change(model, { target: { value: "gpt-test-2" } });
+    expect(screen.getByRole("button", { name: "Use this connection" })).toBeEnabled();
+    fireEvent.change(model, { target: { value: "gpt-test-1" } });
+    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /ChatGPT subscription/ }));
+    expect(await screen.findByText("Codex is logged in with ChatGPT Plus.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use this connection" })).toBeEnabled();
+  });
+
   test("Codex not logged in says how to log in, and Check again asks again", async () => {
     const fetch = setup({
       "/api/chat-settings": () => chatSettings({ backend: "codex" }),
       "/api/chat-settings/codex": () => ({ installed: true, loggedIn: false, plan: null, message: "Codex isn't logged in. Run codex login in a terminal, then check again, or use an OpenAI API key." }),
     });
     expect(await screen.findByText(/Run codex login in a terminal/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Use this connection" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Check again" }));
     await waitFor(() => expect(calls(fetch, "/api/chat-settings/codex")).toHaveLength(2));
   });

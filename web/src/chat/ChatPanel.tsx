@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { ChatEntry, ChatSettingsView } from "../api/types";
-import { ConnectionForm } from "./ConnectionForm";
+import { ConnectionForm, connectionShort } from "./ConnectionForm";
 import { ToolStep } from "./ToolStep";
 import { useChat } from "./useChat";
 import "./chat.css";
+
+/** Below this width the chat stacks under the feed (chat.css) and starts folded. */
+const NARROW = "(max-width: 760px)";
+const narrow = () => typeof window !== "undefined" && window.matchMedia?.(NARROW).matches === true;
 
 export const NOT_CONNECTED = "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.";
 
@@ -40,7 +44,7 @@ function Entry({ entry }: { entry: ChatEntry }) {
  * like any other. With nothing connected it shows the two ways to connect.
  */
 export function ChatPanel({ film }: { film: string | null }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => !narrow());
   const [settings, setSettings] = useState<ChatSettingsView | null>(null);
   const [text, setText] = useState("");
   const chat = useChat(film);
@@ -58,6 +62,7 @@ export function ChatPanel({ film }: { film: string | null }) {
   }, [chat.entries]);
 
   const connected = settings?.backend != null;
+  const via = settings ? connectionShort(settings) : null;
   const picker = settings != null && (!connected || chat.connect);
 
   async function submit() {
@@ -84,6 +89,7 @@ export function ChatPanel({ film }: { film: string | null }) {
         <button type="button" className="button button--quiet chat__hide" aria-expanded="true" onClick={() => setOpen(false)}>
           Hide chat
         </button>
+        {via && !picker && <span className="chat__via">{via}</span>}
       </header>
 
       {picker && settings && (

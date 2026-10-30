@@ -142,7 +142,7 @@ describe("login status", () => {
   test("logged in: the plan, never the email", async () => {
     const { backend, sent } = fakeCodex({});
     const s = await backend.status();
-    assert.deepEqual(s, { installed: true, loggedIn: true, plan: "ChatGPT plus", message: null });
+    assert.deepEqual(s, { installed: true, loggedIn: true, plan: "ChatGPT Plus", message: null });
     assert.ok(!JSON.stringify(s).includes("someone@"));
     assert.deepEqual(sent("initialize")[0].clientInfo.name, "motion_design_studio");
     assert.deepEqual(sent("account/read"), [{ refreshToken: false }]);
@@ -161,6 +161,17 @@ describe("login status", () => {
     } finally {
       delete process.env.OPENAI_API_KEY;
     }
+  });
+
+  test("the plan reads as ChatGPT writes it", () => {
+    assert.equal(codex.planName("plus"), "Plus");
+    assert.equal(codex.planName("pro"), "Pro");
+    assert.equal(codex.planName("team"), "Team");
+    assert.equal(codex.planName("prolite"), "Pro Lite");
+    assert.equal(codex.planName("edu_plus"), "Edu Plus");
+    assert.equal(codex.planName("self_serve_business_usage_based"), "Business");
+    assert.equal(codex.planName("enterprise_cbp_automation"), "Enterprise");
+    assert.equal(codex.planName("some_new_plan"), "Some New Plan");
   });
 
   test("logged out, and not installed, are one sentence each", async () => {

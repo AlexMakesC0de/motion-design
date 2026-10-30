@@ -36,7 +36,7 @@ after(() => app.closeAll());
 
 test("Codex's status shows the plan and never the email; choosing it needs no model; a message runs a Codex turn", async () => {
   const status = await req(port, "/api/chat-settings/codex");
-  assert.deepEqual(status.json, { installed: true, loggedIn: true, plan: "ChatGPT plus", message: null });
+  assert.deepEqual(status.json, { installed: true, loggedIn: true, plan: "ChatGPT Plus", message: null });
   assert.ok(!status.text.includes("someone@"));
 
   const set = await req(port, "/api/chat-settings", { method: "PUT", body: { backend: "codex" } });

@@ -82,6 +82,8 @@ export function ConnectionForm({ initial, onSaved }: { initial: ChatSettingsView
   }
 
   const ready = choice === "codex" ? Boolean(codex?.loggedIn) : choice === "openai" ? view.openai.keySaved && Boolean(model) : false;
+  // The option picked is the one already saved: nothing to switch to.
+  const inUse = choice != null && choice === view.backend && (choice === "codex" || model === view.model);
 
   return (
     <div className="connect">
@@ -155,8 +157,8 @@ export function ConnectionForm({ initial, onSaved }: { initial: ChatSettingsView
       )}
       {choice && (
         <div className="connect__actions">
-          <button type="button" className="button" disabled={!ready || busy} onClick={use}>
-            Use this connection
+          <button type="button" className="button" disabled={!ready || busy || inUse} onClick={use}>
+            {inUse ? "In use" : "Use this connection"}
           </button>
         </div>
       )}
@@ -164,9 +166,16 @@ export function ConnectionForm({ initial, onSaved }: { initial: ChatSettingsView
   );
 }
 
-/** "ChatGPT subscription (Codex)", "OpenAI API key, gpt-x", or "Not connected". */
+/** "ChatGPT subscription, through Codex", "OpenAI API key, gpt-x", or "Not connected". */
 export function connectionLabel(view: ChatSettingsView): string {
   if (view.backend === "codex") return "ChatGPT subscription, through Codex";
   if (view.backend === "openai") return `OpenAI API key, ${view.model}`;
   return "Not connected";
+}
+
+/** The chat panel's quiet line: "ChatGPT subscription" or "API key · gpt-x"; null when nothing is connected. */
+export function connectionShort(view: ChatSettingsView): string | null {
+  if (view.backend === "codex") return "ChatGPT subscription";
+  if (view.backend === "openai") return `API key · ${view.model}`;
+  return null;
 }

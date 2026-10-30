@@ -155,6 +155,20 @@ export function configuredMcpServers(text) {
   return [...names];
 }
 
+const PLANS = { prolite: "Pro Lite", ent26: "Enterprise", unknown: null };
+
+/** A ChatGPT plan as ChatGPT writes it: "plus" is Plus, "edu_pro" is Edu Pro; business and enterprise variants are Business and Enterprise. */
+export function planName(type) {
+  if (typeof type !== "string" || !type) return null;
+  if (type in PLANS) return PLANS[type];
+  if (/^self_serve_business_/.test(type)) return "Business";
+  if (/^enterprise_/.test(type)) return "Enterprise";
+  return type
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 const q = JSON.stringify; // a JSON string is a valid TOML basic string
 const key = (name) => (/^[A-Za-z0-9_-]+$/.test(name) ? name : q(name));
 
@@ -365,7 +379,8 @@ export function createCodex({
         stopSoon(); // after codex login, the next check starts a Codex that sees the new login
         return { installed: true, loggedIn: false, plan: null, message: NOT_LOGGED_IN };
       }
-      const plan = a.type === "chatgpt" ? `ChatGPT ${a.planType}` : a.type === "apiKey" ? "an OpenAI API key" : a.type;
+      const name = a.type === "chatgpt" ? planName(a.planType) : null;
+      const plan = a.type === "chatgpt" ? (name ? `ChatGPT ${name}` : "ChatGPT") : a.type === "apiKey" ? "an OpenAI API key" : a.type;
       return { installed: true, loggedIn: true, plan, message: null };
     } catch (err) {
       if (err.message === NOT_INSTALLED) return { installed: false, loggedIn: false, plan: null, message: NOT_INSTALLED };

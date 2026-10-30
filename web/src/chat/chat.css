@@ -10,10 +10,11 @@
   color: var(--text-2); font-size: var(--text-sm);
 }
 .chat__toggle:hover { color: var(--text); }
-.chat__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.chat__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
 .chat__title { margin: 0; font-size: var(--text-md); font-weight: 600; }
 .chat__film { color: var(--text-2); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .chat__hide { margin-left: auto; }
+.chat__via { flex-basis: 100%; color: var(--text-3); font-size: var(--text-xs); }
 
 .chat__log { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); }
 .chat__msg { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
@@ -60,6 +61,9 @@
 .connect__error { margin: 0; color: var(--bad-ink); }
 .connect__actions { display: flex; gap: var(--space-2); }
 
+/* Narrow windows: the chat sits under the feed, full width, folded until Show chat. */
 @media (max-width: 760px) {
-  .chat { display: none; }
+  .chat { width: auto; max-height: 55vh; padding-left: 0; padding-top: var(--space-3); border-left: 0; border-top: 1px solid var(--line); }
+  .chat--closed { width: auto; max-height: none; padding: var(--space-2) 0 0; align-items: flex-start; }
+  .chat__toggle { writing-mode: horizontal-tb; }
 }

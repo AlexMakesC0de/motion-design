@@ -123,9 +123,9 @@
 .viewer__hint, .viewer__note { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
 .viewer__note { color: var(--text); white-space: pre-line; }
 
-/* Narrow windows: no chat rail, the viewer stacks. */
+/* Narrow windows: the chat stacks under the feed (chat.css), the viewer stacks. */
 @media (max-width: 760px) {
-  .studio { grid-template-columns: minmax(0, 1fr); }
+  .studio { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .feed__grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .prompt-bar__row { flex-direction: column; align-items: stretch; }
   .generate { justify-content: center; }

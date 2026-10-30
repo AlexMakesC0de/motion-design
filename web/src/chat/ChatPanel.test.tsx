@@ -44,12 +44,13 @@ describe("ChatPanel: not connected", () => {
   test("choosing the subscription checks Codex and connects with it", async () => {
     const fetch = setup({
       "/api/chat-settings": (init) => (init?.method === "PUT" ? chatSettings({ backend: "codex" }) : chatSettings()),
-      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: true, plan: "ChatGPT plus", message: null }),
+      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: true, plan: "ChatGPT Plus", message: null }),
     });
     fireEvent.click(await screen.findByRole("radio", { name: /ChatGPT subscription/ }));
-    expect(await screen.findByText("Codex is logged in with ChatGPT plus.")).toBeInTheDocument();
+    expect(await screen.findByText("Codex is logged in with ChatGPT Plus.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Use this connection" }));
     await waitFor(() => expect(screen.queryByRole("group", { name: "How the chat connects" })).toBeNull());
+    expect(screen.getByText("ChatGPT subscription")).toHaveClass("chat__via");
     const put = calls(fetch, "/api/chat-settings").find(([, init]) => init?.method === "PUT")!;
     expect(JSON.parse(String(put[1]!.body))).toEqual({ backend: "codex" });
   });
@@ -93,6 +94,18 @@ describe("ChatPanel: a conversation", () => {
     setup({}, null);
     expect(await screen.findByText("Pick a film to chat about it.")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
+  });
+
+  test("once connected, the header says which connection the chat uses", async () => {
+    setup();
+    expect(await screen.findByText("API key · gpt-test-1")).toHaveClass("chat__via");
+  });
+
+  test("in a narrow window the chat starts folded under the feed, and Show chat opens it", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(max-width: 760px)", media: query, addEventListener() {}, removeEventListener() {} }));
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Show chat" }));
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
   });
 
   test("Hide chat folds the panel to a rail", async () => {
