@@ -55,8 +55,11 @@ describe("LibraryScreen", () => {
     render(<LibraryScreen />);
     const file = new File(["x"], "clip.mp4", { type: "video/mp4" });
     fireEvent.drop(screen.getByLabelText("Drop images here"), { dataTransfer: { files: [file] } });
-    expect(await screen.findByRole("alert")).toHaveTextContent("clip.mp4 is not an image file");
-    expect(screen.getByRole("button", { name: "Save 0 as an asset" })).toBeDisabled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("clip.mp4 is not an image file");
+    // Nothing is savable: no "Save 0" button, and the refusal gets the card's width.
+    expect(screen.queryByRole("button", { name: /as an asset/ })).toBeNull();
+    expect(alert.closest("li")).toHaveAttribute("data-state", "refused");
   });
 
   test("an accepted drop saves as an asset with its upload token", async () => {

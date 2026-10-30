@@ -30,12 +30,15 @@ export function elapsed(fromIso: string, now: number): string {
 
 export type TakeStatus =
   | { kind: "running"; label: string }
+  | { kind: "unwatched"; label: string }
   | { kind: "done" }
   | { kind: "uncertain"; label: string }
   | { kind: "failed"; label: string; reason: string };
 
 /** What a tile says about its job, from the job state core recorded. */
 export function takeStatus(job: JobView, now: number): TakeStatus {
+  // Waiting at the provider with nobody polling it: a clock would run forever.
+  if ((job.state === "submitted" || job.state === "uncertain") && !job.following) return { kind: "unwatched", label: "not being watched" };
   if (RUNNING.has(job.state)) return { kind: "running", label: `running ${elapsed(job.createdAt, now)}` };
   if (job.state === "uncertain") return { kind: "uncertain", label: "still checking" };
   if (job.state === "succeeded") return { kind: "done" };

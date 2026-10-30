@@ -14,15 +14,19 @@ export function TakeViewer({ job, kinds, now, onClose }: { job: JobView; kinds: 
   const [busy, setBusy] = useState<"frames" | "check" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  // The screen re-renders every second (its clock) with a new onClose; keep
+  // the latest here so the Escape listener and the focus move happen once.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const media = job.media[0] ?? null;
   const status = takeStatus(job, now);
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   const run = async <T,>(what: "frames" | "check", fn: () => Promise<T>) => {
     setBusy(what);
@@ -47,7 +51,11 @@ export function TakeViewer({ job, kinds, now, onClose }: { job: JobView; kinds: 
         <div className="viewer__media">
           {media && isVideo(media) && <video src={media} controls autoPlay loop playsInline />}
           {media && !isVideo(media) && <img src={media} alt={job.prompt ?? "Take"} />}
-          {!media && <p className="viewer__nomedia">{status.kind === "running" ? "Still generating." : "No file for this take."}</p>}
+          {!media && (
+            <p className="viewer__nomedia">
+              {status.kind === "running" ? "Still generating." : status.kind === "unwatched" ? "Not being watched: the studio is not waiting on this job. Check again reads its status once." : "No file for this take."}
+            </p>
+          )}
           {frames?.sheet && <img className="viewer__sheet" src={frames.sheet} alt={`8 frames from ${mediaFile(media ?? "")}`} />}
         </div>
         <aside className="viewer__side">

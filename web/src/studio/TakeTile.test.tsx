@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TakeTile } from "./TakeTile";
-import { job } from "../test-fixtures";
+import { job, routes } from "../test-fixtures";
 
 const NOW = Date.parse("2026-10-31T10:01:05.000Z");
 const tile = (over: Parameters<typeof job>[0] = {}) => render(<TakeTile job={job(over)} now={NOW} onOpen={vi.fn()} />);
@@ -15,7 +15,7 @@ describe("TakeTile", () => {
   });
 
   test("running: elapsed time and the estimate, no footage yet", () => {
-    const { container } = tile({ state: "submitted", actualUsd: null, media: [] });
+    const { container } = tile({ state: "submitted", actualUsd: null, media: [], following: true });
     expect(screen.getByText("running 1:05")).toBeInTheDocument();
     expect(screen.getByText("~$0.56")).toBeInTheDocument();
     expect(container.querySelector("video")).toBeNull();
@@ -38,9 +38,20 @@ describe("TakeTile", () => {
   });
 
   test("uncertain: still checking, keeping the job id", () => {
-    tile({ state: "uncertain", upstreamTaskId: null, media: [] });
+    tile({ state: "uncertain", upstreamTaskId: null, media: [], following: true });
     expect(screen.getByText(/still checking/)).toBeInTheDocument();
     expect(screen.getByText("j-20261031-abc123")).toBeInTheDocument();
+  });
+
+  test("unsettled and nobody watching: says so, and Check again reads it once", async () => {
+    const fetchMock = vi.fn(routes({ "/api/jobs/j-20261031-abc123/check": () => ({ outcome: "pending", following: false, message: "Still running at kie. Checked just now; check again later.", job: job({ state: "submitted" }) }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    tile({ state: "submitted", actualUsd: null, media: [], following: false });
+    expect(screen.queryByText(/running/)).toBeNull();
+    expect(screen.getByText(/not being watched/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Still running at kie.");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/jobs/j-20261031-abc123/check");
   });
 
   test("a fallback take shows where it ran", () => {

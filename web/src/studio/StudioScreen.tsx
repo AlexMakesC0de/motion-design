@@ -58,7 +58,16 @@ export function StudioScreen() {
             </div>
           )}
         </section>
-        <PromptBar models={models} assets={assets} roles={vocab.roles} run={run} onSubmitted={() => {
+        <PromptBar
+          models={models}
+          assets={assets}
+          roles={vocab.roles}
+          run={run}
+          onSubmitted={() => {
+            loadRuns();
+            reload();
+          }}
+          onUncertain={() => {
             loadRuns();
             reload();
           }}

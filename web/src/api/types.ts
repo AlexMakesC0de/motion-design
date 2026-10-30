@@ -25,6 +25,8 @@ export interface JobView {
   media: string[];
   createdAt: string;
   updatedAt: string;
+  /** The studio server is waiting on this job right now. */
+  following: boolean;
 }
 
 export interface SpendView {

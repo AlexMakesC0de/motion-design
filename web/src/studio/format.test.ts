@@ -15,7 +15,13 @@ describe("tile text", () => {
 
   test("running shows elapsed time", () => {
     expect(elapsed("2026-10-31T10:00:00.000Z", NOW)).toBe("1:05");
-    expect(takeStatus(job({ state: "submitted" }), NOW)).toEqual({ kind: "running", label: "running 1:05" });
+    expect(takeStatus(job({ state: "submitted", following: true }), NOW)).toEqual({ kind: "running", label: "running 1:05" });
+    expect(takeStatus(job({ state: "sending" }), NOW)).toEqual({ kind: "running", label: "running 1:05" });
+  });
+
+  test("an unsettled job nobody is following says so instead of a clock that never stops", () => {
+    expect(takeStatus(job({ state: "submitted", following: false }), NOW)).toEqual({ kind: "unwatched", label: "not being watched" });
+    expect(takeStatus(job({ state: "uncertain", following: false }), NOW)).toEqual({ kind: "unwatched", label: "not being watched" });
   });
 
   test("each failed state says whether it was charged", () => {
@@ -31,7 +37,7 @@ describe("tile text", () => {
   });
 
   test("uncertain is still checking; succeeded is done", () => {
-    expect(takeStatus(job({ state: "uncertain" }), NOW)).toEqual({ kind: "uncertain", label: "still checking" });
+    expect(takeStatus(job({ state: "uncertain", following: true }), NOW)).toEqual({ kind: "uncertain", label: "still checking" });
     expect(takeStatus(job(), NOW)).toEqual({ kind: "done" });
   });
 

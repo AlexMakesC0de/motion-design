@@ -23,6 +23,7 @@ export const job = (over: Partial<JobView> = {}): JobView => ({
   media: ["/media/runs/zed/out.mp4"],
   createdAt: "2026-10-31T10:00:00.000Z",
   updatedAt: "2026-10-31T10:01:00.000Z",
+  following: false,
   ...over,
 });
 

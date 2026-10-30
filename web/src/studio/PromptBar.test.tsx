@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PromptBar } from "./PromptBar";
 import { getDraft, resetForTests } from "./promptStore";
 import { estimate, job, model, routes } from "../test-fixtures";
@@ -11,8 +11,27 @@ function bar(answer: Partial<Estimate>, extra: Record<string, (init?: RequestIni
   const fetchMock = vi.fn(routes({ "/api/estimate": () => estimate(answer), ...extra }));
   vi.stubGlobal("fetch", fetchMock);
   const onSubmitted = vi.fn();
-  render(<PromptBar models={[model()]} assets={[{ name: "zed", kind: "character", description: "Zed.", imageCount: 1, updatedAt: "" }]} roles={["identity", "style"]} run="zed" onSubmitted={onSubmitted} />);
-  return { fetchMock, onSubmitted };
+  const onUncertain = vi.fn();
+  render(<PromptBar models={[model()]} assets={[{ name: "zed", kind: "character", description: "Zed.", imageCount: 1, updatedAt: "" }]} roles={["identity", "style"]} run="zed" onSubmitted={onSubmitted} onUncertain={onUncertain} />);
+  return { fetchMock, onSubmitted, onUncertain };
+}
+
+/** /api/estimate answered by `price(body)`; a null price holds the answer until release() is called. */
+function pricedBar(models: ReturnType<typeof model>[], price: (body: Record<string, unknown>) => number | null) {
+  const held: Array<() => void> = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== "/api/estimate") return new Promise<Response>(() => {});
+      const body = JSON.parse(init!.body as string);
+      const answer = (usd: number) => new Response(JSON.stringify(estimate({ model: body.model, estimateUsd: usd })));
+      const usd = price(body);
+      if (usd != null) return Promise.resolve(answer(usd));
+      return new Promise<Response>((resolve) => held.push(() => resolve(answer(1.2))));
+    }),
+  );
+  render(<PromptBar models={models} assets={[]} roles={["identity"]} run="zed" onSubmitted={vi.fn()} />);
+  return { release: () => act(() => held.splice(0).forEach((r) => r())), held };
 }
 
 beforeEach(() => resetForTests(ready, "zed"));
@@ -24,6 +43,49 @@ describe("PromptBar", () => {
     expect(button).toBeEnabled();
     const sent = JSON.parse(fetchMock.mock.calls.find((c) => c[0] === "/api/estimate")![1]!.body as string);
     expect(sent).toMatchObject({ model: "seedance-2-5", durationS: 4, resolution: "480p", aspectRatio: "16:9" });
+  });
+
+  test("a new model holds Generate pending, with no price, until that model's estimate arrives", async () => {
+    const { release, held } = pricedBar([model(), model({ id: "seedance-2" })], (b) => (b.model === "seedance-2" ? null : 0.56));
+    await screen.findByRole("button", { name: "Generate $0.56" });
+    fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "seedance-2" } });
+    expect(screen.getByRole("button", { name: "Generate …" })).toBeDisabled();
+    await waitFor(() => expect(held.length).toBe(1));
+    expect(screen.getByRole("button", { name: "Generate …" })).toBeDisabled();
+    release();
+    expect(await screen.findByRole("button", { name: "Generate $1.20" })).toBeEnabled();
+  });
+
+  test("the price shown always belongs to the settings shown", async () => {
+    pricedBar([model()], (b) => Math.round((b.durationS as number) * 14) / 100);
+    await screen.findByRole("button", { name: "Generate $0.56" });
+    for (const d of ["8", "5"]) {
+      fireEvent.change(screen.getByRole("combobox", { name: "Duration" }), { target: { value: d } });
+      expect(screen.getByRole("button", { name: "Generate …" })).toBeDisabled();
+      expect(await screen.findByRole("button", { name: `Generate $${(Number(d) * 0.14).toFixed(2)}` })).toBeEnabled();
+    }
+  });
+
+  test("an uncertain submit keeps Generate disabled until the notice is dismissed, and reloads the takes", async () => {
+    const message = "socket hang up\nJob j-20261031-abc123 may still be running at kie (task t-1). Do not resubmit. Rejoin with: kie job j-20261031-abc123";
+    const unsure = () => new Response(JSON.stringify({ error: { code: 5, localJobId: "j-20261031-abc123", message } }), { status: 409 });
+    const { onUncertain } = bar({}, { "/api/generate/video": unsure });
+    fireEvent.click(await screen.findByRole("button", { name: "Generate $0.56" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Do not resubmit.");
+    expect(onUncertain).toHaveBeenCalledWith("j-20261031-abc123");
+    expect(screen.getByRole("button", { name: "Generate $0.56" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Another fox." } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Generate $0.56" })).toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Generate $0.56" })).toBeEnabled();
+  });
+
+  test("no resolution chosen reads as the provider's default", async () => {
+    resetForTests({ ...ready, resolution: null }, "zed");
+    bar({});
+    const chip = screen.getByRole("combobox", { name: "Resolution" });
+    expect(chip).toHaveDisplayValue("default");
   });
 
   test("over today's cap: disabled, saying by how much", async () => {

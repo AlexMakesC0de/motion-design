@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { AssetSummary, ModelInfo, SubmitResult } from "../api/types";
 import { onlyBudgetBlocks, refusalReason, usd } from "./format";
-import { addRef, fitToModel, generateBody, removeRef, setDraft, useDraft } from "./promptStore";
-import { useEstimate } from "./useEstimate";
+import { addRef, fitToModel, generateBody, getDraft, removeRef, setDraft, useDraft } from "./promptStore";
+import { estimateKey, useEstimate } from "./useEstimate";
 
 interface Props {
   models: ModelInfo[];
@@ -12,10 +12,27 @@ interface Props {
   roles: string[];
   run: string;
   onSubmitted: (r: SubmitResult) => void;
+  /** A submit ended ambiguously (code 5): the job may exist, so the take list should show it. */
+  onUncertain?: (localJobId: string | null) => void;
 }
 
 /** A chip: a labelled native select, so it works from the keyboard and with screen readers. */
-function Chip<T extends string | number>({ label, value, options, format = String, onChange }: { label: string; value: T | null; options: T[]; format?: (v: T) => string; onChange: (v: T) => void }) {
+function Chip<T extends string | number>({
+  label,
+  value,
+  options,
+  format = String,
+  empty = "—",
+  onChange,
+}: {
+  label: string;
+  value: T | null;
+  options: T[];
+  format?: (v: T) => string;
+  /** What no choice means here. */
+  empty?: string;
+  onChange: (v: T) => void;
+}) {
   if (!options.length) return null;
   return (
     <label className="chip">
@@ -28,7 +45,7 @@ function Chip<T extends string | number>({ label, value, options, format = Strin
           if (hit != null) onChange(hit);
         }}
       >
-        {value == null && <option value="">—</option>}
+        {value == null && <option value="">{empty}</option>}
         {value != null && !options.includes(value) && <option value={String(value)}>{format(value)} (not offered)</option>}
         {options.map((o) => (
           <option key={String(o)} value={String(o)}>
@@ -87,12 +104,14 @@ function RefPicker({ assets, roles }: { assets: AssetSummary[]; roles: string[] 
   );
 }
 
-export function PromptBar({ models, assets, roles, run, onSubmitted }: Props) {
+export function PromptBar({ models, assets, roles, run, onSubmitted, onUncertain }: Props) {
   const draft = useDraft();
   const model = models.find((m) => m.id === draft.model) ?? null;
-  const { estimate, error: estimateError } = useEstimate(draft, model);
+  const { estimate, error: estimateError, key: estimatedFor } = useEstimate(draft, model);
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // A code-5 submit: the job may exist upstream. Generate stays off until the user has read this.
+  const [unsure, setUnsure] = useState<string | null>(null);
 
   // First visit: start on the first video model, with settings it takes.
   useEffect(() => {
@@ -106,15 +125,23 @@ export function PromptBar({ models, assets, roles, run, onSubmitted }: Props) {
   const roleChoices = model?.capability === "video" ? model.refRoles : roles;
 
   async function generate() {
-    if (!model) return;
+    if (!model || unsure) return;
+    // Send exactly the settings the shown price was estimated for.
+    const now = getDraft();
+    if (estimateKey(now, model) !== estimatedFor) return;
     setSending(true);
     setFailure(null);
     try {
       const path = model.capability === "image" ? "/api/generate/image" : "/api/generate/video";
-      const r = await api<SubmitResult>(path, { method: "POST", body: generateBody(draft, model, run) });
+      const r = await api<SubmitResult>(path, { method: "POST", body: generateBody(now, model, run) });
       onSubmitted(r);
     } catch (e) {
-      setFailure(e instanceof ApiError ? e.message : String(e));
+      if (e instanceof ApiError && e.code === 5) {
+        setUnsure(e.message);
+        onUncertain?.(typeof e.detail.localJobId === "string" ? e.detail.localJobId : null);
+      } else {
+        setFailure(e instanceof ApiError ? e.message : String(e));
+      }
     } finally {
       setSending(false);
     }
@@ -148,7 +175,7 @@ export function PromptBar({ models, assets, roles, run, onSubmitted }: Props) {
           />
           {model?.capability === "video" && <Chip label="Duration" value={draft.durationS} options={model.durationsS} format={(s) => `${s}s`} onChange={(durationS) => setDraft({ durationS, budgetUsd: null })} />}
           {model && <Chip label="Aspect ratio" value={draft.aspectRatio} options={model.aspectRatios} onChange={(aspectRatio) => setDraft({ aspectRatio })} />}
-          {model && <Chip label="Resolution" value={draft.resolution} options={model.resolutionOptions} onChange={(resolution) => setDraft({ resolution, budgetUsd: null })} />}
+          {model && <Chip label="Resolution" value={draft.resolution} options={model.resolutionOptions} empty="default" onChange={(resolution) => setDraft({ resolution, budgetUsd: null })} />}
           {draft.refs.map((r, i) => (
             <span key={`${r.source}:${r.role}`} className="chip chip--ref mono">
               @{r.source} · {r.role}
@@ -160,7 +187,7 @@ export function PromptBar({ models, assets, roles, run, onSubmitted }: Props) {
           <RefPicker assets={assets} roles={roleChoices} />
         </div>
         <div className="prompt-bar__go">
-          <button type="button" className="generate" disabled={Boolean(reason) || sending || !estimate} aria-describedby={reason ? "generate-reason" : undefined} onClick={generate}>
+          <button type="button" className="generate" disabled={Boolean(reason) || sending || !estimate || Boolean(unsure)} aria-describedby={reason ? "generate-reason" : undefined} onClick={generate}>
             {sending ? "Sending…" : "Generate"} <span className="mono">{price}</span>
           </button>
         </div>
@@ -179,6 +206,14 @@ export function PromptBar({ models, assets, roles, run, onSubmitted }: Props) {
         <p className="prompt-bar__failure" role="alert">
           {failure}
         </p>
+      )}
+      {unsure && (
+        <div className="prompt-bar__failure prompt-bar__unsure" role="alert">
+          <p>{unsure}</p>
+          <button type="button" className="button button--quiet" onClick={() => setUnsure(null)}>
+            Dismiss
+          </button>
+        </div>
       )}
     </section>
   );

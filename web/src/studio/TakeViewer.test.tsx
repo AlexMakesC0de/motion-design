@@ -50,6 +50,28 @@ describe("TakeViewer", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Do not resubmit."));
   });
 
+  test("the clock re-rendering it with a new onClose leaves focus where the user put it", () => {
+    vi.stubGlobal("fetch", vi.fn(routes({})));
+    const take = job({ capability: "image", media: ["/media/runs/zed/ref.png"] });
+    const { rerender } = render(<TakeViewer job={take} kinds={KINDS} now={NOW} onClose={() => {}} />);
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Save to library" }));
+    const description = screen.getByLabelText("Description");
+    description.focus();
+    const latest = vi.fn();
+    rerender(<TakeViewer job={take} kinds={KINDS} now={NOW + 1000} onClose={latest} />);
+    rerender(<TakeViewer job={take} kinds={KINDS} now={NOW + 2000} onClose={latest} />);
+    expect(description).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(latest).toHaveBeenCalledTimes(1);
+  });
+
+  test("a running take nobody is watching says so and offers Check again", () => {
+    render(<TakeViewer job={job({ state: "submitted", media: [], following: false })} kinds={KINDS} now={NOW} onClose={vi.fn()} />);
+    expect(screen.getByText(/not being watched/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
   test("Escape closes", () => {
     const onClose = vi.fn();
     render(<TakeViewer job={job()} kinds={KINDS} now={NOW} onClose={onClose} />);

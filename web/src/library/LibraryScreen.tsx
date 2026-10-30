@@ -209,9 +209,11 @@ export function LibraryScreen() {
             ))}
           </ul>
           <div className="tray__actions">
-            <button type="button" className="button" disabled={!ready.length || ready.length > 4} onClick={() => setSaving(true)}>
-              Save {ready.length} as an asset
-            </button>
+            {ready.length > 0 && (
+              <button type="button" className="button" disabled={ready.length > 4} onClick={() => setSaving(true)}>
+                Save {ready.length} as an asset
+              </button>
+            )}
             <button type="button" className="button button--quiet" onClick={clearDrops}>
               Clear
             </button>
