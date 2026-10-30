@@ -1,8 +1,7 @@
 # Model routing and host compatibility
 
 One shared skill supports Claude Code, Codex and Kimi. All three drive the same
-`kie` CLI through the shell, so there is no host-specific generation route, no
-MCP to connect and no capability that exists in one client and not another.
+`kie` CLI through the shell, so there is no host-specific generation route and no capability that exists in one client and not another.
 
 | Task | Every host |
 |---|---|
@@ -23,10 +22,11 @@ MCP to connect and no capability that exists in one client and not another.
 | Burn captions | `kie caption --run SLUG` |
 | Reframe to another aspect ratio | `kie variants --run SLUG` |
 | Inspect and finish | Read the run directory; play the artifact |
+| Drive the harness from chat (Claude Code, Codex) | the motion-design MCP server: status → estimate → generate_* → wait_job; see mcp/README.md |
 
-Explicit user choices override defaults. The CLI is the only generation route:
+Explicit user choices override defaults. The CLI is the only generation route (the motion-design MCP server calls the same code):
 if it cannot run, finish the prompt and asset plan and explain what is missing.
-Do not substitute a different provider, an MCP tool or a local renderer.
+Do not substitute a different provider, another MCP tool or a local renderer.
 
 ## Two resellers, automatic fallback
 

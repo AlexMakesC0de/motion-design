@@ -259,3 +259,13 @@ ChatGPT access, the web app, in-app chat, audio generation, shot plans and the q
   - Added structured MCP results, tool annotations and `isError`.
 - 2026-10-30, while planning step 3: added `failed-charged`, because a failed task whose record reports credits consumed is neither free nor unconfirmed. A create the provider rejects outright is `failed-confirmed-free`, matching the existing failover rule. A budget or cap refusal writes no job record. Finishing functions stay in `cli/lib/` rather than moving to `core/finish.mjs`; the MCP server calls them directly.
 - 2026-10-30, while planning steps 4-5: the content checks apply wherever a file can leave the machine (uploads, local references, asset images); the allowed-folders rule applies to every path the MCP server receives. The CLI keeps accepting any path a human types, guarded by the host's command approval, and its `--ref` still refuses raw local paths (assets and URLs only). Reference expansion lives in `core/refs.mjs`.
+- 2026-10-30, while planning step 7:
+  - Error details are in `_meta.error`, not `structuredContent`: SDK 1.32 clients validate `structuredContent` against the `outputSchema` even on `isError` results.
+  - The read-only views live in `cli/core/views.mjs`, shared with the coming web app.
+  - Relative client paths resolve inside `runs/`; every path is confined to the allowed roots, media or not (`confinePath`).
+  - `generate_video` takes a preset for defaults only; the prompt is always required, so the raw source-prompt path does not exist over MCP.
+  - A job that fails after submission is not failed over by the server; `wait_job` says whether it was charged and the agent decides.
+  - Previews are ffmpeg JPEGs (768 px for images, the contact sheet at 1024 px for video).
+- 2026-10-30, while building steps 5-7:
+  - `assemble`'s transition name is limited to a plain ffmpeg xfade name (`^[a-z0-9]+$`), because it is pasted into an ffmpeg filter and a free string could add filter options.
+  - Image paths inside `render` props are confined to the allowed folders and `file:` URLs are refused, because the renderer loads them as `file://` URLs in a headless browser and would otherwise copy any image on the machine into a render.

@@ -79,6 +79,8 @@ kie variants --run entri-hero --video film.mp4 --ratios 9:16,1:1   # reframe BEF
 kie caption  --run entri-hero --video film-9x16.mp4 --srt cap.srt  # …then caption
 ```
 
+`node install.mjs` also registers the MCP server with Claude Code and Codex; see [mcp/README.md](mcp/README.md).
+
 `kie preflight` and `kie doctor` are read-only: they answer cost and access
 questions without spending. Nothing here submits a job to probe anything.
 

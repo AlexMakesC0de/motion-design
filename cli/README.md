@@ -100,6 +100,14 @@ Every file is checked by its contents before it is sent: PNG, JPEG, WebP,
 MP4, MOV, WAV, MP3, AAC or OGG, under 30 MB (200 MB for video). Results are
 downloaded only from https URLs, only into the run directory.
 
+### MCP server
+
+`mcp/` is a separate package that exposes this layer to Claude Code and Codex
+as tools (see [mcp/README.md](../mcp/README.md)). It calls the same
+`cli/core` and `cli/lib` code, so it shares job records, the daily cap and the
+asset library with the CLI: a job started over MCP shows up in `kie limits`
+and `kie job`, and the other way round.
+
 ## Design decisions worth not undoing
 
 **Video prompts come from a file, never argv.** These are 5–13KB with structured
