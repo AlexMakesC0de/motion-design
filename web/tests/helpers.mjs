@@ -1,7 +1,7 @@
 // Every server test imports this first. It points runs/, library/ and the
 // limits file at a temp folder BEFORE cli modules load (they read these at
 // import), and makes any real network call throw.
-import { mkdtempSync, mkdirSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,37 @@ export const KEY = "test-session-key-0123456789abcdef";
 
 /** Stubs for every call that would reach a provider. */
 export const deps = { credits: async () => 100 };
+
+/**
+ * Fake provider calls for the generate and follow tests, with a call log.
+ * Same shape as mcp/tests/helpers.mjs: `generate` replaces preflight,
+ * createTask, waitForTask, download and creditsAfter inside cli/core.
+ */
+export function generateStubs({ estimateUsd = 0.56 } = {}) {
+  const calls = { create: [], wait: 0, download: 0, upload: 0 };
+  const generate = {
+    preflight: async (_catalog, _route, o) => ({ estimatedUsd: estimateUsd, basis: "stub", cap: o.budgetUsd ?? 3, creditsBefore: 100 }),
+    createTask: async (prov, _family, model, input) => {
+      calls.create.push({ provider: prov.name, model, input });
+      return { taskId: `task-${calls.create.length}` };
+    },
+    waitForTask: async () => {
+      calls.wait += 1;
+      return { state: "success", urls: ["https://cdn.test/result.mp4"], data: { state: "success", creditsConsumed: 6 }, elapsedS: 2 };
+    },
+    download: async (_url, path) => {
+      calls.download += 1;
+      writeFileSync(path, "fake media");
+      return path;
+    },
+    creditsAfter: async () => 94,
+  };
+  const upload = async () => {
+    calls.upload += 1;
+    return { url: `https://files.test/${calls.upload}.png` };
+  };
+  return { calls, generate, deps: { ...deps, generate, upload } };
+}
 
 /**
  * One HTTP request through node:http (fetch is disabled, and fetch cannot
