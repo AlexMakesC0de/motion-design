@@ -6,7 +6,6 @@ import { join } from "node:path";
 
 import { RUNS, hasFfmpeg, realPng, stubs, connect, call, errorOf } from "./helpers.mjs";
 import { png } from "../../tests/fixtures/images.mjs";
-import { redact } from "../../cli/lib/redact.mjs";
 
 const { deps } = stubs();
 const client = await connect(deps);
@@ -98,8 +97,7 @@ describe("assets", () => {
       name: "secret", kind: "product", description: "x", images: [join(elsewhere, "secret.png")],
     });
     assert.equal(errorOf(r).code, 3);
-    // fail() redacts long token-like segments (macOS temp dirs have one), so compare the redacted form.
-    assert.ok(r.content[0].text.includes(redact(RUNS)), "the message names the allowed folders");
+    assert.ok(r.content[0].text.includes(RUNS), "the message names the allowed folders");
   });
 
   test("get_asset returns one preview image per stored image", { skip: !hasFfmpeg && "ffmpeg not installed" }, async () => {

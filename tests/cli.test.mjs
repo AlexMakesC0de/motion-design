@@ -261,6 +261,12 @@ describe("secrets never reach a log or a run record", () => {
   test("ordinary prose is untouched", () => {
     assert.equal(redact("task failed: bad prompt"), "task failed: bad prompt");
   });
+
+  test("a long folder name inside a path is left readable", () => {
+    const path = "/var/folders/3spxk9q2v8wz1m4n7b6c0d5fgn/T/kie-mcp-x/runs/summer-launch-teaser-final-v2/a.png";
+    assert.equal(redact(`No such file: ${path}`), `No such file: ${path}`);
+    assert.doesNotMatch(redact("key sk-abcdefghijklmnopqrstuvwxyz012345 /x"), /abcdefghijklmnop/);
+  });
 });
 
 describe("the ledger separates estimates from measurements", () => {
