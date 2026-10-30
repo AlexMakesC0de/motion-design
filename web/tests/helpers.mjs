@@ -17,6 +17,8 @@ process.env.KIE_API_KEY = "test-key-not-real";
 process.env.KIE_CHAT_FILE = join(tmp, "chat.json");
 process.env.KIE_OPENAI_KEY_FILE = join(tmp, "openai.key");
 delete process.env.OPENAI_API_KEY;
+// No test reaches the real Codex: tests that need one pass a fake app-server.
+process.env.KIE_CODEX_COMMAND = join(tmp, "no-codex-here");
 mkdirSync(RUNS, { recursive: true });
 mkdirSync(LIBRARY, { recursive: true });
 globalThis.fetch = () => {
