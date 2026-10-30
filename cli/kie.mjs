@@ -7,7 +7,7 @@
 
 import { parseArgs } from "node:util";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { EXIT, CliError, usage, unknown } from "./lib/errors.mjs";
 import { loadCatalog, resolveModel, validateVideoRequest, parseRef, parseParams, buildInput, effectiveRoute, routesFor, cheapestRoute, isStale, catalogAgeDays } from "./lib/models.mjs";
@@ -20,6 +20,7 @@ import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_RO
 import * as ledger from "./lib/ledger.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
+import { extractFrames } from "./lib/frames.mjs";
 import { assemble } from "./lib/assemble.mjs";
 import { burnCaptions } from "./lib/caption.mjs";
 import { makeVariants, captionOrderWarning } from "./lib/variants.mjs";
@@ -49,6 +50,7 @@ const HELP = `kie -- motion-design execution layer
 
 Finishing (local ffmpeg — no key, no spend):
   kie probe      <file>
+  kie frames     <video> [--run SLUG] [--out-dir DIR]   contact sheet + first/last frame
   kie assemble   --run SLUG --shot A.mp4 [--shot B.mp4]... [--music M] [--vo V]
                  [--transition fade:0.5] [--ratio 16:9] [--shot-audio auto|keep|drop]
                  [--out film.mp4]
@@ -795,6 +797,17 @@ async function cmdProbe(positionals) {
   return EXIT.OK;
 }
 
+async function cmdFrames(args, positionals) {
+  if (!positionals[0]) throw usage("kie frames <video> [--run SLUG] [--out-dir DIR]");
+  const video = args.run ? inPath(runDir(args.run), positionals[0]) : resolve(positionals[0]);
+  const r = await extractFrames(video, { outDir: args["out-dir"] ? resolve(args["out-dir"]) : undefined });
+  say(r.sheet);
+  say(`  first  ${r.first}`);
+  say(`  last   ${r.last}`);
+  say(`  ${r.tiles.length} frames at ${r.times.map((t) => t.toFixed(2)).join(", ")}s of ${r.durationS.toFixed(2)}s`);
+  return EXIT.OK;
+}
+
 async function cmdAssemble(args) {
   const dir = runDir(args.run);
   const shots = args.shot.map((s) => inPath(dir, s));
@@ -1028,6 +1041,8 @@ async function main(argv) {
       return cmdSpend(args) ?? EXIT.OK;
     case "probe":
       return cmdProbe(positionals);
+    case "frames":
+      return cmdFrames(args, positionals);
     case "assemble":
       return cmdAssemble(args);
     case "caption":
