@@ -14,6 +14,8 @@ import { EXIT, unknown } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
 
 export const CHAT_FILE = "chat.jsonl";
+/** The most tool rounds one turn may take, whichever backend runs it. */
+export const MAX_STEPS = 24;
 const KINDS = new Set(["user", "assistant", "tool", "notice"]);
 
 /** A chat failure with one sentence for the page. `connect` means: show the two connection options. */

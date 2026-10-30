@@ -7,11 +7,10 @@
 // output items go back as input, without their status field.
 import { EXIT } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
-import { ChatError, resultText } from "./transcript.mjs";
+import { ChatError, MAX_STEPS, resultText } from "./transcript.mjs";
 import { openaiKey } from "./config.mjs";
 
 export const API = "https://api.openai.com/v1";
-export const MAX_STEPS = 24;
 const MAX_TOOL_OUTPUT = 20_000;
 
 // /v1/models says nothing about what a model can do, so keep the text model families and drop the rest.

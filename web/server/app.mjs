@@ -23,6 +23,8 @@ import { createCodex } from "./chat/codex.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
 export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
+/** How long shutdown waits for stopped chat turns to end and save. */
+const CHAT_CLOSE_WAIT_MS = 3_000;
 
 /**
  * An http.Server for the studio. `deps` replaces anything that reaches a
@@ -34,7 +36,8 @@ export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
  * { tools: { assemble, burnCaptions, makeVariants, render }, check }.
  * `chat.fetch` replaces fetch for the OpenAI backend (tests pass a fake
  * OpenAI); `chat.codex` replaces how `codex app-server` is started (tests run
- * a fake: { command, prefixArgs, args }). The chat's MCP tools get the same
+ * a fake: { command, prefixArgs, args }); `chat.closeWaitMs` is how long
+ * shutdown waits for chat turns to save. The chat's MCP tools get the same
  * `deps` as everything else.
  */
 export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false, finish = {}, chat: chatOptions = {} } = {}) {
@@ -68,15 +71,24 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.
   server.on("clientError", (_err, socket) => socket.destroy());
-  server.closeAll = () =>
-    new Promise((r) => {
-      events.close();
-      for (const film of chat.films()) chat.stop(film);
-      tools.close().catch(() => {});
-      codex.close();
+  // Running chat turns are stopped, then given a moment to end and save their transcript before the tools and Codex go.
+  server.closeAll = async () => {
+    events.close();
+    for (const film of chat.films()) chat.stop(film);
+    const settled = async (ms) => {
+      let timer;
+      await Promise.race([chat.idle(), new Promise((r) => (timer = setTimeout(r, ms)))]);
+      clearTimeout(timer);
+    };
+    await settled(chatOptions.closeWaitMs ?? CHAT_CLOSE_WAIT_MS);
+    tools.close().catch(() => {});
+    codex.close();
+    await settled(500); // a Codex turn still waiting ends when its app-server exits
+    await new Promise((r) => {
       server.closeAllConnections?.();
       server.close(r);
     });
+  };
   server.router = router;
   server.events = events;
   server.follower = follower;

@@ -1,14 +1,14 @@
 import { RUNS, LIBRARY, tmp } from "./helpers.mjs";
 import { test, describe, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const codex = await import("../server/chat/codex.mjs");
 const { createChat } = await import("../server/chat/session.mjs");
 const { writeConnection } = await import("../server/chat/config.mjs");
-const { readChat, budgetSentence } = await import("../server/chat/transcript.mjs");
+const { readChat, budgetSentence, createTurnLog, MAX_STEPS } = await import("../server/chat/transcript.mjs");
 const { REPO_ROOT } = await import("../../cli/lib/run.mjs");
 
 const FAKE = fileURLToPath(new URL("./fixtures/fake-codex.mjs", import.meta.url));
@@ -38,23 +38,25 @@ const REFUSAL =
 let n = 0;
 const open = [];
 /** A Codex backend over the fake app-server, playing `exchange`. Returns it and a reader for the fake's log. */
-function fakeCodex(exchange) {
+function fakeCodex(exchange, options = {}) {
   const name = `codex-${++n}`;
   const exFile = join(tmp, `${name}.json`);
   const logFile = join(tmp, `${name}.log`);
   writeFileSync(exFile, JSON.stringify({ initialize: INITIALIZE, account: LOGGED_IN, mcpServers: [OURS], ...exchange }));
-  const backend = codex.createCodex({ command: process.execPath, prefixArgs: [FAKE, exFile, logFile], args: () => ["app-server"] });
+  const backend = codex.createCodex({ command: process.execPath, prefixArgs: [FAKE, exFile, logFile], args: () => ["app-server"], ...options });
   open.push(backend);
   const log = () =>
-    readFileSync(logFile, "utf8")
+    (existsSync(logFile) ? readFileSync(logFile, "utf8") : "")
       .trim()
       .split("\n")
+      .filter(Boolean)
       .map((l) => JSON.parse(l));
   const sent = (method) => log().filter((l) => l.in?.method === method).map((l) => l.in.params);
   return { backend, log, sent };
 }
 after(() => open.forEach((b) => b.close()));
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const chatWith = (backend) => createChat({ backends: { codex: backend }, tools: { instructions: async () => "MCP instructions." } });
 const lines = (film) => readChat(film).entries.map((e) => (e.kind === "tool" ? `${e.name} ${e.args} → ${e.result}` : `${e.kind}: ${e.text}`));
 
@@ -228,5 +230,105 @@ describe("a Codex turn", () => {
     await chat.idle("cx-stop");
     assert.equal(sent("turn/interrupt").length, 1);
     assert.deepEqual(lines("cx-stop"), ["user: Long one.", "assistant: Thinking", "notice: Stopped."]);
+  });
+
+  test(`a turn stops after ${MAX_STEPS} tool calls without a final answer, with a notice`, { timeout: 10_000 }, async () => {
+    const result = { content: [{ type: "text", text: "no runs" }], structuredContent: null, _meta: null };
+    const steps = [];
+    for (let i = 0; i < MAX_STEPS; i++) steps.push(toolCall(`r${i}`, "list_runs", {}), toolDone(`r${i}`, "list_runs", {}, "completed", result));
+    const { backend, sent } = fakeCodex({ turn: [...steps, { waitFor: "turn/interrupt" }, completed("interrupted")] });
+    const chat = chatWith(backend);
+    await chat.send("cx-steps", "Loop forever.");
+    await chat.idle("cx-steps");
+    assert.equal(sent("turn/interrupt").length, 1);
+    assert.match(lines("cx-steps").at(-1), new RegExp(`^notice: Stopped after ${MAX_STEPS} tool steps without a final answer`));
+  });
+
+  test("Stop with no turn/completed from Codex settles after the grace period and restarts Codex", { timeout: 10_000 }, async () => {
+    const { backend, sent } = fakeCodex({ turn: [delta("m8", "Thinking"), { waitFor: "turn/interrupt" }] }, { interruptGraceMs: 200 });
+    const chat = chatWith(backend);
+    await chat.send("cx-hang", "Long one.");
+    while (!sent("turn/start").length) await sleep(20);
+    await sleep(50);
+    chat.stop("cx-hang");
+    await chat.idle("cx-hang");
+    assert.deepEqual(chat.films(), []);
+    assert.deepEqual(lines("cx-hang"), ["user: Long one.", "assistant: Thinking", "notice: Stopped."]);
+    assert.equal((await backend.status()).loggedIn, true);
+    assert.equal(sent("turn/start").length, 0, "a new app-server answered the check");
+  });
+
+  test("a request Codex never answers times out: the status check and a message both end", { timeout: 10_000 }, async () => {
+    const stuck = fakeCodex({ noAnswer: ["account/read"] }, { requestTimeoutMs: 200 });
+    const s = await stuck.backend.status();
+    assert.equal(s.loggedIn, false);
+    assert.match(s.message, /^Codex did not answer/);
+
+    writeConnection({ backend: "codex", model: null });
+    const { backend } = fakeCodex({ noAnswer: ["thread/start"] }, { requestTimeoutMs: 200 });
+    const chat = chatWith(backend);
+    await chat.send("cx-stuck", "hi");
+    await chat.idle("cx-stuck");
+    assert.match(lines("cx-stuck").at(-1), /^notice: Codex did not answer/);
+  });
+
+  test("a logged-out status check leaves another film's turn running, and stops Codex once it ends", { timeout: 10_000 }, async () => {
+    const { backend, sent } = fakeCodex({ account: LOGGED_OUT, turn: [delta("m9", "Working"), { waitFor: "account/read" }, { sleep: 300 }, message("m9", "Working."), completed()] });
+    const log = createTurnLog(() => {});
+    const running = backend.turn({ film: "cx-shared", text: "hi", saved: { entries: [], codexThread: null }, instructions: "x", sink: log, signal: new AbortController().signal });
+    while (!sent("turn/start").length) await sleep(20);
+    assert.equal((await backend.status()).loggedIn, false);
+    await running;
+    assert.equal(log.entries.at(-1).text, "Working.");
+    await backend.status();
+    assert.equal(sent("turn/start").length, 0, "Codex was stopped after the turn, so the next check started a new one");
+  });
+
+  test("another turn's turn/completed does not end this turn", async () => {
+    const other = { notify: "turn/completed", params: { threadId: "$thread", turn: { id: "turn-old", items: [], status: "completed", error: null } } };
+    const { backend } = fakeCodex({ turn: [other, message("m10", "Mine."), completed()] });
+    const chat = chatWith(backend);
+    await chat.send("cx-match", "hi");
+    await chat.idle("cx-match");
+    assert.deepEqual(lines("cx-match"), ["user: hi", "assistant: Mine."]);
+  });
+
+  test("the tool check reads every page of servers", async () => {
+    const { backend, sent } = fakeCodex({ mcpPages: [[OURS], [{ name: "context7", runtimeStatus: "connected" }]] });
+    const chat = chatWith(backend);
+    await chat.send("cx-pages", "hi");
+    await chat.idle("cx-pages");
+    assert.equal(sent("turn/start").length, 0);
+    assert.deepEqual(sent("mcpServerStatus/list").map((p) => p.cursor ?? null), [null, "1"]);
+    assert.match(lines("cx-pages")[1], /\(context7\)/);
+  });
+
+  test("only disabled, failed or cancelled servers are let through; anything else, even not started, is refused", async () => {
+    const quiet = [OURS, { name: "a", runtimeStatus: "disabled" }, { name: "b", runtimeStatus: "failed" }, { name: "c", runtimeStatus: "cancelled" }];
+    const ok = fakeCodex({ mcpServers: quiet, turn: [message("m11", "Fine."), completed()] });
+    const chat = chatWith(ok.backend);
+    await chat.send("cx-quiet", "hi");
+    await chat.idle("cx-quiet");
+    assert.equal(lines("cx-quiet").at(-1), "assistant: Fine.");
+
+    const { backend, sent } = fakeCodex({ mcpServers: [OURS, { name: "d", runtimeStatus: "notStarted" }, { name: "e", runtimeStatus: null }, { name: "f", runtimeStatus: "authenticationRequired" }] });
+    const chat2 = chatWith(backend);
+    await chat2.send("cx-loud", "hi");
+    await chat2.idle("cx-loud");
+    assert.equal(sent("turn/start").length, 0);
+    assert.match(lines("cx-loud")[1], /\(d, e, f\)/);
+  });
+
+  test("a tool call to another MCP server interrupts the turn at once, with a notice naming it", { timeout: 10_000 }, async () => {
+    const foreign = {
+      notify: "item/started",
+      params: { ...ids, item: { type: "mcpToolCall", id: "x1", server: "context7", tool: "query-docs", status: "inProgress", arguments: {}, result: null, error: null } },
+    };
+    const { backend, sent } = fakeCodex({ turn: [foreign, { waitFor: "turn/interrupt" }, completed("interrupted")] });
+    const chat = chatWith(backend);
+    await chat.send("cx-foreign", "hi");
+    await chat.idle("cx-foreign");
+    assert.equal(sent("turn/interrupt").length, 1);
+    assert.match(lines("cx-foreign").at(-1), /^notice: .*context7/);
   });
 });

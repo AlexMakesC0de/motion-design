@@ -11,7 +11,8 @@
 // so are the features that bring tools of their own (the shell, plugins,
 // apps, computer and browser use, image generation, sub-agents). Any approval
 // request that still arrives (a command, a file change, more permissions) is
-// declined.
+// declined. Before a turn, every other server must report disabled, failed or
+// cancelled; during one, a call to any other server interrupts it.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -22,7 +23,7 @@ import { LIBRARY_DIR, REPO_ROOT, RUNS_DIR } from "../../../cli/lib/run.mjs";
 import { limitsPath } from "../../../cli/core/spend.mjs";
 import { EXIT } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
-import { ChatError, appendChat, historyMessages } from "./transcript.mjs";
+import { ChatError, MAX_STEPS, appendChat, historyMessages } from "./transcript.mjs";
 
 export { MCP_NAME };
 
@@ -82,6 +83,9 @@ export function codexArgs({ repo = REPO_ROOT, node = process.execPath, runsDir =
   ];
 }
 
+/** Other servers' states that bring no tools into a thread (McpServerConnectionStatus). */
+const QUIET = new Set(["disabled", "failed", "cancelled"]);
+
 const DECLINED = "The studio chat cannot run commands or change files; it acts only through the motion-design tools.";
 const unsupported = (method) => () => {
   throw new Error(`${method} is not supported by the studio`);
@@ -104,8 +108,13 @@ export const ANSWERS = {
   "attestation/generate": unsupported("attestation/generate"),
 };
 
-/** JSON-RPC over the child's stdio. */
-function openRpc(child, { onNotification }) {
+/** How long Codex has to answer one request. A turn's own length is not limited; only each reply is. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+/** How long Codex has to end a turn after turn/interrupt before the studio stops waiting and restarts it. */
+export const INTERRUPT_GRACE_MS = 10_000;
+
+/** JSON-RPC over the child's stdio. A request with no reply in `timeoutMs` fails, and `onTimeout` hears of it. */
+function openRpc(child, { onNotification, timeoutMs, onTimeout = () => {} }) {
   let next = 1;
   const pending = new Map();
   const write = (m) => child.stdin.write(`${JSON.stringify(m)}\n`);
@@ -127,6 +136,7 @@ function openRpc(child, { onNotification }) {
       const p = pending.get(m.id);
       if (!p) return;
       pending.delete(m.id);
+      clearTimeout(p.timer);
       if (m.error) p.reject(Object.assign(new Error(m.error.message ?? "Codex error"), { rpc: m.error }));
       else p.resolve(m.result);
     } else if (m.method) {
@@ -134,14 +144,22 @@ function openRpc(child, { onNotification }) {
     }
   });
   child.on("exit", () => {
-    for (const p of pending.values()) p.reject(new ChatError("Codex stopped."));
+    for (const p of pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(new ChatError("Codex stopped."));
+    }
     pending.clear();
   });
   return {
     request(method, params) {
       const id = next++;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new ChatError(`Codex did not answer ${method} within ${Math.round(timeoutMs / 1000)}s.`));
+          onTimeout(method);
+        }, timeoutMs);
+        pending.set(id, { resolve, reject, timer });
         write({ id, method, params });
       });
     },
@@ -173,9 +191,18 @@ export function toolResult(item) {
  * path that does not exist, so no test can reach the real Codex).
  * `command` and `prefixArgs` let tests run a fake app-server
  * (process.execPath, [fake-codex.mjs, ...]); `args` builds the real
- * arguments when the process starts.
+ * arguments when the process starts. `requestTimeoutMs` and
+ * `interruptGraceMs` are shortened by tests.
  */
-export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex", prefixArgs = [], args, repo = REPO_ROOT, keyEnvs = [] } = {}) {
+export function createCodex({
+  command = process.env.KIE_CODEX_COMMAND || "codex",
+  prefixArgs = [],
+  args,
+  repo = REPO_ROOT,
+  keyEnvs = [],
+  requestTimeoutMs = REQUEST_TIMEOUT_MS,
+  interruptGraceMs = INTERRUPT_GRACE_MS,
+} = {}) {
   const build =
     args ??
     (() => {
@@ -185,13 +212,27 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
     });
   const listeners = new Set();
   let proc = null;
+  let running = 0; // turns in progress on the shared app-server
+  let stopWhenIdle = false; // a check found no login while turns ran: stop Codex once they end
+
+  /** Stop Codex now, or once the running turns end. */
+  function stopSoon() {
+    if (running) stopWhenIdle = true;
+    else stopProcess();
+  }
 
   function start() {
     if (proc) return proc.ready;
     const child = spawn(command, [...prefixArgs, ...build()], { cwd: repo, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); // Codex logs there; not ours to keep
     child.stdin.on("error", () => {}); // a write after exit; the exit handler reports it
-    const rpc = openRpc(child, { onNotification: (m) => listeners.forEach((fn) => fn(m)) });
+    const rpc = openRpc(child, {
+      onNotification: (m) => listeners.forEach((fn) => fn(m)),
+      timeoutMs: requestTimeoutMs,
+      onTimeout: () => {
+        if (proc === p) stopSoon(); // a stuck app-server: the next try starts a new one
+      },
+    });
     const p = { child, rpc };
     p.ready = new Promise((resolve, reject) => {
       child.on("error", (err) => reject(err.code === "ENOENT" ? new ChatError(NOT_INSTALLED, { connect: true }) : err));
@@ -221,7 +262,7 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
       const r = await proc.rpc.request("account/read", { refreshToken: false });
       const a = r?.account;
       if (!a) {
-        stopProcess(); // after codex login, the next check starts a Codex that sees the new login
+        stopSoon(); // after codex login, the next check starts a Codex that sees the new login
         return { installed: true, loggedIn: false, plan: null, message: NOT_LOGGED_IN };
       }
       const plan = a.type === "chatgpt" ? `ChatGPT ${a.planType}` : a.type === "apiKey" ? "an OpenAI API key" : a.type;
@@ -232,13 +273,26 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
     }
   }
 
-  /** Refuse to run a turn when Codex has another MCP server live in the thread anyway (a plugin's, say). */
+  /**
+   * Refuse to run a turn when Codex has another MCP server that may be live
+   * in the thread anyway (a plugin's, say). McpServerConnectionStatus has a
+   * "disabled" value of its own, so a server turned off by enabled=false is
+   * told apart from one not started yet: only disabled, failed and cancelled
+   * servers are let through, and every page of the list is read.
+   */
   async function guard(threadId) {
-    const r = await proc.rpc.request("mcpServerStatus/list", { threadId, detail: "toolsAndAuthOnly" }).catch(() => null);
-    if (!Array.isArray(r?.data)) {
-      throw new ChatError("Codex did not say which tools are on for this chat, so the turn was not started. Try again, or use an OpenAI API key.");
+    const others = [];
+    let cursor = null;
+    for (let page = 0; page < 100; page++) {
+      const r = await proc.rpc.request("mcpServerStatus/list", { threadId, detail: "toolsAndAuthOnly", ...(cursor ? { cursor } : {}) }).catch(() => null);
+      if (!Array.isArray(r?.data)) {
+        throw new ChatError("Codex did not say which tools are on for this chat, so the turn was not started. Try again, or use an OpenAI API key.");
+      }
+      others.push(...r.data.filter((s) => s.name !== MCP_NAME && !QUIET.has(s.runtimeStatus)).map((s) => s.name));
+      cursor = r.nextCursor;
+      if (!cursor) break;
     }
-    const others = r.data.filter((s) => s.name !== MCP_NAME && ["starting", "connected"].includes(s.runtimeStatus)).map((s) => s.name);
+    if (cursor) throw new ChatError("Codex listed too many MCP servers to check, so the turn was not started. Use an OpenAI API key.");
     if (others.length) {
       throw new ChatError(
         `Codex has other MCP servers on for this chat (${others.join(", ")}). The studio's chat runs only with the motion-design tools: turn those off in ~/.codex/config.toml, or use an OpenAI API key.`,
@@ -246,7 +300,20 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
     }
   }
 
-  async function turn({ film, text, saved, instructions, sink, signal }) {
+  async function turn(opts) {
+    running++;
+    try {
+      return await runTurn(opts);
+    } finally {
+      running--;
+      if (!running && stopWhenIdle) {
+        stopWhenIdle = false;
+        stopProcess();
+      }
+    }
+  }
+
+  async function runTurn({ film, text, saved, instructions, sink, signal }) {
     await start();
     const { rpc, child } = proc;
     const threadParams = { cwd: repo, sandbox: "read-only", approvalPolicy: "never", developerInstructions: instructions };
@@ -269,16 +336,42 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
 
     return new Promise((resolve, reject) => {
       let turnId = null;
-      let budget = null;
+      let settled = false;
+      let budget = null; // a limit refused a job
+      let foreign = null; // Codex called another MCP server
+      let steps = 0;
+      let grace = null;
       const early = [];
-      const interrupt = () => turnId && rpc.request("turn/interrupt", { threadId, turnId }).catch(() => {});
+      const name = (item) => (item.server === MCP_NAME ? item.tool : `${item.server}/${item.tool}`);
+
+      // After turn/interrupt, Codex has a grace period to send turn/completed; then the studio stops waiting.
+      const interrupt = () => {
+        if (!turnId) return;
+        rpc.request("turn/interrupt", { threadId, turnId }).catch(() => {});
+        grace ??= setTimeout(() => {
+          end();
+          if (proc?.child === child) stopProcess(); // a Codex that ignores an interrupt is not trusted with the next turn
+        }, interruptGraceMs);
+      };
       const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(grace);
         listeners.delete(onMessage);
         signal.removeEventListener("abort", interrupt);
         child.off("exit", onExit);
         fn(value);
       };
-      const onExit = () => finish(reject, new ChatError("Codex stopped in the middle of the reply. Send the message again."));
+      /** How the turn ended, from what stopped it. `status` is turn/completed's, if it came. */
+      const end = (t = {}) => {
+        if (budget) finish(resolve, { budget });
+        else if (foreign) finish(reject, new ChatError(`Codex tried to use another MCP server (${foreign}), so the turn was stopped. The studio's chat runs only with the motion-design tools: turn that server off in ~/.codex/config.toml, or use an OpenAI API key.`));
+        else if (signal.aborted) finish(reject, new ChatError("Stopped."));
+        else if (steps >= MAX_STEPS) finish(reject, new ChatError(`Stopped after ${MAX_STEPS} tool steps without a final answer. Ask again with a narrower request.`));
+        else if (t.status === "failed") finish(reject, new ChatError(`Codex could not finish the reply: ${redact(t.error?.message ?? "no reason given")}`));
+        else finish(resolve, {});
+      };
+      const onExit = () => finish(reject, signal.aborted ? new ChatError("Stopped.") : new ChatError("Codex stopped in the middle of the reply. Send the message again."));
 
       function handle(m) {
         const p = m.params ?? {};
@@ -288,29 +381,30 @@ export function createCodex({ command = process.env.KIE_CODEX_COMMAND || "codex"
             sink.text(p.itemId, p.delta);
             break;
           case "item/started":
-            if (item?.type === "mcpToolCall") sink.toolStart(item.id, item.server === MCP_NAME ? item.tool : `${item.server}/${item.tool}`, item.arguments);
+            if (item?.type === "mcpToolCall") {
+              sink.toolStart(item.id, name(item), item.arguments);
+              if (item.server !== MCP_NAME && !foreign) {
+                foreign = String(item.server); // the backstop for a server the start-up checks missed
+                interrupt();
+              }
+            }
             break;
           case "item/completed":
             if (item?.type === "agentMessage") sink.textDone(item.id, item.text);
             if (item?.type === "mcpToolCall") {
-              const f = sink.toolDone(item.id, item.server === MCP_NAME ? item.tool : `${item.server}/${item.tool}`, toolResult(item), item.arguments);
+              const f = sink.toolDone(item.id, name(item), toolResult(item), item.arguments);
               if (f?.code === EXIT.BUDGET && !budget) {
                 budget = f.message; // the chat never asks before spending: a limit's refusal ends the turn
                 interrupt();
-              }
+              } else if (++steps === MAX_STEPS) interrupt();
             }
             break;
           case "error":
             if (!p.willRetry) sink.notice(`Codex: ${redact(p.error?.message ?? "an error")}`);
             break;
-          case "turn/completed": {
-            const t = p.turn ?? {};
-            if (budget) finish(resolve, { budget });
-            else if (t.status === "failed") finish(reject, new ChatError(`Codex could not finish the reply: ${redact(t.error?.message ?? "no reason given")}`));
-            else if (signal.aborted) finish(reject, new ChatError("Stopped."));
-            else finish(resolve, {});
+          case "turn/completed":
+            if (p.turn?.id === turnId) end(p.turn);
             break;
-          }
         }
       }
       function onMessage(m) {

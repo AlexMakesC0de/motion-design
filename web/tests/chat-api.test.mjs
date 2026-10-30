@@ -220,6 +220,24 @@ describe("a chat turn", () => {
   });
 });
 
+test("shutdown waits for a running turn to end, so its transcript is saved", async () => {
+  // An OpenAI that answers an abort only after a moment, as a real stream does.
+  let fetched = false;
+  const slow = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      fetched = true;
+      init.signal.addEventListener("abort", () => setTimeout(() => reject(Object.assign(new Error("aborted"), { name: "AbortError" })), 150));
+    });
+  const other = createApp({ key: KEY, deps: stubs.deps, distDir: join(tmp, "nodist"), chat: { fetch: slow } });
+  await new Promise((r) => other.listen(0, "127.0.0.1", r));
+  await other.chat.send("chat-shutdown", "one");
+  await until(() => fetched);
+  assert.deepEqual(other.chat.films(), ["chat-shutdown"]);
+  await other.closeAll();
+  const saved = readFileSync(join(RUNS, "chat-shutdown", "chat.jsonl"), "utf8");
+  assert.match(saved, /"kind":"notice","at":"[^"]+","text":"Stopped\."/);
+});
+
 test("no response ever carried the OpenAI key", () => {
   assert.ok(seen.length > 10);
   for (const text of seen) assert.ok(!text.includes(OPENAI_KEY), text);

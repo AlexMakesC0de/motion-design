@@ -6,6 +6,10 @@
 //   { "notify": method, "params": {...} }   a notification
 //   { "request": method, "params": {...} }  a server request; waits for the answer
 //   { "waitFor": method }                   waits until the client sends that method
+//   { "sleep": ms }                         waits that long
+// "noAnswer": [methods] lists requests it never answers (a stuck app-server).
+// "mcpPages": [[servers], [servers], ...] answers mcpServerStatus/list a page
+// at a time, by cursor, instead of "mcpServers" in one page.
 // "$thread" and "$turn" anywhere in params become the current ids.
 // A step with "early": true is sent before the turn/start response.
 // The log gets { argv } first, then { in: message } for every line received.
@@ -33,12 +37,14 @@ async function play(steps) {
       send({ id, method: step.request, params: fill(step.params) });
       await answered;
     } else if (step.waitFor) await new Promise((r) => waiting.set(step.waitFor, r));
+    else if (step.sleep) await new Promise((r) => setTimeout(r, step.sleep));
   }
 }
 
 function answer(m) {
   const reply = (result) => send({ id: m.id, result });
   const error = (message) => send({ id: m.id, error: { code: -32600, message } });
+  if (ex.noAnswer?.includes(m.method)) return;
   switch (m.method) {
     case "initialize":
       return reply(ex.initialize);
@@ -53,6 +59,10 @@ function answer(m) {
       return reply({ thread: { id: threadId } });
     case "mcpServerStatus/list":
       if (ex.mcpStatus === "error") return error("mcpServerStatus/list failed");
+      if (ex.mcpPages) {
+        const page = Number(m.params.cursor ?? 0);
+        return reply({ data: ex.mcpPages[page], nextCursor: page + 1 < ex.mcpPages.length ? String(page + 1) : null });
+      }
       return reply({ data: ex.mcpServers ?? [], nextCursor: null });
     case "turn/start": {
       const steps = ex.turn ?? [];
