@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { FilmDetail, FinishInfo, TaskView } from "../api/types";
 import { AssembleForm } from "./AssembleForm";
+import { CaptionsForm } from "./CaptionsForm";
+import { CardForm } from "./CardForm";
+import { VariantsForm } from "./VariantsForm";
 import { TaskList } from "./TaskList";
 import { mergeTask, useTasks } from "./useTasks";
 
@@ -66,6 +69,9 @@ export function FinishPanel({ film, shots, onChanged }: Props) {
       <MissingTools info={info} />
       <TaskList tasks={tasks} />
       <AssembleForm film={film} info={info} shots={shots} busy={busy} onStarted={setStarted} onChanged={onChanged} />
+      <CaptionsForm film={film} info={info} busy={busy} onStarted={setStarted} onChanged={onChanged} />
+      <VariantsForm film={film} info={info} busy={busy} onStarted={setStarted} />
+      <CardForm film={film} info={info} busy={busy} onStarted={setStarted} />
     </aside>
   );
 }

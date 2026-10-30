@@ -87,3 +87,7 @@
 .task__outputs a { color: var(--text); }
 .task__warning { color: var(--warn); }
 .task__error { color: var(--bad-ink); white-space: pre-line; }
+.finish__check { display: inline-flex; align-items: center; gap: var(--space-1); }
+.finish__required { color: var(--text-3); font-size: var(--text-xs); }
+.card-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.card-field__head { display: flex; align-items: baseline; gap: var(--space-2); color: var(--text-2); }
