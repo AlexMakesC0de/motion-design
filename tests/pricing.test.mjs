@@ -1,0 +1,68 @@
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+
+import { EXIT } from "../cli/lib/errors.mjs";
+import { estimateUsd, priceLabel, preflight } from "../cli/lib/budget.mjs";
+
+const perSecond = {
+  model: "m",
+  priceUsd: 4.73,
+  pricing: { per: "second", usdPerSecond: { "480p": 0.14, "720p": 0.315 } },
+  input: { defaults: { duration: 5, resolution: "720p" } },
+  prov: { label: "Test", credits: null },
+};
+
+describe("a per-second route is priced the way it bills", () => {
+  test("duration × the rate for the requested resolution", () => {
+    const e = estimateUsd(perSecond, { durationS: 4, resolution: "480p" });
+    assert.equal(e.usd, 0.56);
+    assert.match(e.basis, /4s × \$0\.14\/s at 480p/);
+  });
+
+  test("the contract's defaults fill a missing duration and resolution", () => {
+    assert.equal(estimateUsd(perSecond, {}).usd, 1.575);
+  });
+
+  test("a string duration (wan's contract type) still prices", () => {
+    assert.equal(estimateUsd(perSecond, { durationS: "4", resolution: "480p" }).usd, 0.56);
+  });
+
+  test("an unpriced resolution falls back to the flat figure and says so", () => {
+    const e = estimateUsd(perSecond, { durationS: 4, resolution: "1080p" });
+    assert.equal(e.usd, 4.73);
+    assert.equal(e.basis, "per-job-fallback");
+  });
+
+  test("automatic duration (-1) falls back rather than pricing a negative job", () => {
+    assert.equal(estimateUsd(perSecond, { durationS: -1 }).basis, "per-job-fallback");
+  });
+
+  test("a flat route ignores duration entirely", () => {
+    const e = estimateUsd({ priceUsd: 0.06 }, { durationS: 30 });
+    assert.deepEqual(e, { usd: 0.06, basis: "per-job" });
+  });
+});
+
+describe("the budget check uses the per-second estimate", () => {
+  test("a short draft fits a budget the flat price would have refused", async () => {
+    const r = await preflight({}, perSecond, { budgetUsd: 1, durationS: 4, resolution: "480p" });
+    assert.equal(r.estimatedUsd, 0.56);
+  });
+
+  test("a long final is refused even though the flat price would pass", async () => {
+    await assert.rejects(
+      preflight({}, perSecond, { budgetUsd: 5, durationS: 30, resolution: "720p" }),
+      (e) => e.code === EXIT.BUDGET && /\$9\.45/.test(e.message),
+    );
+  });
+});
+
+describe("prices are labelled in the unit they bill in", () => {
+  test("per-second routes list each resolution's rate", () => {
+    assert.equal(priceLabel(perSecond), "480p $0.14/s 720p $0.315/s");
+  });
+
+  test("flat routes show the job price", () => {
+    assert.equal(priceLabel({ priceUsd: 0.06 }), "$0.06");
+  });
+});
