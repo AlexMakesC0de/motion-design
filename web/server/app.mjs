@@ -8,6 +8,7 @@ import { createEvents } from "./events.mjs";
 import { createFollower } from "./follow.mjs";
 import { registerLook } from "./api/look.mjs";
 import { registerGenerate } from "./api/generate.mjs";
+import { registerFrames } from "./api/frames.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
 export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,6 +29,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   });
   registerLook(router, { catalog, deps });
   registerGenerate(router, { catalog, deps, follower });
+  registerFrames(router);
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.
