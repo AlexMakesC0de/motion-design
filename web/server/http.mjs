@@ -32,9 +32,11 @@ export const HARDENING = {
 };
 
 export class HttpError extends Error {
-  constructor(status, message) {
+  /** `extra` rides along in the error body, beside the message. */
+  constructor(status, message, extra = {}) {
     super(message);
     this.status = status;
+    this.extra = extra;
   }
 }
 
@@ -93,7 +95,7 @@ export function sendError(res, err) {
     const { code, message, name: _n, stack: _s, data: _d, ...extra } = err;
     return sendJson(res, statusFor(code), { error: { ...extra, code, message: redact(message) } });
   }
-  if (err instanceof HttpError) return fail(res, err.status, err.message);
+  if (err instanceof HttpError) return fail(res, err.status, err.message, err.extra);
   process.stderr.write(`studio: ${redact(err?.stack ?? String(err))}\n`);
   return fail(res, 500, `Unexpected error: ${redact(err?.message ?? String(err))}`);
 }

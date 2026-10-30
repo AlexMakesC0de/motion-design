@@ -47,6 +47,15 @@ describe("jobView", () => {
     assert.equal(jobView(job, (id) => id === job.id).following, true);
     assert.equal(jobView(job, () => false).following, false);
   });
+
+  test("carries the job's local day, and core's uncertain message only for an uncertain job", () => {
+    const store = openJobs(join(RUNS, ".jobs"));
+    const job = store.create({ run: "zed", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 });
+    assert.equal(jobView(job).day, job.day);
+    assert.equal(jobView(job).uncertainMessage, null);
+    const lost = { ...job, state: "uncertain", upstreamTaskId: null };
+    assert.match(jobView(lost).uncertainMessage, new RegExp(`kie job resolve ${job.id} --not-created`));
+  });
 });
 
 describe("spendView", () => {

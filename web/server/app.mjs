@@ -14,6 +14,7 @@ import { registerLibrary } from "./api/library.mjs";
 import { registerPresets } from "./api/presets.mjs";
 import { registerFilms } from "./api/films.mjs";
 import { registerFinish } from "./api/finish.mjs";
+import { registerSettings } from "./api/settings.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
 export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -46,6 +47,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerPresets(router, { catalog });
   registerFilms(router, { following });
   registerFinish(router, { tasks, ...finish });
+  registerSettings(router, { catalog, deps });
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.

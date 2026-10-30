@@ -1,6 +1,6 @@
 // Per-request context and the shapes the page reads. Context is rebuilt per
 // call, like the MCP server's, so a limits change or a new run is seen at once.
-import { openJobs, countedUsd, localDay, systemTimeZone } from "../../cli/core/jobs.mjs";
+import { openJobs, countedUsd, localDay, systemTimeZone, uncertainMessage } from "../../cli/core/jobs.mjs";
 import { readLimits, dailyPosition } from "../../cli/core/spend.mjs";
 import { openLibrary } from "../../cli/core/assets.mjs";
 import { allowedRoots } from "../../cli/core/inputs.mjs";
@@ -36,6 +36,10 @@ export function jobView(j, following = () => false) {
     media: (j.artifacts ?? []).map(mediaUrl).filter(Boolean),
     updatedAt: j.history?.at(-1)?.at ?? j.createdAt,
     following: Boolean(following(j.id)),
+    // The local day it counts against (the Spend table filters by it).
+    day: j.day ?? null,
+    // Core's instruction for a job that may exist upstream; resolving stays in the CLI.
+    uncertainMessage: j.state === "uncertain" ? uncertainMessage(j) : null,
   };
 }
 
