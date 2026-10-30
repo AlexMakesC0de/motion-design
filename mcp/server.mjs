@@ -840,7 +840,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           template: z.enum(Object.keys(TEMPLATES)),
           props: z.record(z.string(), z.unknown()).optional(),
           aspect_ratio: Ratio.optional(),
-          duration_s: z.number().positive().optional(),
+          duration_s: z.number().positive().max(60).optional(),
           brand: z.string().regex(/^[a-z0-9-]+$/).optional().describe("A brand kit name from brand/."),
           alpha: z.boolean().optional(),
           out: z.string().optional(),

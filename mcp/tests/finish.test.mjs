@@ -109,6 +109,11 @@ describe("what a client may smuggle into a local render or filter", () => {
     assert.match(b.content[0].text, /file: URL/);
   });
 
+  test("a render longer than a minute is refused before any work", async () => {
+    const r = await call(client, "render", { run: "finish-demo", template: "logo-reveal", duration_s: 36000 });
+    assert.equal(r.isError, true);
+  });
+
   test("render props naming an http or https URL are refused with code 3, whatever the key or extension", async () => {
     for (const props of [
       { logo: "https://example.com/logo.png" },
