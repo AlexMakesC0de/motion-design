@@ -46,13 +46,6 @@ export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}
     return spendView(store, limits);
   });
 
-  router.get("/api/library", () => context().library.list());
-
-  router.get("/api/library/:name", ({ params }) => {
-    const a = context().library.get(params.name);
-    return { ...a, images: a.images.map(({ path, upload: _u, ...im }) => ({ ...im, url: mediaUrl(path) })) };
-  });
-
   router.post("/api/estimate", ({ body = {} }) => {
     const { store, limits } = context();
     return estimate(
