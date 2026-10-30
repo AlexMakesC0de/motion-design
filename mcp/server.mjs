@@ -644,7 +644,233 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       },
     );
   }
-  function registerFinish() {} // Task 6
+  function registerFinish() {
+    const Run = z.string().describe("Run folder slug.");
+    const InRun = (what) => z.string().describe(`${what}: a file name in the run folder, or a path inside runs/ or library/.`);
+    const Ratio = z.enum(Object.keys(RATIOS));
+
+    const IMAGE_PATH = /\.(png|jpe?g|webp|gif|svg)$/i;
+    const confineProps = (value, roots) => {
+      if (typeof value === "string") {
+        if (/^file:/i.test(value)) {
+          throw unknown(`props may not contain file: URLs ("${value}"); name a file inside runs/ or library/ instead.`);
+        }
+        return IMAGE_PATH.test(value) && !/^(https?|data):/i.test(value) ? clientPath(value, roots) : value;
+      }
+      if (Array.isArray(value)) return value.map((v) => confineProps(v, roots));
+      if (value && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, confineProps(v, roots)]));
+      }
+      return value;
+    };
+
+    tool(
+      "frames",
+      {
+        title: "Frames",
+        description: "An 8-frame contact sheet plus first and last frame PNGs of a video, written into the run folder; the sheet is shown. Free, local.",
+        inputSchema: { run: Run, video: InRun("The video") },
+        outputSchema: {
+          sheet: z.string(),
+          first: z.string(),
+          last: z.string(),
+          times: z.array(z.number()),
+          durationS: z.number(),
+        },
+        annotations: LOCAL_WRITE,
+      },
+      async ({ run, video }) => {
+        const dir = runDir(run, { create: false });
+        const path = runFile(dir, video, ctx().roots);
+        const r = await extractFrames(path, { outDir: join(dir, `${basename(path, extname(path))}-frames`) });
+        const sheet = await imagePreview(r.sheet, { width: 1024 });
+        const out = { sheet: r.sheet, first: r.first, last: r.last, times: r.times, durationS: r.durationS };
+        return ok(`${r.sheet}\nfirst ${r.first}\nlast ${r.last}`, out, sheet ? [sheet] : []);
+      },
+    );
+
+    tool(
+      "probe",
+      {
+        title: "Probe",
+        description: "Duration, size, frame rate, codecs and loudness of a media file. Free, local.",
+        inputSchema: { run: Run, file: InRun("The file") },
+        outputSchema: {
+          path: z.string(),
+          durationS: z.number().nullable(),
+          width: z.number().nullable(),
+          height: z.number().nullable(),
+          fps: z.number().nullable(),
+          videoCodec: z.string().nullable(),
+          hasAudio: z.boolean(),
+          audioCodec: z.string().nullable(),
+          sizeBytes: z.number().nullable(),
+          lufs: z.number().nullable(),
+          truePeakDb: z.number().nullable(),
+        },
+        annotations: LOOK,
+      },
+      async ({ run, file }) => {
+        const path = runFile(runDir(run, { create: false }), file, ctx().roots);
+        const info = await probe(path);
+        const loud = info.hasAudio ? await measureLoudness(path) : null;
+        const out = {
+          path: info.path,
+          durationS: info.durationS,
+          width: info.width,
+          height: info.height,
+          fps: info.fps,
+          videoCodec: info.videoCodec,
+          hasAudio: info.hasAudio,
+          audioCodec: info.audioCodec,
+          sizeBytes: info.sizeBytes,
+          lufs: loud?.inputI ?? null,
+          truePeakDb: loud?.inputTp ?? null,
+        };
+        return ok(`${out.path}: ${out.durationS}s ${out.width}×${out.height} @ ${out.fps}fps${out.hasAudio ? `, audio ${out.audioCodec}` : ", no audio"}`, out);
+      },
+    );
+
+    tool(
+      "assemble",
+      {
+        title: "Assemble",
+        description: "Join shots, with optional music, voice-over and crossfades, into one film in the run folder, loudness-normalised. Free, local.",
+        inputSchema: {
+          run: Run,
+          shots: z.array(InRun("A shot")).min(1),
+          music: InRun("Music").optional(),
+          vo: InRun("Voice-over").optional(),
+          transition: z
+            .object({
+              kind: z.string().regex(/^[a-z0-9]+$/).default("fade").describe("An ffmpeg xfade name: fade, wipeleft, circleopen..."),
+              seconds: z.number().positive(),
+            })
+            .optional(),
+          aspect_ratio: Ratio.optional(),
+          shot_audio: z.enum(["auto", "keep", "drop"]).optional(),
+          out: z.string().optional().describe("A plain file name; defaults to film.mp4, numbered if taken."),
+        },
+        outputSchema: { out: z.string(), totalS: z.number(), width: z.number(), height: z.number() },
+        annotations: LOCAL_WRITE,
+      },
+      async (a) => {
+        const dir = runDir(a.run, { create: false });
+        const { roots } = ctx();
+        const name = outName(a.out);
+        const shots = a.shots.map((s) => runFile(dir, s, roots));
+        const ratio = a.aspect_ratio ?? "16:9";
+        const [width, height] = dimsFor(ratio);
+        const result = await assemble({
+          shots,
+          music: a.music ? runFile(dir, a.music, roots) : null,
+          vo: a.vo ? runFile(dir, a.vo, roots) : null,
+          out: outPath(dir, name, "film", ".mp4"),
+          transitionS: a.transition?.seconds ?? 0,
+          transition: a.transition?.kind ?? "fade",
+          ratio,
+          width,
+          height,
+          shotAudio: a.shot_audio ?? "auto",
+        });
+        await writeRecord(dir, "assembly.json", result);
+        return ok(`${result.out} (${result.totalS}s, ${width}×${height})`, { out: result.out, totalS: result.totalS, width, height });
+      },
+    );
+
+    tool(
+      "variants",
+      {
+        title: "Variants",
+        description: "Reframe a video to other aspect ratios (blur, crop or pad), written into the run folder. Free, local.",
+        inputSchema: { run: Run, video: InRun("The video"), ratios: z.array(Ratio).min(1), mode: z.enum(MODES).optional() },
+        outputSchema: {
+          variants: z.array(z.object({ out: z.string(), width: z.number(), height: z.number(), mode: z.string() })),
+        },
+        annotations: LOCAL_WRITE,
+      },
+      async (a) => {
+        const dir = runDir(a.run, { create: false });
+        const video = runFile(dir, a.video, ctx().roots);
+        const result = await makeVariants({ video, ratios: a.ratios, outDir: dir, mode: a.mode ?? "blur" });
+        await writeRecord(dir, "variants.json", result);
+        const variants = result.variants.map((v) => ({ out: v.out, width: v.width, height: v.height, mode: v.mode }));
+        return ok(variants.map((v) => `${v.out} (${v.width}×${v.height}, ${v.mode})`).join("\n"), { variants });
+      },
+    );
+
+    tool(
+      "caption",
+      {
+        title: "Caption",
+        description: "Burn an SRT's captions into a video, written into the run folder. Free, local (needs the render package).",
+        inputSchema: {
+          run: Run,
+          video: InRun("The video"),
+          srt: InRun("The SRT file"),
+          style: z.enum(["social", "subtle"]).optional(),
+          out: z.string().optional(),
+        },
+        outputSchema: { out: z.string(), cues: z.number(), style: z.string(), warnings: z.array(z.string()) },
+        annotations: LOCAL_WRITE,
+      },
+      async (a) => {
+        const dir = runDir(a.run, { create: false });
+        const { roots } = ctx();
+        const result = await burnCaptions({
+          video: runFile(dir, a.video, roots),
+          srt: runFile(dir, a.srt, roots),
+          out: outPath(dir, outName(a.out), "captioned", ".mp4"),
+          style: a.style ?? "social",
+        });
+        await writeRecord(dir, "captions.json", result);
+        const out = { out: result.out, cues: result.cues, style: result.style, warnings: result.warnings ?? [] };
+        return ok(`${out.out} (${out.cues} cues, ${out.style})`, out);
+      },
+    );
+
+    tool(
+      "render",
+      {
+        title: "Render",
+        description: "Render a code template (exact text, logos, numbers) to video in the run folder. Use instead of a video model when copy must land exactly. Free, local.",
+        inputSchema: {
+          run: Run,
+          template: z.enum(Object.keys(TEMPLATES)),
+          props: z.record(z.string(), z.unknown()).optional(),
+          aspect_ratio: Ratio.optional(),
+          duration_s: z.number().positive().optional(),
+          brand: z.string().regex(/^[a-z0-9-]+$/).optional().describe("A brand kit name from brand/."),
+          alpha: z.boolean().optional(),
+          out: z.string().optional(),
+        },
+        outputSchema: { out: z.string(), width: z.number(), height: z.number() },
+        annotations: LOCAL_WRITE,
+      },
+      async (a) => {
+        const dir = runDir(a.run);
+        let propsPath;
+        if (a.props) {
+          // The renderer turns any image path in props into a file:// URL for a headless
+          // browser, so every such path is confined like any other file a client names.
+          const props = confineProps(a.props, ctx().roots);
+          propsPath = join(dir, `props-${a.template}.json`);
+          writeFileSync(propsPath, JSON.stringify(props, null, 2) + "\n");
+        }
+        const result = await render({
+          template: a.template,
+          propsPath,
+          out: outPath(dir, outName(a.out), a.template, a.alpha ? ".mov" : ".mp4"),
+          ratio: a.aspect_ratio ?? "16:9",
+          durationS: a.duration_s,
+          brand: a.brand,
+          alpha: a.alpha ?? false,
+        });
+        await writeRecord(dir, `render-${a.template}.json`, result);
+        return ok(`${result.out} (${result.width}×${result.height})`, { out: result.out, width: result.width, height: result.height });
+      },
+    );
+  }
 }
 
 const entry = process.argv[1] ? realpathSync(process.argv[1]) : null;

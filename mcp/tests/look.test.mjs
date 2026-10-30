@@ -19,7 +19,7 @@ const TOOLS = [
 ];
 
 describe("the tool list", () => {
-  test("all 18 tools; spending tools say so first and are marked open-world, not destructive", { todo: "generate and finish tools land in Tasks 5-6" }, async () => {
+  test("all 18 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     for (const name of ["generate_image", "generate_video"]) {
