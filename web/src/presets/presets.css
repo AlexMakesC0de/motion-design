@@ -1,0 +1,19 @@
+/* Preset gallery: still on top, engine line in mono, one action. Tokens only. */
+
+.presets { display: flex; flex-direction: column; gap: var(--space-4); }
+.presets__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
+.presets__head p { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
+.presets__error { color: var(--bad-ink); margin: 0; }
+.presets__empty { color: var(--text-2); }
+
+.presets__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+.preset { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); overflow: hidden; }
+.preset__still { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); }
+.preset__still--text { display: grid; place-items: center; padding: var(--space-4); color: var(--text-2); font-size: var(--text-lg); text-align: center; }
+.preset__body { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3); flex: 1; }
+.preset__body h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.preset__tagline { margin: 0; color: var(--text); font-size: var(--text-sm); }
+.preset__spec { margin: 0; color: var(--text-2); font-size: var(--text-xs); }
+.preset__fidelity, .preset__best { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
+.preset__body .button { margin-top: auto; align-self: flex-start; }
+.preset__best + .button, .preset__fidelity + .button { margin-top: var(--space-2); }

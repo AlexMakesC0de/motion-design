@@ -1,23 +1,30 @@
 import { Nav } from "./Nav";
 import { SpendMeter } from "./SpendMeter";
 import { Placeholder } from "./Placeholder";
-import { parseRoute } from "./route";
+import { parseRoute, type TabId } from "./route";
 import { useRoute, useStudio } from "./useStudio";
+import { StudioScreen } from "../studio/StudioScreen";
+import { LibraryScreen } from "../library/LibraryScreen";
+import { PresetsScreen } from "../presets/PresetsScreen";
 import "./App.css";
 
-const SCREENS = {
-  studio: ["Studio", "The prompt bar and your takes arrive in the next build step."],
-  library: ["Library", "Saved characters, products, places and styles will show here."],
-  presets: ["Presets", "The preset gallery will show here."],
+const LATER = {
   films: ["Films", "Your run folders, ready to finish, will show here."],
   spend: ["Spend", "Daily totals and every job will show here."],
   settings: ["Settings", "Chat connection, limits and provider keys will show here."],
 } as const;
 
+function Screen({ tab }: { tab: TabId }) {
+  if (tab === "studio") return <StudioScreen />;
+  if (tab === "library") return <LibraryScreen />;
+  if (tab === "presets") return <PresetsScreen />;
+  const [title, next] = LATER[tab];
+  return <Placeholder title={title} next={next} />;
+}
+
 export function App() {
   const { tab } = parseRoute(useRoute());
   const { spend, online } = useStudio();
-  const [title, next] = SCREENS[tab];
   return (
     <div className="app">
       <header className="app__top">
@@ -30,8 +37,8 @@ export function App() {
           Studio server isn't running. Start it with <code className="mono">npm run studio</code>, and this page reconnects.
         </div>
       )}
-      <main className="app__main">
-        <Placeholder title={title} next={next} />
+      <main className="app__main" data-tab={tab}>
+        <Screen tab={tab} />
       </main>
     </div>
   );
