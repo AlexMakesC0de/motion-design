@@ -296,6 +296,29 @@ describe("the ledger separates estimates from measurements", () => {
   test("byModel is ranked by spend", () => {
     assert.equal(summarise(rows).byModel[0].model, "seedance-2");
   });
+
+  test("a job that wrote two entries is counted once, at its last entry", () => {
+    const s = summarise([
+      { localJobId: "j-1", model: "seedance-2", provider: "kie", estimatedUsd: 1.2, status: "uncertain" },
+      { localJobId: "j-1", model: "seedance-2", provider: "kie", estimatedUsd: 1.2, status: "success" },
+      { model: "seedance-2", provider: "kie", estimatedUsd: 0.5, status: "success" },
+      { model: "seedance-2", provider: "kie", estimatedUsd: 0.5, status: "success" },
+    ]);
+    assert.equal(s.jobs, 3, "the two entries without an id are kept as they are");
+    assert.equal(s.failures, 0, "the earlier uncertain entry was superseded");
+    assert.equal(s.estimatedUsd, 2.2);
+    assert.equal(s.byProvider[0].estimated, 2.2);
+  });
+
+  test("a create the provider rejected cost nothing and adds no estimate", () => {
+    const s = summarise([
+      { localJobId: "j-1", model: "seedance-2", provider: "kie", estimatedUsd: 1.2, costSource: "create-rejected", actualUsd: 0, status: "provider-error", failedOver: true },
+      { localJobId: "j-2", model: "seedance-2", provider: "wavespeed", estimatedUsd: 1.2, status: "success" },
+    ]);
+    assert.equal(s.estimatedUsd, 1.2);
+    assert.equal(s.failures, 1);
+    assert.equal(s.byProvider.find((p) => p.provider === "kie").estimated, 0);
+  });
 });
 
 describe("catalog staleness is surfaced, not assumed away", () => {

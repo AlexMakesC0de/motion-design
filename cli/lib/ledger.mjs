@@ -37,6 +37,10 @@ export function read() {
 }
 
 export function summarise(entries) {
+  // A job can append more than one entry (uncertain, then resolved). Only its
+  // last one says what happened, so earlier ones must not be summed again.
+  const last = new Map(entries.filter((e) => e.localJobId).map((e) => [e.localJobId, e]));
+  entries = entries.filter((e) => !e.localJobId || last.get(e.localJobId) === e);
   const byModel = new Map();
   const byProvider = new Map();
   let estimated = 0;
@@ -46,7 +50,8 @@ export function summarise(entries) {
   for (const e of entries) {
     jobs += 1;
     if (e.status && e.status !== "success") failures += 1;
-    const est = Number(e.estimatedUsd) || 0;
+    // A rejected create never reached a task, so its estimate was never spent.
+    const est = e.costSource === "create-rejected" ? 0 : Number(e.estimatedUsd) || 0;
     estimated += est;
     const cur = byModel.get(e.model) ?? { jobs: 0, estimated: 0 };
     cur.jobs += 1;
