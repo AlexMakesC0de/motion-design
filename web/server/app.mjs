@@ -24,6 +24,8 @@ export function createApp({ key, deps = {}, catalog, distDir = join(WEB_DIR, "di
   registerLook(router, { catalog, deps });
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
+  // A malformed request never reaches the handler; drop the socket quietly.
+  server.on("clientError", (_err, socket) => socket.destroy());
   server.closeAll = () =>
     new Promise((r) => {
       events.close();

@@ -136,41 +136,48 @@ export function cookieKey(req) {
 
 /**
  * The request handler. `media(req, res, pathname)` serves /media/*; `router`
- * serves /api/*; everything else is the built page from `distDir`.
+ * serves /api/*; everything else is the built page from `distDir`. Nothing a
+ * client sends can throw past the try: a bad target or encoding is a 400.
  */
 export function createHandler({ key, router, distDir, media = null }) {
   return async (req, res) => {
-    const port = req.socket.localPort;
-    const host = req.headers.host ?? "";
-    if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) return fail(res, 403, "Wrong host.");
-    const url = new URL(req.url, `http://${host}`);
-
-    if (url.pathname.startsWith("/api/")) {
-      if (!sameKey(req.headers["x-studio-key"], key)) return fail(res, 403, "Missing or wrong studio key. Reload the page.");
-      const hit = router.match(req.method, url.pathname);
-      if (!hit) return fail(res, 404, `No ${req.method} ${url.pathname}.`);
+    try {
+      const port = req.socket.localPort;
+      const host = req.headers.host ?? "";
+      if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) return fail(res, 403, "Wrong host.");
+      let url;
       try {
+        url = new URL(req.url, `http://${host}`);
+      } catch {
+        throw new HttpError(400, "Bad request target.");
+      }
+
+      if (url.pathname.startsWith("/api/")) {
+        if (!sameKey(req.headers["x-studio-key"], key)) return fail(res, 403, "Missing or wrong studio key. Reload the page.");
+        let hit;
+        try {
+          hit = router.match(req.method, url.pathname);
+        } catch {
+          throw new HttpError(400, "Bad path.");
+        }
+        if (!hit) return fail(res, 404, `No ${req.method} ${url.pathname}.`);
         const body = req.method === "GET" ? undefined : await readJson(req);
         const out = await hit.handler({ params: hit.params, query: url.searchParams, body, req, res });
         if (out === undefined) return; // the handler wrote the response itself (a stream)
         return sendJson(res, 200, out);
-      } catch (err) {
-        if (res.headersSent) return res.end();
-        return sendError(res, err);
       }
-    }
 
-    if (url.pathname.startsWith("/media/")) {
-      if (!sameKey(cookieKey(req) ?? req.headers["x-studio-key"], key)) return fail(res, 403, "Missing or wrong studio key. Reload the page.");
-      if (!media) return fail(res, 404, "Not found.");
-      try {
+      if (url.pathname.startsWith("/media/")) {
+        if (!sameKey(cookieKey(req) ?? req.headers["x-studio-key"], key)) return fail(res, 403, "Missing or wrong studio key. Reload the page.");
+        if (!media) return fail(res, 404, "Not found.");
         return await media(req, res, url.pathname);
-      } catch (err) {
-        return sendError(res, err);
       }
-    }
 
-    if (req.method !== "GET" && req.method !== "HEAD") return fail(res, 405, "Method not allowed.");
-    return serveStatic(req, res, distDir, url.pathname, key);
+      if (req.method !== "GET" && req.method !== "HEAD") return fail(res, 405, "Method not allowed.");
+      return await serveStatic(req, res, distDir, url.pathname, key);
+    } catch (err) {
+      if (res.headersSent) return res.destroy();
+      return sendError(res, err);
+    }
   };
 }

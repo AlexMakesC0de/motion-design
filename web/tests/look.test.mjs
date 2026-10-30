@@ -3,6 +3,7 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { connect } from "node:net";
 
 const { createApp } = await import("../server/app.mjs");
 const { openJobs } = await import("../../cli/core/jobs.mjs");
@@ -27,6 +28,23 @@ before(async () => {
   port = app.address().port;
 });
 after(() => app.closeAll());
+
+describe("malformed traffic", () => {
+  test("bytes that are not HTTP close the socket and the app keeps serving", async () => {
+    await new Promise((resolve, reject) => {
+      const sock = connect(port, "127.0.0.1", () => sock.write("\x00\x01 not http\r\n\r\n"));
+      sock.on("error", reject);
+      sock.on("close", resolve);
+      sock.resume();
+    });
+    assert.equal((await req(port, "/api/spend")).status, 200);
+  });
+
+  test("a bad request target and bad percent-encoding are 400 through the whole app", async () => {
+    assert.equal((await req(port, "//")).status, 400);
+    assert.equal((await req(port, "/api/runs/%E0%A4%A")).status, 400);
+  });
+});
 
 describe("read-only API", () => {
   test("status uses the injected balance reader", async () => {

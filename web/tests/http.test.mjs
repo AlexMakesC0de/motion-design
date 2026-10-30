@@ -96,6 +96,20 @@ describe("routing and bodies", () => {
   });
 });
 
+describe("malformed requests", () => {
+  test("a request target that is not a URL is 400 and the server keeps answering", async () => {
+    const r = await req(port, "//");
+    assert.equal(r.status, 400);
+    assert.equal((await req(port, "/api/ping")).status, 200);
+  });
+
+  test("a path with broken percent-encoding is 400 and the server keeps answering", async () => {
+    const r = await req(port, "/api/runs/%E0%A4%A");
+    assert.equal(r.status, 400);
+    assert.equal((await req(port, "/api/ping")).status, 200);
+  });
+});
+
 describe("errors keep core's codes", () => {
   test("statusFor maps exit codes to HTTP statuses", () => {
     assert.deepEqual([1, 2, 3, 4, 5].map(statusFor), [400, 402, 400, 502, 409]);
