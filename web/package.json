@@ -6,6 +6,7 @@
   "description": "Local studio web app over the kie harness. The server has no dependencies; the page is built with Vite.",
   "scripts": {
     "build": "vite build",
+    "codex-protocol": "node scripts/codex-protocol.mjs",
     "dev": "vite",
     "test": "npm run test:server && npm run test:page",
     "test:server": "node --test 'tests/*.test.mjs'",
