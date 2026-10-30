@@ -45,13 +45,36 @@ function gated() {
   return { calls, tool, release };
 }
 
+/** The slow tools, stubbed: the caption overlay and text cards need a headless browser, which tests never start. */
+const calls = { caption: [], variants: [], render: [] };
+const stubs = {
+  burnCaptions: async (a) => {
+    calls.caption.push(a);
+    writeFileSync(a.out, "made");
+    return { out: a.out, cues: 2, style: a.style, warnings: ["1 cue(s) start after the film ends (1.00s) and were dropped."] };
+  },
+  makeVariants: async (a) => {
+    calls.variants.push(a);
+    return { source: { path: a.video }, variants: a.ratios.map((r) => ({ ratio: r, out: join(a.outDir, `x-${r.replace(":", "x")}.mp4`), width: 1, height: 1, mode: a.mode })) };
+  },
+  render: async (a) => {
+    calls.render.push(a);
+    writeFileSync(a.out, "made");
+    return { out: a.out, template: a.template, width: 1920, height: 1080 };
+  },
+};
+const SRT = "1\n00:00:00,000 --> 00:00:00,800\nHello\n";
+writeFileSync(join(RUNS, "finish-gated", "captions.srt"), SRT);
+writeFileSync(join(RUNS, "finish-gated", "notes.txt"), SRT);
+writeFileSync(join(FILM, "captions.srt"), SRT);
+
 let app, port, slow, slowApp, slowPort;
 before(async () => {
   app = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000 });
   await new Promise((r) => app.listen(0, "127.0.0.1", r));
   port = app.address().port;
   slow = gated();
-  slowApp = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000, finish: { tools: { ...CORE_TOOLS, assemble: slow.tool }, check: allOk } });
+  slowApp = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000, finish: { tools: { ...CORE_TOOLS, ...stubs, assemble: slow.tool }, check: allOk } });
   await new Promise((r) => slowApp.listen(0, "127.0.0.1", r));
   slowPort = slowApp.address().port;
 });
@@ -182,5 +205,81 @@ describe("POST /api/films/:slug/assemble", () => {
     } finally {
       await noFfmpeg.closeAll();
     }
+  });
+});
+
+describe("POST /api/films/:slug/caption", () => {
+  test("burns a saved SRT into a video as captioned.mp4 in the film, passing on core's warnings", async () => {
+    const r = await post(slowPort, "/api/films/finish-gated/caption", { video: "a.mp4", srt: "captions.srt", style: "subtle" });
+    assert.equal(r.status, 200, r.text);
+    await slowApp.tasks.idle();
+    const task = slowApp.tasks.get(r.json.task.id);
+    assert.equal(task.state, "done", task.error);
+    assert.deepEqual(task.outputs, [{ name: "captioned.mp4", url: "/media/runs/finish-gated/captioned.mp4" }]);
+    assert.deepEqual(task.warnings, ["1 cue(s) start after the film ends (1.00s) and were dropped."]);
+    const a = calls.caption.at(-1);
+    assert.deepEqual([a.video, a.srt, a.style], [join(RUNS, "finish-gated", "a.mp4"), join(RUNS, "finish-gated", "captions.srt"), "subtle"]);
+    assert.equal(JSON.parse(readFileSync(join(RUNS, "finish-gated", "captions.json"), "utf8")).cues, 2);
+  });
+
+  test("the captions must be an .srt file inside the allowed folders", async () => {
+    const notSrt = await post(slowPort, "/api/films/finish-gated/caption", { video: "a.mp4", srt: "notes.txt" });
+    assert.equal(notSrt.status, 400);
+    assert.equal(notSrt.json.error.field, "srt");
+    assert.match(notSrt.json.error.message, /an \.srt file/);
+    writeFileSync(join(tmp, "outside.srt"), SRT);
+    const outside = await post(slowPort, "/api/films/finish-gated/caption", { video: "a.mp4", srt: join(tmp, "outside.srt") });
+    assert.equal(outside.json.error.field, "srt");
+    assert.match(outside.json.error.message, /outside the folders/);
+  });
+
+  test("without the render engine it is refused with core's install message", async () => {
+    const noRender = createApp({
+      key: KEY,
+      deps,
+      distDir: join(tmp, "nodist"),
+      pollMs: 60_000,
+      finish: { check: () => ({ ffmpeg: { ok: true, install: null }, render: { ok: false, install: "The graphic-motion renderer is not installed. One time only:\n  cd render && npm install" } }) },
+    });
+    await new Promise((r) => noRender.listen(0, "127.0.0.1", r));
+    try {
+      const r = await post(noRender.address().port, "/api/films/finish-gated/caption", { video: "a.mp4", srt: "captions.srt" });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.error.tool, "render");
+      assert.match(r.json.error.message, /npm install/);
+    } finally {
+      await noRender.closeAll();
+    }
+  });
+});
+
+describe("POST /api/films/:slug/variants", () => {
+  test("reframes a video to 9:16 and 1:1 beside it in the film", { skip: !hasFfmpeg && "ffmpeg not installed" }, async () => {
+    const r = await post(port, "/api/films/finish-demo/variants", { video: "a.mp4", ratios: ["9:16", "1:1"] });
+    assert.equal(r.status, 200, r.text);
+    await app.tasks.idle();
+    const task = app.tasks.get(r.json.task.id);
+    assert.equal(task.state, "done", task.error);
+    assert.deepEqual(task.outputs.map((o) => o.name), ["a-9x16.mp4", "a-1x1.mp4"]);
+    const record = JSON.parse(readFileSync(join(FILM, "variants.json"), "utf8"));
+    assert.deepEqual(record.variants.map((v) => [v.width, v.height, v.mode]), [[1080, 1920, "blur"], [1080, 1080, "blur"]]);
+  });
+
+  test("warns when the video already has captions burned in, using core's caption-order check", async () => {
+    writeFileSync(join(RUNS, "finish-gated", "captions.json"), JSON.stringify({ out: join(RUNS, "finish-gated", "captioned.mp4") }));
+    writeFileSync(join(RUNS, "finish-gated", "captioned.mp4"), "\x00\x00\x00\x18ftypisom");
+    const r = await post(slowPort, "/api/films/finish-gated/variants", { video: "captioned.mp4", ratios: ["9:16"], mode: "pad" });
+    assert.equal(r.status, 200, r.text);
+    await slowApp.tasks.idle();
+    const task = slowApp.tasks.get(r.json.task.id);
+    assert.match(task.warnings[0], /already has captions burned in/);
+    assert.equal(calls.variants.at(-1).mode, "pad");
+    assert.equal(calls.variants.at(-1).outDir, join(RUNS, "finish-gated"));
+  });
+
+  test("no ratio, an unknown ratio or an unknown mode is refused on its field", async () => {
+    assert.equal((await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: [] })).json.error.field, "ratios");
+    assert.equal((await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["2:1"] })).json.error.field, "ratios");
+    assert.equal((await post(slowPort, "/api/films/finish-gated/variants", { video: "a.mp4", ratios: ["1:1"], mode: "stretch" })).json.error.field, "mode");
   });
 });

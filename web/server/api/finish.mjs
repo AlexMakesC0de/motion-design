@@ -4,16 +4,16 @@
 // background task (tasks.mjs) that calls the same core function the CLI and
 // the MCP server call. Outputs always land in the film's folder under core's
 // next free default name; the studio never takes an output name or path.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { assemble } from "../../../cli/lib/assemble.mjs";
 import { burnCaptions } from "../../../cli/lib/caption.mjs";
-import { makeVariants, MODES } from "../../../cli/lib/variants.mjs";
+import { makeVariants, MODES, captionOrderWarning } from "../../../cli/lib/variants.mjs";
 import { render, requireRemotion } from "../../../cli/lib/render.mjs";
 import { requireFfmpeg, RATIOS, dimsFor } from "../../../cli/lib/ffmpeg.mjs";
 import { RUNS_DIR, runDir, outPath, writeRecord } from "../../../cli/lib/run.mjs";
 import { unknown, usage } from "../../../cli/lib/errors.mjs";
-import { checkLocalFile } from "../../../cli/core/inputs.mjs";
+import { checkLocalFile, confinePath } from "../../../cli/core/inputs.mjs";
 import { templateList } from "../templates.mjs";
 import { context } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
@@ -49,6 +49,25 @@ export function mediaFile(dir, field, name, kinds) {
     throw f.invalid(field, err.message);
   }
 }
+
+/** An SRT the client named: the same path rule, confined, and only a .srt file (its text is burned into a video). */
+function srtFile(dir, name) {
+  if (!/\.srt$/i.test(name)) throw f.invalid("srt", `${name} is not an .srt file. Save the captions first; they are kept as captions.srt in the film.`);
+  const named = isAbsolute(name) ? name : name.includes("/") ? join(RUNS_DIR, name) : join(dir, name);
+  try {
+    return confinePath(named, context().roots);
+  } catch (err) {
+    throw f.invalid("srt", err.message);
+  }
+}
+
+const readJson = (p) => {
+  try {
+    return JSON.parse(readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+};
 
 const output = (path) => ({ name: basename(path), url: mediaUrl(path) });
 
@@ -104,6 +123,44 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
       const result = await tools.assemble({ ...a, width, height, out: outPath(dir, undefined, "film", ".mp4"), onLine: progress });
       await writeRecord(dir, "assembly.json", result);
       return { outputs: [output(result.out)] };
+    });
+    return { task };
+  });
+
+  /** Captions: an SRT burned into a video (core draws them with the render engine and overlays them with ffmpeg). */
+  router.post("/api/films/:slug/caption", ({ params, body = {} }) => {
+    const dir = filmDir(params.slug);
+    const video = mediaFile(dir, "video", f.text(body, "video", { required: true }), ["video"]);
+    const srt = srtFile(dir, f.text(body, "srt", { required: true }));
+    const style = oneOf(body, "style", CAPTION_STYLES, "social");
+    need(check, "ffmpeg", "render");
+    const task = tasks.start(params.slug, "caption", "Captions", async ({ progress }) => {
+      const result = await tools.burnCaptions({ video, srt, style, out: outPath(dir, undefined, "captioned", ".mp4"), onLine: progress });
+      await writeRecord(dir, "captions.json", result);
+      return { outputs: [output(result.out)], warnings: result.warnings ?? [] };
+    });
+    return { task };
+  });
+
+  /**
+   * Variants: a video reframed to other ratios, written beside it in the film
+   * as <name>-9x16.mp4 and so on. Core names them, so a second run for the
+   * same video and ratio replaces the first, as `kie variants` does.
+   */
+  router.post("/api/films/:slug/variants", ({ params, body = {} }) => {
+    const dir = filmDir(params.slug);
+    const video = mediaFile(dir, "video", f.text(body, "video", { required: true }), ["video"]);
+    const ratios = [...new Set(f.strings(body, "ratios"))];
+    if (!ratios.length) throw f.invalid("ratios", "Choose at least one ratio, such as 9:16 or 1:1.");
+    const unknownRatio = ratios.find((r) => !RATIOS[r]);
+    if (unknownRatio) throw f.invalid("ratios", `Unknown ratio "${unknownRatio}". Known: ${Object.keys(RATIOS).join(", ")}.`);
+    const mode = oneOf(body, "mode", MODES, "blur");
+    need(check, "ffmpeg");
+    const warning = captionOrderWarning(video, dir, readJson);
+    const task = tasks.start(params.slug, "variants", "Variants", async ({ progress }) => {
+      const result = await tools.makeVariants({ video, ratios, mode, outDir: dir, onLine: progress });
+      await writeRecord(dir, "variants.json", result);
+      return { outputs: result.variants.map((v) => output(v.out)), warnings: warning ? [warning] : [] };
     });
     return { task };
   });
