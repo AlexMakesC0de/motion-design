@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeF
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { spawnSync } from "node:child_process";
 import { RUNS, hasFfmpeg, realMp4, stubs, connect, call, errorOf } from "./helpers.mjs";
 
 const skip = !hasFfmpeg && "ffmpeg not installed";
@@ -25,6 +26,17 @@ describe("finishing, local and free", { skip }, () => {
     const r = await call(client, "probe", { run: "finish-demo", file: "a.mp4" });
     assert.equal(r.structuredContent.width, 320);
     assert.ok(Math.abs(r.structuredContent.durationS - 2) < 0.2);
+  });
+
+  test("probe of a clip with a silent audio track returns, with null loudness", async () => {
+    const silent = join(dir, "silent.mp4");
+    const made = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=24:duration=1", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "1", "-pix_fmt", "yuv420p", "-shortest", silent]);
+    assert.equal(made.status, 0);
+    const r = await call(client, "probe", { run: "finish-demo", file: "silent.mp4" });
+    assert.notEqual(r.isError, true, r.content[0].text);
+    assert.equal(r.structuredContent.hasAudio, true);
+    assert.equal(r.structuredContent.lufs, null);
+    assert.equal(r.structuredContent.truePeakDb, null);
   });
 
   test("variants makes a square cut in the run", async () => {

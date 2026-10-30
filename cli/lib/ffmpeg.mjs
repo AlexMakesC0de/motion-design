@@ -100,16 +100,29 @@ export async function measureLoudness(path) {
     "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
     "-f", "null", "-",
   ]);
-  const match = stderr.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
+  return parseLoudnorm(stderr);
+}
+
+/**
+ * The loudnorm JSON report in ffmpeg's stderr. A silent track measures "-inf"
+ * (and an offset of "inf"), which Number() turns into NaN; those become null so
+ * a caller never has to tell NaN from a real reading.
+ */
+export function parseLoudnorm(text) {
+  const match = text.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
   if (!match) return null;
+  const num = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   try {
     const j = JSON.parse(match[0]);
     return {
-      inputI: Number(j.input_i),
-      inputTp: Number(j.input_tp),
-      inputLra: Number(j.input_lra),
-      inputThresh: Number(j.input_thresh),
-      targetOffset: Number(j.target_offset),
+      inputI: num(j.input_i),
+      inputTp: num(j.input_tp),
+      inputLra: num(j.input_lra),
+      inputThresh: num(j.input_thresh),
+      targetOffset: num(j.target_offset),
     };
   } catch {
     return null;

@@ -223,7 +223,7 @@ export async function assemble({
   if (mixedAudio) args.push("-i", mixedAudio);
 
   const audioFilter =
-    mixedAudio && loudness
+    mixedAudio && loudness && Object.values(loudness).every((v) => v != null)
       ? `[${inputs.length}:a]loudnorm=I=-16:TP=-1.5:LRA=11:` +
         `measured_I=${loudness.inputI}:measured_TP=${loudness.inputTp}:` +
         `measured_LRA=${loudness.inputLra}:measured_thresh=${loudness.inputThresh}:` +
@@ -267,7 +267,7 @@ export async function assemble({
       ducked: Boolean(music && vo && duck),
       musicGainDb: music ? musicGainDb : null,
       loudnessTarget: a ? "-16 LUFS / -1.5 dBTP (EBU R128), two-pass linear" : null,
-      loudnessDelivered: delivered
+      loudnessDelivered: delivered?.inputI != null && delivered.inputTp != null
         ? { lufs: Math.round(delivered.inputI * 10) / 10, truePeakDb: Math.round(delivered.inputTp * 10) / 10 }
         : null,
       measuredBeforeNormalisation: loudness

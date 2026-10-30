@@ -816,11 +816,11 @@ async function cmdProbe(positionals) {
   say(
     info.hasAudio
       ? `  audio     ${info.audioCodec} ${info.sampleRate}Hz` +
-          (loud ? `  ${loud.inputI.toFixed(1)} LUFS, peak ${loud.inputTp.toFixed(1)} dBTP` : "")
+          (loud?.inputI != null && loud.inputTp != null ? `  ${loud.inputI.toFixed(1)} LUFS, peak ${loud.inputTp.toFixed(1)} dBTP` : loud ? "  silent" : "")
       : `  audio     none`,
   );
   say(`  size      ${(info.sizeBytes / 1e6).toFixed(2)}MB`);
-  if (loud && loud.inputI > -12) {
+  if (loud?.inputI != null && loud.inputI > -12) {
     say(`\n  ! ${loud.inputI.toFixed(1)} LUFS is hot. Social platforms normalise to about -16;`);
     say(`    deliver hotter and they turn it down, unevenly. \`kie assemble\` corrects this.`);
   }
