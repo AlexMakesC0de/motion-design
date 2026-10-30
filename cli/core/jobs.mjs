@@ -146,11 +146,17 @@ export function openJobs(dir = JOBS_DIR, { now = () => new Date(), timeZone = sy
     const changed = [];
     for (const job of list({ states: ["reserved", "sending"] })) {
       if (Date.parse(job.history.at(-1).at) > cutoff || isAlive(job.pid)) continue;
-      changed.push(
-        job.state === "reserved"
-          ? transition(job.id, "refused", { reason: "abandoned", note: "abandoned before sending; nothing left the machine" })
-          : transition(job.id, "uncertain", { note: "abandoned while sending; the job may exist upstream" }),
-      );
+      try {
+        changed.push(
+          job.state === "reserved"
+            ? transition(job.id, "refused", { reason: "abandoned", note: "abandoned before sending; nothing left the machine" })
+            : transition(job.id, "uncertain", { note: "abandoned while sending; the job may exist upstream" }),
+        );
+      } catch (err) {
+        // Another process settled it between the list and the move.
+        if (!["reserved", "sending"].includes(get(job.id).state)) continue;
+        throw err;
+      }
     }
     return changed;
   }

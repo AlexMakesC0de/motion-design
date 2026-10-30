@@ -102,6 +102,23 @@ describe("records left behind by a crashed process are swept", () => {
     assert.equal(countedUsd(store.get(id)), 1);
   });
 
+  test("a record another process settles mid-sweep is skipped, not an error", () => {
+    let now = old;
+    const dir = mkdtempSync(join(tmpdir(), "kie-store-"));
+    const store = openJobs(dir, { now: () => now, pid: deadPid() });
+    const other = openJobs(dir, { now: () => now });
+    const { id } = store.create({ estimateUsd: 1 });
+    now = later;
+    // sweep has already listed the stale record when it asks whether its owner
+    // is alive, so settling it from here lands between the list and the move.
+    const changed = store.sweep({
+      isAlive: () => (other.transition(id, "refused", { reason: "settled elsewhere" }), false),
+    });
+    assert.deepEqual(changed, []);
+    assert.equal(store.get(id).state, "refused");
+    assert.equal(store.get(id).reason, "settled elsewhere");
+  });
+
   test("young records and records of a live process are left alone", () => {
     let now = old;
     const store = fresh({ now: () => now });
