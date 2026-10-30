@@ -16,7 +16,7 @@ import { redact } from "./redact.mjs";
  */
 
 export function getProvider(catalog, name) {
-  const p = catalog.providers?.[name];
+  const p = catalog.providers && Object.hasOwn(catalog.providers, name) ? catalog.providers[name] : undefined;
   if (!p) {
     throw usage(
       `Unknown provider "${name}". Configured: ${Object.keys(catalog.providers ?? {}).join(", ")}`,

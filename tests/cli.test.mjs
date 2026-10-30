@@ -34,6 +34,16 @@ describe("model resolution refuses rather than forwards", () => {
     }
   });
 
+  test("a built-in object key is not a model", () => {
+    for (const id of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      assert.throws(() => resolveModel(catalog, id), { code: EXIT.UNKNOWN }, id);
+    }
+  });
+
+  test("a preset override that is a built-in object key is refused", () => {
+    assert.throws(() => routeFor(presets[0], catalog, { override: "constructor" }), { code: EXIT.UNKNOWN });
+  });
+
   test("a capability mismatch is caught before submission", () => {
     assert.throws(() => resolveModel(catalog, "gpt-image-2", "video"), { code: EXIT.UNKNOWN });
   });

@@ -41,7 +41,8 @@ export function isStale(catalog) {
  * instantly, not as a 404 three minutes and one upload later.
  */
 export function resolveModel(catalog, id, capability) {
-  const m = catalog.models[id];
+  // Own keys only: "constructor" or "__proto__" must not read as a model.
+  const m = Object.hasOwn(catalog.models, id) ? catalog.models[id] : undefined;
   if (!m) {
     const options = catalog.list
       .filter((x) => !capability || x.capability === capability)

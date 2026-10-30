@@ -43,7 +43,7 @@ export function findPreset(presets, idOrAlias) {
 export function routeFor(preset, catalog, { override } = {}) {
   const kie = preset.kie ?? {};
   const chain = override ? [override] : [kie.native, ...(kie.route ?? [])].filter(Boolean);
-  const modelId = chain.find((id) => catalog.models[id]);
+  const modelId = chain.find((id) => Object.hasOwn(catalog.models, id));
 
   if (!modelId) {
     throw unknown(

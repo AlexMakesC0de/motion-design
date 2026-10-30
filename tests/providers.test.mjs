@@ -244,3 +244,11 @@ describe("the ledger separates providers, because a failover pays twice", () => 
     assert.equal(summarise(rows).failovers, 1);
   });
 });
+
+describe("provider names are looked up as own keys only", () => {
+  test("a built-in object key is not a provider", () => {
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      assert.throws(() => getProvider(catalog, name), { code: EXIT.USAGE }, name);
+    }
+  });
+});
