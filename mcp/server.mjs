@@ -3,7 +3,7 @@
 // Thin by design: validate input, call cli/core or cli/lib, shape the result.
 // stdout carries the protocol, so nothing in here may print to it.
 
-import { realpathSync, writeFileSync } from "node:fs";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -126,11 +126,14 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   const runFile = (dir, name, roots) =>
     name.includes("/") || isAbsolute(name) ? clientPath(name, roots) : confinePath(join(dir, name), roots);
 
-  /** Outputs land in the run folder under a plain name, never a path. */
-  const outName = (name) => {
+  /** Outputs land in the run folder under a plain name, never a path, and never over a file already there. */
+  const outName = (dir, name) => {
     if (name == null) return undefined;
     if (/[\\/]/.test(name) || name.startsWith(".")) {
       throw unknown(`out must be a plain file name inside the run folder, got "${name}".`);
+    }
+    if (existsSync(join(dir, name))) {
+      throw unknown(`${name} already exists in the run; choose another name or omit out to number it.`);
     }
     return name;
   };
@@ -758,7 +761,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       async (a) => {
         const dir = runDir(a.run, { create: false });
         const { roots } = ctx();
-        const name = outName(a.out);
+        const name = outName(dir, a.out);
         const shots = a.shots.map((s) => runFile(dir, s, roots));
         const ratio = a.aspect_ratio ?? "16:9";
         const [width, height] = dimsFor(ratio);
@@ -821,7 +824,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         const result = await burnCaptions({
           video: runFile(dir, a.video, roots),
           srt: runFile(dir, a.srt, roots),
-          out: outPath(dir, outName(a.out), "captioned", ".mp4"),
+          out: outPath(dir, outName(dir, a.out), "captioned", ".mp4"),
           style: a.style ?? "social",
         });
         await writeRecord(dir, "captions.json", result);
@@ -850,6 +853,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       },
       async (a) => {
         const dir = runDir(a.run);
+        const outFile = outPath(dir, outName(dir, a.out), a.template, a.alpha ? ".mov" : ".mp4");
         let propsPath;
         if (a.props) {
           // The renderer turns any image path in props into a file:// URL for a headless
@@ -861,7 +865,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         const result = await render({
           template: a.template,
           propsPath,
-          out: outPath(dir, outName(a.out), a.template, a.alpha ? ".mov" : ".mp4"),
+          out: outFile,
           ratio: a.aspect_ratio ?? "16:9",
           durationS: a.duration_s,
           brand: a.brand,

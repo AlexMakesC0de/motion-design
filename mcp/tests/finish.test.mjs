@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -46,6 +46,33 @@ describe("finishing, local and free", { skip }, () => {
     const r = await call(client, "assemble", { run: "finish-demo", shots: ["a.mp4"], out: "../escape.mp4" });
     assert.equal(errorOf(r).code, 3);
     assert.match(r.content[0].text, /plain file name/);
+  });
+});
+
+describe("an output never overwrites a file of the run", () => {
+  const exists = /a\.mp4 already exists in the run; choose another name or omit out to number it/;
+
+  test("assemble with out naming the existing shot is refused with code 3 and the file is unchanged", { skip }, async () => {
+    const before = readFileSync(join(dir, "a.mp4"));
+    const r = await call(client, "assemble", { run: "finish-demo", shots: ["a.mp4"], out: "a.mp4" });
+    assert.equal(errorOf(r).code, 3);
+    assert.match(r.content[0].text, exists);
+    assert.deepEqual(readFileSync(join(dir, "a.mp4")), before);
+  });
+
+  test("caption and render refuse an existing out name too, before doing any work", async () => {
+    const taken = join(dir, "taken.mp4");
+    writeFileSync(taken, "keep me");
+    writeFileSync(join(dir, "c.srt"), "1\n00:00:00,000 --> 00:00:01,000\nhi\n");
+    const files = readdirSync(dir).sort();
+    const cap = await call(client, "caption", { run: "finish-demo", video: "taken.mp4", srt: "c.srt", out: "taken.mp4" });
+    assert.equal(errorOf(cap).code, 3);
+    assert.match(cap.content[0].text, /taken\.mp4 already exists in the run/);
+    const ren = await call(client, "render", { run: "finish-demo", template: "logo-reveal", out: "taken.mp4" });
+    assert.equal(errorOf(ren).code, 3);
+    assert.match(ren.content[0].text, /taken\.mp4 already exists in the run/);
+    assert.equal(readFileSync(taken, "utf8"), "keep me");
+    assert.deepEqual(readdirSync(dir).sort(), [...files]);
   });
 });
 
