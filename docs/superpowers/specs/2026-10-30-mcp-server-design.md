@@ -269,3 +269,12 @@ ChatGPT access, the web app, in-app chat, audio generation, shot plans and the q
 - 2026-10-30, while building steps 5-7:
   - `assemble`'s transition name is limited to a plain ffmpeg xfade name (`^[a-z0-9]+$`), because it is pasted into an ffmpeg filter and a free string could add filter options.
   - Image paths inside `render` props are confined to the allowed folders and `file:` URLs are refused, because the renderer loads them as `file://` URLs in a headless browser and would otherwise copy any image on the machine into a render.
+- 2026-10-30, after verified review findings (branch `harness-mcp`):
+  - Codex block: ours only when its body is exactly the header, `command`, `args` and `tool_timeout_sec` lines (a block from before the timeout line still counts); anything else between the markers is a conflict for install and uninstall, because toml_edit can place a table before our trailing END comment. The block sets `tool_timeout_sec = 300` (Codex defaults to 60 s), and the server instructions say to call `status` after a timeout before generating again.
+  - Per-second pricing with a known duration and an unknown resolution uses the highest listed rate, not the flat fallback; the WaveSpeed H3 route now has per-second pricing (unverified, a floor).
+  - `assemble`, `caption` and `render` refuse an `out` that already exists in the run (code 3).
+  - After a job is submitted, a failed `library.recordUse` becomes a warning and the result still carries `localJobId`; `upstreamTaskId` is always a string.
+  - A silent track's loudness is null, not NaN, so `probe` returns (`parseLoudnorm`).
+  - `wait_job` reports "pending" only for `waitForTask`'s own deadline (`timedOut: true`); any other code-5 error is rethrown naming the job, which stays submitted.
+  - A Claude Code entry counts as ours only at user scope; the same name at another scope is a conflict for install and ignored by uninstall.
+  - Render props refuse `http:` and `https:` URLs over MCP (code 3).
