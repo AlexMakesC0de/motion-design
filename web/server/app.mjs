@@ -13,6 +13,7 @@ import { registerFrames } from "./api/frames.mjs";
 import { registerLibrary } from "./api/library.mjs";
 import { registerPresets } from "./api/presets.mjs";
 import { registerFilms } from "./api/films.mjs";
+import { registerFinish } from "./api/finish.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
 export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,8 +24,10 @@ export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
  * waitForTask, download, creditsAfter), `upload` and `credits`. Tests pass
  * stubs. `closeAll()` also stops the event watchers. `resume` follows again
  * the studio jobs a previous run of the server left unsettled (main.mjs).
+ * `finish` replaces the finishing tools or their install check (tests):
+ * { tools: { assemble, burnCaptions, makeVariants, render }, check }.
  */
-export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false } = {}) {
+export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false, finish = {} } = {}) {
   const router = createRouter();
   let events = null;
   const follower = createFollower({ catalog, deps, onChange: () => events?.nudge() });
@@ -42,6 +45,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerLibrary(router, { catalog, following });
   registerPresets(router, { catalog });
   registerFilms(router, { following });
+  registerFinish(router, { tasks, ...finish });
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.
