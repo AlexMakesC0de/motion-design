@@ -1,8 +1,8 @@
 // Read-only endpoints. Each one calls a cli/core view and turns paths into
 // media URLs; none reserves or submits. /api/spend (like the event snapshot)
 // calls store.sweep(), which settles abandoned records, so it can write.
-import { loadCatalog } from "../../../cli/lib/models.mjs";
-import { status, listModels, listPresets, estimate, listRuns, getRun } from "../../../cli/core/views.mjs";
+import { loadCatalog, routesFor } from "../../../cli/lib/models.mjs";
+import { status, listModels, estimate, listRuns, getRun } from "../../../cli/core/views.mjs";
 import { context, jobView, spendView } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
 
@@ -12,9 +12,9 @@ export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}
     return status(catalog, { store, limits, ...(deps.credits ? { credits: deps.credits } : {}) });
   });
 
-  router.get("/api/models", ({ query }) => listModels(catalog, { capability: query.get("capability") || undefined }));
-
-  router.get("/api/presets", () => listPresets(catalog));
+  router.get("/api/models", ({ query }) =>
+    listModels(catalog, { capability: query.get("capability") || undefined }).map((m) => ({ ...m, ...resolutionChoices(catalog, m) })),
+  );
 
   router.get("/api/runs", () => listRuns());
 
@@ -63,4 +63,19 @@ export function registerLook(router, { catalog = loadCatalog(), deps = {} } = {}
       { store, limits },
     );
   });
+}
+
+/**
+ * Resolution choices for the prompt bar's chip. listModels carries image
+ * models' resolutions; a video model keeps its list on each route's captured
+ * contract, so this reads the first usable route's enum (the route submitJob
+ * tries first), falling back to the resolutions it has prices for.
+ */
+export function resolutionChoices(catalog, m) {
+  if (m.resolutions.length) return { resolutionOptions: m.resolutions, defaultResolution: null };
+  const model = catalog.list.find((x) => x.id === m.id);
+  const route = routesFor(catalog, model).find((r) => r.usable) ?? null;
+  const options = route?.input?.enums?.resolution ?? Object.keys(route?.pricing?.usdPerSecond ?? {});
+  const fallback = route?.input?.defaults?.resolution;
+  return { resolutionOptions: options.map(String), defaultResolution: fallback != null ? String(fallback) : null };
 }

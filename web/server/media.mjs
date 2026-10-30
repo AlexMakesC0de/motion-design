@@ -1,10 +1,12 @@
 // Serves run outputs and library images to <video> and <img>. Only two roots,
 // real paths only, no hidden segments: the same confinement the MCP tools use.
+// Preset stills come from a fixed list (stills.mjs), never from a client path.
 import { existsSync, lstatSync, realpathSync, statSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../../cli/lib/run.mjs";
 import { confinePath } from "../../cli/core/inputs.mjs";
 import { HARDENING, HttpError, streamFile } from "./http.mjs";
+import { presetStills } from "./stills.mjs";
 
 const TYPES = {
   ".mp4": "video/mp4",
@@ -34,6 +36,13 @@ export function mediaUrl(path) {
 }
 
 export async function serveMedia(req, res, pathname) {
+  const still = pathname.match(/^\/media\/presets\/([a-z0-9-]+)\.png$/);
+  if (still) {
+    const file = presetStills().get(still[1]);
+    if (!file) throw new HttpError(404, "Not found.");
+    res.writeHead(200, { ...HARDENING, "content-type": "image/png", "content-length": statSync(file).size, "cache-control": "no-cache" });
+    return streamFile(res, file);
+  }
   const m = pathname.match(/^\/media\/(runs|library)\/(.+)$/);
   if (!m) throw new HttpError(404, "Not found.");
   let rel;
