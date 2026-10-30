@@ -215,6 +215,38 @@ describe("waitJob", () => {
     assert.deepEqual(recorded.raw, data);
   });
 
+  test("a failed download leaves the job submitted so it can be rejoined", async () => {
+    const s = store();
+    const job = await submitted(s);
+    const w = await waitJob(catalog, s, job.id, {
+      deps: {
+        waitForTask: async () => ({ urls: ["https://cdn.test/a.mp4"], data: { creditsConsumed: 112 }, elapsedS: 3 }),
+        download: async () => { throw provider("Download failed (503)"); },
+        creditsAfter: async () => null,
+      },
+    });
+    assert.equal(w.outcome, "pending");
+    assert.equal(w.job.state, "submitted");
+    assert.equal(s.get(job.id).state, "submitted");
+    assert.match(w.message, /t-w/);
+    assert.match(w.message, new RegExp(`kie job ${job.id}`));
+    assert.match(w.message, /Do not resubmit/);
+  });
+
+  test("the pending message names the local job id, never the upstream task id, as what to rejoin", async () => {
+    const s = store();
+    const job = await submitted(s);
+    const w = await waitJob(catalog, s, job.id, {
+      timeoutMs: 30_000,
+      deps: {
+        waitForTask: async () => { throw uncertain('x: task t-w still "generating" after 20 min. It is probably still running -- rejoin with: kie job t-w', "t-w"); },
+      },
+    });
+    assert.equal(w.outcome, "pending");
+    assert.ok(!/kie job task-/.test(w.message) && !/kie job t-w/.test(w.message), w.message);
+    assert.match(w.message, /task t-w is still running after 30 s\./);
+  });
+
   test("an uncertain job with no upstream id cannot be waited on; it needs the user", async () => {
     const s = store();
     await assert.rejects(

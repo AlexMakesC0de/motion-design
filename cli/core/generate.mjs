@@ -218,7 +218,12 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   try {
     result = await d.waitForTask(prov, job.family, job.upstreamTaskId, { key, timeoutMs, onTick });
   } catch (err) {
-    if (err.code === EXIT.UNCERTAIN) return { outcome: "pending", job, message: redact(err.message) };
+    if (err.code === EXIT.UNCERTAIN) {
+      // poll.mjs words its own timeout for the legacy rejoin path, which never
+      // settles the local job, so the message is built here instead.
+      const waited = timeoutMs < 120_000 ? `${Math.round(timeoutMs / 1000)} s` : `${Math.round(timeoutMs / 60_000)} min`;
+      return { outcome: "pending", job, message: `${prov.label}: task ${job.upstreamTaskId} is still running after ${waited}.` };
+    }
     if (err.code !== EXIT.PROVIDER) throw err;
     if (err.succeededWithoutUrl) {
       // The provider finished and billed the task but gave us nothing to fetch.
@@ -253,10 +258,22 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   }
 
   const artifacts = [];
-  for (const url of result.urls) {
-    const { path } = nextArtifact(dir, job.artifactBase ?? "out", extFromUrl(url, ".bin"));
-    await d.download(url, path);
-    artifacts.push(path);
+  try {
+    for (const url of result.urls) {
+      const { path } = nextArtifact(dir, job.artifactBase ?? "out", extFromUrl(url, ".bin"));
+      await d.download(url, path);
+      artifacts.push(path);
+    }
+  } catch (err) {
+    // The task is finished and paid for. Leave the job submitted, still
+    // holding its estimate, so waiting on it again fetches the result.
+    return {
+      outcome: "pending",
+      job,
+      message:
+        `Task ${job.upstreamTaskId} succeeded, but downloading its result failed (${redact(err.message ?? String(err))}). ` +
+        `Nothing is lost: rejoin with kie job ${job.id} to fetch it again. Do not resubmit.`,
+    };
   }
   const cost = taskCost(prov, result.data);
   const after = await d.creditsAfter(prov, key);
