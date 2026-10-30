@@ -204,6 +204,25 @@ export function buildInput(route, values = {}) {
     else out[field] = ref.url;
   }
 
+  // Combinations the provider documents as impossible are refused here, free,
+  // rather than posted for a paid round trip or a silently ignored input.
+  const roles = new Set((values.refs ?? []).map((r) => r.role));
+  const rules = schema.refRules ?? {};
+  const groupsUsed = (rules.exclusiveGroups ?? [])
+    .map((group) => group.filter((role) => roles.has(role)))
+    .filter((used) => used.length);
+  if (groupsUsed.length > 1) {
+    problems.push(
+      `${route.model} cannot combine ${groupsUsed.map((g) => g.join("+")).join(" with ")} in one job.` +
+        (rules.note ? ` ${rules.note}` : ""),
+    );
+  }
+  for (const [role, needs] of Object.entries(rules.requires ?? {})) {
+    if (roles.has(role) && !roles.has(needs)) {
+      problems.push(`${route.model}: "${role}" needs a "${needs}" reference too.`);
+    }
+  }
+
   return { input: out, unverified: false, problems };
 }
 
