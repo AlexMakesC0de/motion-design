@@ -76,6 +76,8 @@ function toolOutput(result) {
   return `${text}${data}`.slice(0, MAX_TOOL_OUTPUT);
 }
 
+const stopped = () => new ChatError("Stopped.");
+
 const BAD_ARGS = { isError: true, content: [{ type: "text", text: "Error 1: the arguments were not valid JSON." }], _meta: { error: { code: EXIT.USAGE } } };
 
 /**
@@ -110,6 +112,7 @@ export async function runTurn({ key, model, instructions, history, text, tools, 
     const calls = output.filter((item) => item.type === "function_call");
     if (!calls.length) return {};
     for (const call of calls) {
+      if (signal?.aborted) throw stopped();
       let args;
       try {
         args = call.arguments ? JSON.parse(call.arguments) : {};
@@ -117,10 +120,11 @@ export async function runTurn({ key, model, instructions, history, text, tools, 
         args = null;
       }
       sink.toolStart(call.call_id, call.name, args ?? {});
-      const result = args === null ? BAD_ARGS : await tools.call(call.name, args);
+      const result = args === null ? BAD_ARGS : await tools.call(call.name, args, { signal });
       const failed = sink.toolDone(call.call_id, call.name, result);
       input.push({ type: "function_call_output", call_id: call.call_id, output: toolOutput(result) });
       if (failed?.code === EXIT.BUDGET) return { budget: failed.message };
+      if (signal?.aborted) throw stopped();
     }
   }
   throw new ChatError(`Stopped after ${MAX_STEPS} steps without a final answer. Ask again with a narrower request.`);

@@ -32,12 +32,17 @@ export function createTools({ deps = {}, catalog } = {}) {
       const { tools } = await (await open()).client.listTools();
       return tools.map((t) => ({ type: "function", name: t.name, description: t.description ?? "", parameters: functionSchema(t.inputSchema), strict: false }));
     },
-    /** A tool's result; a call the SDK itself rejects (an unknown tool, bad arguments) comes back as an error result too. */
-    async call(name, args) {
+    /**
+     * A tool's result; a call the SDK itself rejects (an unknown tool, bad
+     * arguments) comes back as an error result too. `signal` cancels the
+     * call: it then throws, and the step is left for the turn to settle.
+     */
+    async call(name, args, { signal } = {}) {
       const { client } = await open();
       try {
-        return await client.callTool({ name, arguments: args ?? {} });
+        return await client.callTool({ name, arguments: args ?? {} }, undefined, { signal });
       } catch (err) {
+        if (signal?.aborted) throw err;
         return { isError: true, content: [{ type: "text", text: `Error 1: ${err.message}` }], _meta: { error: { code: 1 } } };
       }
     },

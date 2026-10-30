@@ -106,6 +106,52 @@ describe("runTurn", () => {
     await assert.rejects(turn(fakeOpenAI({ replies: [error] })).done, { message: "OpenAI error: bad things" });
   });
 
+  test("Stop during a tool call ends the turn there: the next call is not run and the model is not asked again", async () => {
+    const two = callReply("estimate", { model: "seedance-2-5", duration_s: 4 }, "call_a");
+    const second = callReply("status", {}, "call_b").at(-2).item;
+    const done = two.at(-1);
+    done.response.output.push(second);
+    const fake = fakeOpenAI({ replies: [two, textReply("Never.")] });
+    const ctrl = new AbortController();
+    const calls = [];
+    const stopping = {
+      functions: () => tools.functions(),
+      async call(name, args, opts) {
+        calls.push({ name, signal: opts?.signal });
+        ctrl.abort(); // Stop pressed while the tool runs
+        return { content: [{ type: "text", text: "$0.56" }], structuredContent: { estimateUsd: 0.56, allowed: true } };
+      },
+    };
+    const { log, done: turnDone } = turn(fake, { tools: stopping, signal: ctrl.signal });
+    await assert.rejects(turnDone, { message: "Stopped." });
+    assert.deepEqual(calls.map((c) => c.name), ["estimate"], "the second call never ran");
+    assert.equal(calls[0].signal, ctrl.signal, "the signal reaches the tool call");
+    assert.equal(fake.requests.length, 1);
+    assert.equal(log.entries[0].state, "done");
+  });
+
+  test("a tool call given a stopped signal throws instead of answering", async () => {
+    await assert.rejects(tools.call("list_runs", {}, { signal: AbortSignal.abort() }));
+  });
+
+  test("Stop pressed before a tool call starts runs no tool", async () => {
+    const fake = fakeOpenAI({ replies: [callReply("estimate", { model: "seedance-2-5" })] });
+    const ctrl = new AbortController();
+    const calls = [];
+    const stopping = {
+      functions: () => tools.functions(),
+      call: async (name) => calls.push(name),
+    };
+    const realFetch = fake.fetch;
+    const fetch = async (url, init) => {
+      const res = await realFetch(url, init);
+      ctrl.abort(); // Stop pressed while the reply streams in
+      return res;
+    };
+    await assert.rejects(turn({ ...fake, fetch }, { tools: stopping, signal: ctrl.signal, fetch }).done, { message: "Stopped." });
+    assert.deepEqual(calls, []);
+  });
+
   test("earlier lines of the film go first, as messages", async () => {
     const fake = fakeOpenAI({ replies: [textReply("Yes.")] });
     await turn(fake, { history: [{ role: "user", content: "hi" }, { role: "assistant", content: "hello" }] }).done;
