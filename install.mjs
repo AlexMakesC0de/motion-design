@@ -6,11 +6,14 @@
 //   node install.mjs            # install everywhere detected
 //   node install.mjs --dry-run  # show what would happen
 //   node install.mjs --uninstall
+//   node install.mjs --no-mcp   # skip registering the MCP server
 
 import { existsSync, mkdirSync, lstatSync, symlinkSync, unlinkSync, readlinkSync, chmodSync, appendFileSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import { serverCommand, applyClaude, applyCodex } from "./mcp/register.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SKILL_SRC = join(ROOT, "skills", "motion-design");
@@ -106,6 +109,43 @@ if (!UNINSTALL) {
     log(`\n  ! No kie.ai key found. Store it once, readable only by you:`);
     log(`      mkdir -p ~/.config/kie && printf '%s' 'YOUR_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key`);
     log(`    Get one at https://kie.ai/api-key. Never pass it as a CLI flag.`);
+  }
+}
+
+// MCP server: Claude Code at user scope, Codex in a marked block of
+// ~/.codex/config.toml. Only our own entries are ever added, changed or removed.
+if (!argv.has("--no-mcp")) {
+  log("\nmcp server");
+  const want = serverCommand(ROOT);
+  if (!UNINSTALL && !existsSync(join(ROOT, "mcp", "node_modules", "@modelcontextprotocol", "sdk"))) {
+    if (DRY) {
+      log("  would run npm install in mcp/");
+    } else {
+      const r = spawnSync("npm", ["install", "--prefix", join(ROOT, "mcp")], { stdio: "inherit" });
+      log(r.status === 0 ? "  installed mcp/ dependencies" : "  FAIL     npm install in mcp/; run it by hand: npm --prefix mcp install");
+    }
+  }
+
+  const say = {
+    add: DRY ? "would add" : "added",
+    update: DRY ? "would update (node path changed)" : "updated (node path changed)",
+    remove: DRY ? "would remove" : "removed",
+    none: "ok, nothing to change",
+    conflict: "SKIP: a motion-design entry exists that is not ours; left alone",
+    skip: "skip",
+    failed: "FAIL: the claude CLI returned an error",
+  };
+  const c = applyClaude(want, { uninstall: UNINSTALL, dryRun: DRY });
+  if (["add", "update", "remove"].includes(c.action)) changed += 1;
+  log(`  Claude Code: ${say[c.action]}${c.reason ? ` (${c.reason})` : ""}`);
+
+  const codexDir = join(homedir(), ".codex");
+  if (existsSync(codexDir)) {
+    const x = applyCodex(join(codexDir, "config.toml"), want, { uninstall: UNINSTALL, dryRun: DRY });
+    if (["add", "update", "remove"].includes(x.action)) changed += 1;
+    log(`  Codex:       ${say[x.action]}${x.backup ? ` (backup ${x.backup})` : ""}`);
+  } else {
+    log("  Codex:       skip (~/.codex not found)");
   }
 }
 
