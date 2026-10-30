@@ -220,6 +220,26 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   } catch (err) {
     if (err.code === EXIT.UNCERTAIN) return { outcome: "pending", job, message: redact(err.message) };
     if (err.code !== EXIT.PROVIDER) throw err;
+    if (err.succeededWithoutUrl) {
+      // The provider finished and billed the task but gave us nothing to fetch.
+      // Recording this as a failure would invite a second, paid submission.
+      const paid = taskCost(prov, err.data);
+      job = store.transition(job.id, "succeeded", {
+        actualUsd: paid?.usd ?? null,
+        costSource: paid ? "task-record" : "estimate",
+        artifacts: [],
+        error: redact(err.message),
+      });
+      ledger.append(ledgerEntry(job, "success-no-artifact"));
+      await writeRecord(dir, "job.json", { ...job, raw: err.data ?? null });
+      return {
+        outcome: "no-artifact",
+        job,
+        message:
+          `${prov.label}: task ${job.upstreamTaskId} succeeded and was charged, but no file link was found in the result. ` +
+          `The raw payload is in runs/${job.run}/job.json. It must not be resubmitted.`,
+      };
+    }
     const cost = taskCost(prov, err.data);
     const state = cost == null ? "failed-unconfirmed" : cost.usd === 0 ? "failed-confirmed-free" : "failed-charged";
     job = store.transition(job.id, state, {

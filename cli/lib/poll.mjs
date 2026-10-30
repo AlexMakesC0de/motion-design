@@ -115,7 +115,7 @@ export async function waitForTask(
         throw provider(
           `${prov.label}: task ${taskId} succeeded but no artifact URL was found. ` +
             `Raw payload saved to job.json -- the result shape may have changed.`,
-          { data },
+          { data, succeededWithoutUrl: true },
         );
       }
       return { state, urls, data, elapsedS: Math.round((Date.now() - started) / 1000) };

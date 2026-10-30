@@ -378,6 +378,7 @@ function finishWait(w) {
   if (w.outcome === "pending") {
     throw uncertain(`${w.message}\n${uncertainMessage(w.job)}`, w.job.upstreamTaskId, { localJobId: w.job.id });
   }
+  if (w.outcome === "no-artifact") throw providerError(w.message);
   throw w.error ?? providerError(`Job ${w.job.id} ended ${w.job.state}: ${w.job.error ?? "no message"}`);
 }
 

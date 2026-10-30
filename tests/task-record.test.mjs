@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { loadCatalog } from "../cli/lib/models.mjs";
 import { getProvider, taskCost } from "../cli/lib/providers.mjs";
 import { queryTask } from "../cli/lib/client.mjs";
+import { waitForTask } from "../cli/lib/poll.mjs";
 
 const catalog = loadCatalog();
 const kie = getProvider(catalog, "kie");
@@ -37,5 +38,19 @@ describe("a failed task is read as failed, not as unreadable", () => {
   test("a body error with no task record is still an error", async () => {
     globalThis.fetch = async () => new Response(JSON.stringify({ code: 401, msg: "bad key" }), { status: 200 });
     await assert.rejects(queryTask(kie, "jobs", "t1", { key: "k", attempts: 1 }), /could not read task t1/);
+  });
+});
+
+describe("a task that succeeded with nothing to download", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => (globalThis.fetch = realFetch));
+
+  test("is flagged so the job is not recorded as a failure", async () => {
+    const record = { taskId: "t1", state: "success", creditsConsumed: 112 };
+    globalThis.fetch = async () => new Response(JSON.stringify({ code: 200, msg: "ok", data: record }), { status: 200 });
+    await assert.rejects(
+      waitForTask(kie, "jobs", "t1", { key: "k", timeoutMs: 1000 }),
+      (e) => e.succeededWithoutUrl === true && e.data.creditsConsumed === 112,
+    );
   });
 });

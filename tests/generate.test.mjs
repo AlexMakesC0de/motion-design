@@ -192,6 +192,29 @@ describe("waitJob", () => {
     assert.equal(w.job.state, "submitted");
   });
 
+  test("a task that succeeded with no artifact URL is charged and recorded, never failed or resubmitted", async () => {
+    const s = store();
+    let creates = 0;
+    const sub = await submitJob(catalog, request({ only: "kie" }), {
+      store: s,
+      limits: LIMITS,
+      deps: { preflight, createTask: async () => (creates++, { taskId: "t-nourl" }) },
+    });
+    const data = { state: "success", creditsConsumed: 112 };
+    const w = await waitJob(catalog, s, sub.job.id, {
+      deps: { waitForTask: async () => { throw provider("task succeeded but no artifact URL was found", { data, succeededWithoutUrl: true }); } },
+    });
+    assert.equal(w.outcome, "no-artifact");
+    assert.equal(w.job.state, "succeeded");
+    assert.deepEqual(w.job.artifacts, []);
+    assert.equal(w.job.actualUsd, 0.56);
+    assert.match(w.message, /charged/);
+    assert.match(w.message, /must not be resubmitted|not resubmit|Do not resubmit/i);
+    assert.equal(creates, 1);
+    const recorded = JSON.parse(readFileSync(join(RUNS, "gen-test", "job.json"), "utf8"));
+    assert.deepEqual(recorded.raw, data);
+  });
+
   test("an uncertain job with no upstream id cannot be waited on; it needs the user", async () => {
     const s = store();
     await assert.rejects(
