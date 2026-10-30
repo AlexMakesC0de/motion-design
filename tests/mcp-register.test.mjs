@@ -83,7 +83,7 @@ describe("Codex config.toml", () => {
 });
 
 describe("Claude Code", () => {
-  const out = (cmd, args) => `${NAME}:\n  Scope: User config\n  Type: stdio\n  Command: ${cmd}\n  Args: ${args}\n`;
+  const out = (cmd, args, scope = "User config (available in all your projects)") => `${NAME}:\n  Scope: ${scope}\n  Type: stdio\n  Command: ${cmd}\n  Args: ${args}\n`;
   const runner = (stdout, status = 0) => {
     const log = [];
     const run = (args) => {
@@ -96,21 +96,39 @@ describe("Claude Code", () => {
   test("claudeEntry reads command and args, and absence", () => {
     assert.deepEqual(claudeEntry(runner(out("/usr/local/bin/node", "/repo/mcp/server.mjs")).run), {
       state: "present",
+      scope: "User config (available in all your projects)",
       command: "/usr/local/bin/node",
       args: "/repo/mcp/server.mjs",
     });
+    assert.equal(claudeEntry(runner(out("n", "a", "Local config (private to you in this project)")).run).scope, "Local config (private to you in this project)");
     assert.equal(claudeEntry(runner("", 1).run).state, "absent");
     assert.equal(claudeEntry(() => ({ missing: true })).state, "no-cli");
   });
 
   test("planClaude: add, leave, update, conflict, skip", () => {
-    const ours = { state: "present", command: want.command, args: want.args.join(" ") };
+    const ours = { state: "present", scope: "User config (available in all your projects)", command: want.command, args: want.args.join(" ") };
     assert.equal(planClaude({ state: "absent" }, want).action, "add");
     assert.equal(planClaude(ours, want).action, "none");
     assert.equal(planClaude({ ...ours, command: "/old/node" }, want).action, "update");
-    assert.equal(planClaude({ state: "present", command: "npx", args: "someone-else" }, want).action, "conflict");
+    assert.equal(planClaude({ ...ours, command: "npx", args: "someone-else" }, want).action, "conflict");
     assert.equal(planClaude({ state: "no-cli" }, want).action, "skip");
-    assert.equal(planClaude({ state: "present", command: "npx", args: "someone-else" }, want, { uninstall: true }).action, "none");
+    assert.equal(planClaude({ ...ours, command: "npx", args: "someone-else" }, want, { uninstall: true }).action, "none");
+  });
+
+  test("a same-named entry at another scope is never ours: conflict to install, none to uninstall", () => {
+    const local = {
+      state: "present",
+      scope: "Local config (private to you in this project)",
+      command: want.command,
+      args: want.args.join(" "),
+    };
+    assert.equal(planClaude(local, want).action, "conflict");
+    assert.equal(planClaude(local, want, { uninstall: true }).action, "none");
+    assert.equal(planClaude({ ...local, scope: "Project config (shared via .mcp.json)" }, want).action, "conflict");
+    assert.equal(planClaude({ ...local, scope: null }, want).action, "conflict");
+    const r = runner(out(want.command, want.args.join(" "), "Local config (private to you in this project)"));
+    applyClaude(want, { uninstall: true, run: r.run });
+    assert.ok(!r.log.some((a) => a[1] === "remove"), "never removes an entry at another scope");
   });
 
   test("applyClaude adds at user scope with our exact command, and removes only ours", () => {

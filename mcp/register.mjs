@@ -78,12 +78,14 @@ export function claudeEntry(run = runClaude) {
   if (r.missing) return { state: "no-cli" };
   if (r.status !== 0) return { state: "absent" };
   const field = (label) => r.stdout.match(new RegExp(`^\\s*${label}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? null;
-  return { state: "present", command: field("Command"), args: field("Args") };
+  return { state: "present", scope: field("Scope"), command: field("Command"), args: field("Args") };
 }
 
 export function planClaude(entry, want, { uninstall = false } = {}) {
   if (entry.state === "no-cli") return { action: "skip", reason: "the claude CLI is not on PATH" };
-  const ours = entry.state === "present" && entry.args === want.args.join(" ");
+  // Ours only at user scope: remove and add both act on user scope, so a same-named
+  // entry at local or project scope is someone else's and must be left alone.
+  const ours = entry.state === "present" && /^user\b/i.test(entry.scope ?? "") && entry.args === want.args.join(" ");
   if (uninstall) return ours ? { action: "remove" } : { action: "none" };
   if (entry.state === "absent") return { action: "add" };
   if (!ours) return { action: "conflict" };
