@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { constants, copyFileSync, existsSync, linkSync, mkdirSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, extname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -48,6 +49,52 @@ export function nextArtifact(dir, base, ext) {
     candidate = join(dir, `${base}-${n}${e}`);
   }
   return { path: candidate, take: n };
+}
+
+/**
+ * Move a finished download into place under the first free take name. The
+ * name is chosen at the moment of the move, and the move never replaces a
+ * file: link() fails with EEXIST when the name is taken, so two processes
+ * finishing together get out.mp4 and out-2.mp4 rather than one clobbering
+ * the other. Where hard links are unsupported, an exclusive copy keeps the
+ * same no-clobber rule.
+ */
+export function claimArtifact(tmpPath, dir, base, ext) {
+  const e = ext.startsWith(".") ? ext : `.${ext}`;
+  for (let n = 1; ; n += 1) {
+    const candidate = join(dir, n === 1 ? `${base}${e}` : `${base}-${n}${e}`);
+    try {
+      linkSync(tmpPath, candidate);
+    } catch (err) {
+      if (err.code === "EEXIST") continue;
+      if (!["EPERM", "ENOTSUP", "EXDEV", "ENOSYS", "EMLINK"].includes(err.code)) throw err;
+      try {
+        copyFileSync(tmpPath, candidate, constants.COPYFILE_EXCL);
+      } catch (copyErr) {
+        if (copyErr.code === "EEXIST") continue;
+        throw copyErr;
+      }
+    }
+    rmSync(tmpPath, { force: true });
+    return { path: candidate, take: n };
+  }
+}
+
+/**
+ * Fetch one result into the run without ever writing a half file under a take
+ * name. `fetchTo(path)` writes a hidden `.part` file in `dir`; only a complete
+ * file is moved to its final name. An interrupted fetch (Ctrl-C) leaves at most
+ * the `.part`, and a failed one leaves nothing.
+ */
+export async function landArtifact(dir, base, ext, fetchTo) {
+  const e = ext.startsWith(".") ? ext : `.${ext}`;
+  const part = join(dir, `.${base}${e}.${randomBytes(4).toString("hex")}.part`);
+  try {
+    await fetchTo(part);
+    return claimArtifact(part, dir, base, e);
+  } finally {
+    rmSync(part, { force: true });
+  }
 }
 
 /**

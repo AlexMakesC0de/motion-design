@@ -3,7 +3,8 @@ import { getProvider, providerKey, canFailOver, taskCost } from "../lib/provider
 import { preflight as realPreflight, creditsAfter as realCreditsAfter } from "../lib/budget.mjs";
 import { createTask as realCreateTask } from "../lib/client.mjs";
 import { waitForTask as realWaitForTask, download as realDownload } from "../lib/poll.mjs";
-import { runDir, nextArtifact, extFromUrl, writeRecord } from "../lib/run.mjs";
+import { rmSync } from "node:fs";
+import { runDir, landArtifact, extFromUrl, writeRecord } from "../lib/run.mjs";
 import * as ledger from "../lib/ledger.mjs";
 import { redact } from "../lib/redact.mjs";
 import { EXIT, unknown, usage, uncertain } from "../lib/errors.mjs";
@@ -192,6 +193,28 @@ const OUTCOME = {
   refused: "failed",
 };
 
+/** The result to hand back for a job that is already settled. */
+const settledResult = (job) => ({ outcome: OUTCOME[job.state], job, artifacts: job.artifacts ?? [] });
+
+/**
+ * Settle a job, unless another waiter (the studio's follower, `kie job`, an
+ * MCP wait_job) settled it first. Returns null when this waiter lost: the
+ * caller then discards its own copy and reports the recorded result. Within
+ * one process the read and the write cannot interleave; across processes the
+ * store refuses the second move, which is read the same way.
+ */
+function settle(store, id, state, patch) {
+  if (!UNSETTLED.has(store.get(id).state)) return null;
+  try {
+    return store.transition(id, state, patch);
+  } catch (err) {
+    if (!UNSETTLED.has(store.get(id).state)) return null;
+    throw err;
+  }
+}
+
+const removeAll = (paths) => paths.forEach((p) => rmSync(p, { force: true }));
+
 /**
  * Whether a waitJob result may be retried on the next reseller. Only a failure
  * confirmed free qualifies: a job that may have been charged is never repeated,
@@ -208,7 +231,7 @@ export const shouldFailOver = (w) => w.outcome === "failed" && w.job.state === "
 export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onTick, deps = {} } = {}) {
   const d = { ...REAL, ...deps };
   let job = store.get(id);
-  if (!UNSETTLED.has(job.state)) return { outcome: OUTCOME[job.state], job, artifacts: job.artifacts ?? [] };
+  if (!UNSETTLED.has(job.state)) return settledResult(job);
   if (!job.upstreamTaskId) {
     throw uncertain(uncertainMessage(job), null, { localJobId: job.id });
   }
@@ -239,12 +262,14 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
       // The provider finished and billed the task but gave us nothing to fetch.
       // Recording this as a failure would invite a second, paid submission.
       const paid = taskCost(prov, err.data);
-      job = store.transition(job.id, "succeeded", {
+      const settled = settle(store, job.id, "succeeded", {
         actualUsd: paid?.usd ?? null,
         costSource: paid ? "task-record" : "estimate",
         artifacts: [],
         error: redact(err.message),
       });
+      if (!settled) return settledResult(store.get(job.id));
+      job = settled;
       ledger.append(ledgerEntry(job, "success-no-artifact"));
       await writeRecord(dir, "job.json", { ...job, raw: err.data ?? null });
       return {
@@ -257,11 +282,13 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
     }
     const cost = taskCost(prov, err.data);
     const state = cost == null ? "failed-unconfirmed" : cost.usd === 0 ? "failed-confirmed-free" : "failed-charged";
-    job = store.transition(job.id, state, {
+    const settled = settle(store, job.id, state, {
       actualUsd: cost?.usd ?? null,
       costSource: cost ? "task-record" : "estimate",
       error: redact(err.message),
     });
+    if (!settled) return { ...settledResult(store.get(job.id)), error: err };
+    job = settled;
     ledger.append(ledgerEntry(job, "provider-error"));
     await writeRecord(dir, "job.json", { ...job, raw: err.data ?? null });
     return { outcome: "failed", job, error: err };
@@ -270,13 +297,19 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   const artifacts = [];
   try {
     for (const url of result.urls) {
-      const { path } = nextArtifact(dir, job.artifactBase ?? "out", extFromUrl(url, ".bin"));
-      await d.download(url, path, { within: dir });
+      // Downloaded to a .part file, then moved to a take name chosen at that
+      // moment, so a second waiter or an interrupted download never leaves a
+      // clobbered or truncated out.mp4.
+      const { path } = await landArtifact(dir, job.artifactBase ?? "out", extFromUrl(url, ".bin"), (part) =>
+        d.download(url, part, { within: dir }),
+      );
       artifacts.push(path);
     }
   } catch (err) {
     // The task is finished and paid for. Leave the job submitted, still
-    // holding its estimate, so waiting on it again fetches the result.
+    // holding its estimate, so waiting on it again fetches the result. What
+    // this attempt already kept goes too, or the next attempt duplicates it.
+    removeAll(artifacts);
     return {
       outcome: "pending",
       job,
@@ -286,8 +319,15 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
     };
   }
   const cost = taskCost(prov, result.data);
+  const lost = () => {
+    // Another waiter settled this job while we downloaded: its record and its
+    // files stand, and ours were duplicates.
+    removeAll(artifacts);
+    return settledResult(store.get(job.id));
+  };
+  if (!UNSETTLED.has(store.get(job.id).state)) return lost();
   const after = await d.creditsAfter(prov, key);
-  job = store.transition(job.id, "succeeded", {
+  const settled = settle(store, job.id, "succeeded", {
     actualUsd: cost?.usd ?? null,
     costSource: cost ? "task-record" : "estimate",
     creditsAfter: after,
@@ -295,6 +335,8 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
     urls: result.urls,
     elapsedS: result.elapsedS,
   });
+  if (!settled) return lost();
+  job = settled;
   ledger.append(ledgerEntry(job, "success"));
   await writeRecord(dir, "job.json", { ...job, raw: result.data });
   await writeRecord(dir, "cost.json", {

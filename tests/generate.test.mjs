@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const RUNS = mkdtempSync(join(tmpdir(), "kie-gen-"));
 process.env.KIE_RUNS_DIR = RUNS;
@@ -289,6 +289,113 @@ describe("waitJob", () => {
     await waitJob(catalog, s, job.id, { deps });
     const again = await waitJob(catalog, s, job.id, { deps: { waitForTask: async () => assert.fail("polled a settled job") } });
     assert.equal(again.outcome, "succeeded");
+  });
+});
+
+describe("waitJob with two waiters on one job", () => {
+  const fresh = async (s, run) =>
+    (await submitJob(catalog, request({ only: "kie", run }), {
+      store: s,
+      limits: LIMITS,
+      deps: { preflight, createTask: async () => ({ taskId: "t-two" }) },
+    })).job;
+  const media = (run) => readdirSync(join(RUNS, run)).filter((f) => /^out.*\.mp4$/.test(f));
+
+  test("two concurrent settles of one job keep one artifact and both report success", async () => {
+    const s = store();
+    const job = await fresh(s, "two-waiters");
+    let arrived = 0;
+    let release;
+    const gate = new Promise((r) => (release = r));
+    const deps = {
+      waitForTask: async () => ({ urls: ["https://cdn.test/a.mp4"], data: { creditsConsumed: 112 }, elapsedS: 3 }),
+      // Both waiters finish downloading before either settles.
+      download: async (_url, path) => {
+        writeFileSync(path, "video");
+        if (++arrived === 2) release();
+        await gate;
+      },
+      creditsAfter: async () => null,
+    };
+    const [a, b] = await Promise.all([waitJob(catalog, s, job.id, { deps }), waitJob(catalog, s, job.id, { deps })]);
+    assert.equal(a.outcome, "succeeded");
+    assert.equal(b.outcome, "succeeded");
+    assert.deepEqual(a.artifacts, b.artifacts);
+    assert.deepEqual(media("two-waiters"), ["out.mp4"]);
+    assert.deepEqual(s.get(job.id).artifacts, [join(RUNS, "two-waiters", "out.mp4")]);
+    assert.deepEqual(readdirSync(join(RUNS, "two-waiters")).filter((f) => f.endsWith(".part")), []);
+  });
+
+  test("a waiter that finds the job already settled by another process returns that result", async () => {
+    const s = store();
+    const job = await fresh(s, "settled-elsewhere");
+    const deps = {
+      waitForTask: async () => ({ urls: ["https://cdn.test/a.mp4"], data: { creditsConsumed: 112 }, elapsedS: 3 }),
+      download: async (_url, path) => {
+        writeFileSync(path, "video");
+        // Another process settles the job while this one downloads.
+        writeFileSync(join(RUNS, "settled-elsewhere", "out.mp4"), "theirs");
+        s.transition(job.id, "succeeded", { artifacts: [join(RUNS, "settled-elsewhere", "out.mp4")], actualUsd: 0.56 });
+      },
+      creditsAfter: async () => null,
+    };
+    const w = await waitJob(catalog, s, job.id, { deps });
+    assert.equal(w.outcome, "succeeded");
+    assert.deepEqual(w.artifacts, [join(RUNS, "settled-elsewhere", "out.mp4")]);
+    assert.deepEqual(media("settled-elsewhere"), ["out.mp4"]);
+    assert.equal(readFileSync(join(RUNS, "settled-elsewhere", "out.mp4"), "utf8"), "theirs");
+  });
+
+  test("a download that is cut off part way leaves no file under the final name", async () => {
+    const s = store();
+    const job = await fresh(s, "interrupted");
+    let target;
+    let started;
+    const reached = new Promise((r) => (started = r));
+    const deps = {
+      waitForTask: async () => ({ urls: ["https://cdn.test/a.mp4"], data: {}, elapsedS: 3 }),
+      // Half the bytes arrive, then the process is gone (Ctrl-C): never resolves.
+      download: (_url, path) => {
+        target = path;
+        writeFileSync(path, "half a vid");
+        started();
+        return new Promise(() => {});
+      },
+      creditsAfter: async () => null,
+    };
+    waitJob(catalog, s, job.id, { deps });
+    await reached;
+    assert.match(target, /\.part$/);
+    assert.equal(dirname(target), join(RUNS, "interrupted"));
+    assert.deepEqual(media("interrupted"), []);
+  });
+
+  test("a failed download removes its partial file and any result it already kept", async () => {
+    const s = store();
+    const job = await fresh(s, "half-failed");
+    let n = 0;
+    const w = await waitJob(catalog, s, job.id, {
+      deps: {
+        waitForTask: async () => ({ urls: ["https://cdn.test/a.mp4", "https://cdn.test/b.mp4"], data: {}, elapsedS: 3 }),
+        download: async (_url, path) => {
+          writeFileSync(path, "bytes");
+          if (++n === 2) throw provider("Download failed (503)");
+        },
+        creditsAfter: async () => null,
+      },
+    });
+    assert.equal(w.outcome, "pending");
+    assert.deepEqual(readdirSync(join(RUNS, "half-failed")), []);
+  });
+
+  test("two concurrent failures of one job settle once and both report the failure", async () => {
+    const s = store();
+    const job = await fresh(s, "two-failures");
+    const deps = { waitForTask: async () => { throw provider("task failed", { data: { state: "fail", creditsConsumed: 0 } }); } };
+    const [a, b] = await Promise.all([waitJob(catalog, s, job.id, { deps }), waitJob(catalog, s, job.id, { deps })]);
+    assert.equal(a.outcome, "failed");
+    assert.equal(b.outcome, "failed");
+    assert.equal(s.get(job.id).history.filter((h) => h.state === "failed-confirmed-free").length, 1);
   });
 });
 

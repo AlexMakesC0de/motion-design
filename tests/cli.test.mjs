@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,7 +17,7 @@ import { loadPresets, findPreset, routeFor } from "../cli/lib/presets.mjs";
 import { extractUrls } from "../cli/lib/poll.mjs";
 import { redact } from "../cli/lib/client.mjs";
 import { summarise, filter } from "../cli/lib/ledger.mjs";
-import { nextArtifact, extFromUrl } from "../cli/lib/run.mjs";
+import { nextArtifact, extFromUrl, claimArtifact } from "../cli/lib/run.mjs";
 
 const catalog = loadCatalog();
 const presets = loadPresets();
@@ -217,6 +217,18 @@ describe("artifact writing never destroys a previous take", () => {
     writeFileSync(b.path, "take two");
 
     assert.match(nextArtifact(dir, "out", ".mp4").path, /out-3\.mp4$/);
+  });
+
+  test("a claimed artifact takes the first free name and never replaces a file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "kie-run-"));
+    writeFileSync(join(dir, "out.mp4"), "take one");
+    writeFileSync(join(dir, "x.part"), "take two");
+    const c = claimArtifact(join(dir, "x.part"), dir, "out", ".mp4");
+    assert.match(c.path, /out-2\.mp4$/);
+    assert.equal(c.take, 2);
+    assert.equal(readFileSync(join(dir, "out.mp4"), "utf8"), "take one");
+    assert.equal(readFileSync(c.path, "utf8"), "take two");
+    assert.ok(!existsSync(join(dir, "x.part")));
   });
 
   test("extensions come from the URL, falling back when absent", () => {

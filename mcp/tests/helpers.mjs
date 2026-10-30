@@ -1,7 +1,7 @@
 // Every MCP test file imports this first. It points runs/, library/ and the
 // limits file at a temp folder and sets a dummy key BEFORE the server (and the
 // cli modules, which read these at import) load. Provider calls are stubs.
-import { mkdtempSync, mkdirSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -51,7 +51,8 @@ export function stubs() {
       calls.wait += 1;
       return { state: "success", urls: ["https://cdn.test/result.png"], data: { state: "success", creditsConsumed: 6 }, elapsedS: 2 };
     },
-    download: async (url, path) => (hasFfmpeg ? realPng(path, "64x64") : path),
+    // The core downloads to a .part name ffmpeg cannot read a format from.
+    download: async (url, path) => (hasFfmpeg ? renameSync(realPng(`${path}.png`, "64x64"), path) : writeFileSync(path, ""), path),
     creditsAfter: async () => 94,
   };
   const deps = {

@@ -16,7 +16,7 @@ import { getProvider, providerKey, hasKey, providerCredits } from "./lib/provide
 import { waitForTask, download } from "./lib/poll.mjs";
 import { uploadFile } from "./lib/upload.mjs";
 import { estimateUsd, priceLabel } from "./lib/budget.mjs";
-import { runDir, nextArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
+import { runDir, landArtifact, extFromUrl, writeRecord, outPath, inPath, REPO_ROOT } from "./lib/run.mjs";
 import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
 import { readLimits, setDailyLimit, setPerJobLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
@@ -777,8 +777,7 @@ async function cmdJob(catalog, args, positionals) {
 
   const dir = runDir(args.run);
   for (const url of result.urls) {
-    const { path } = nextArtifact(dir, "out", extFromUrl(url, ".bin"));
-    await download(url, path);
+    const { path } = await landArtifact(dir, "out", extFromUrl(url, ".bin"), (part) => download(url, part));
     say(`  → ${path}`);
   }
   ledger.append({ run: args.run, taskId, status: "success", rejoined: true, model: "(rejoined)" });
