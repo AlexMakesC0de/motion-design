@@ -36,6 +36,8 @@ the same code as the `kie` CLI.
 - Every job has a per-job budget, and all jobs share a daily cap
   (`~/.config/kie/limits.json`, $10 by default). Change it with
   `kie limits --daily N`; no tool can.
+- `kie limits --per-job N` refuses any single job estimated above $N,
+  whatever budget a tool call asks for. It is off until you set it.
 - A job that may exist upstream (error 5) is never resubmitted. Check kie's
   task log and record the outcome with `kie job resolve`.
 - Files are read only from `runs/`, `library/` and folders you list under

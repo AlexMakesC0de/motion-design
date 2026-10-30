@@ -81,6 +81,12 @@ kie caption  --run entri-hero --video film-9x16.mp4 --srt cap.srt  # …then cap
 
 `node install.mjs` also registers the MCP server with Claude Code and Codex; see [mcp/README.md](mcp/README.md).
 
+### Studio (web app)
+
+`npm --prefix web install` once, then `npm run studio`. A local page with the prompt bar, your takes, the library, presets, films, spend and settings. See [web/README.md](web/README.md).
+
+`kie limits --daily 25` sets the daily cap. `kie limits --per-job 2` refuses any single job estimated above $2; `--per-job off` removes that limit. Both apply to the CLI, the MCP tools and the studio.
+
 `kie preflight` and `kie doctor` are read-only: they answer cost and access
 questions without spending. Nothing here submits a job to probe anything.
 

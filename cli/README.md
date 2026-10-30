@@ -74,7 +74,9 @@ downloads the result; `--no-wait` prints the id to come back with.
 
 A daily cap in dollars (default $10) is checked before each submission:
 `kie limits` shows the cap, today's spend and any unsettled jobs, and
-`kie limits --daily 25` changes it. Jobs in flight hold their estimate
+`kie limits --daily 25` changes it. `kie limits --per-job 2` also refuses
+any single job estimated above $2, whatever is left of the cap;
+`--per-job off` removes that limit. Jobs in flight hold their estimate
 against the cap until they settle. A job that fails with kie reporting 0
 credits releases its hold; one with no cost report keeps it.
 
@@ -107,6 +109,12 @@ as tools (see [mcp/README.md](../mcp/README.md)). It calls the same
 `cli/core` and `cli/lib` code, so it shares job records, the daily cap and the
 asset library with the CLI: a job started over MCP shows up in `kie limits`
 and `kie job`, and the other way round.
+
+### Studio web app
+
+`web/` is a local web app on the same `cli/core` (see
+[web/README.md](../web/README.md)). Jobs started there share the job records,
+the per-job limit, the daily cap and the asset library.
 
 ## Design decisions worth not undoing
 
