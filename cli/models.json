@@ -221,6 +221,16 @@
           "i2vModel": "wavespeed-ai/minimax-h3/image-to-video",
           "priceUsd": 0.1,
           "priceNote": "Never measured: WaveSpeed exposes no balance. Search results (2026-10-30, not a direct read) put it at about $0.10 per SECOND, so a 5s job may cost ~$0.50. Treat 0.1 as a floor.",
+          "pricing": {
+            "per": "second",
+            "usdPerSecond": {
+              "480p": 0.1,
+              "540p": 0.1,
+              "768p": 0.1,
+              "1080p": 0.1
+            },
+            "source": "unverified: search results 2026-10-30 said about $0.10/s; treat as a floor until read from the live page"
+          },
           "verified": true,
           "schemaVerified": true,
           "input": {

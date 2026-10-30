@@ -14,8 +14,18 @@ export function estimateUsd(route, { durationS, resolution } = {}) {
   const res = resolution ?? route.input?.defaults?.resolution;
   const rate = pricing.usdPerSecond?.[res];
   const seconds = Number(durationS ?? route.input?.defaults?.duration);
-  if (rate == null || !Number.isFinite(seconds) || seconds <= 0) {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
     return { usd: route.priceUsd ?? 0, basis: "per-job-fallback" };
+  }
+  if (rate == null) {
+    // The seconds are known but the resolution is not (or has no rate): the flat
+    // figure would undercount a long job, so assume the dearest resolution.
+    const top = Math.max(...Object.values(pricing.usdPerSecond ?? {}).filter(Number.isFinite));
+    if (!Number.isFinite(top)) return { usd: route.priceUsd ?? 0, basis: "per-job-fallback" };
+    return {
+      usd: Math.round(top * seconds * 10_000) / 10_000,
+      basis: `${seconds}s × $${top}/s (highest rate; resolution unknown)`,
+    };
   }
   return {
     usd: Math.round(rate * seconds * 10_000) / 10_000,

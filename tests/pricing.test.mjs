@@ -27,10 +27,21 @@ describe("a per-second route is priced the way it bills", () => {
     assert.equal(estimateUsd(perSecond, { durationS: "4", resolution: "480p" }).usd, 0.56);
   });
 
-  test("an unpriced resolution falls back to the flat figure and says so", () => {
+  test("an unpriced resolution is priced at the highest rate, never the flat figure", () => {
     const e = estimateUsd(perSecond, { durationS: 4, resolution: "1080p" });
-    assert.equal(e.usd, 4.73);
-    assert.equal(e.basis, "per-job-fallback");
+    assert.equal(e.usd, 1.26);
+    assert.equal(e.basis, "4s × $0.315/s (highest rate; resolution unknown)");
+  });
+
+  test("seconds known but no resolution anywhere: 30s on 0.18/0.36/0.9 costs 30 × 0.9, not the flat 1.80", () => {
+    const route = {
+      priceUsd: 1.8,
+      pricing: { per: "second", usdPerSecond: { "480p": 0.18, "720p": 0.36, "1080p": 0.9 } },
+    };
+    const e = estimateUsd(route, { durationS: 30 });
+    assert.equal(e.usd, 27);
+    assert.equal(e.basis, "30s × $0.9/s (highest rate; resolution unknown)");
+    assert.equal(estimateUsd(route, { durationS: 30, resolution: "480p" }).usd, 5.4);
   });
 
   test("automatic duration (-1) falls back rather than pricing a negative job", () => {
