@@ -13,7 +13,8 @@ MCP to connect and no capability that exists in one client and not another.
 | Create needed reference images | `kie image --run SLUG --prompt "..."` |
 | Bring a local asset in | `kie upload <path>` |
 | Generate the complete film | `kie video --run SLUG --preset P` |
-| Rejoin an uncertain or long job | `kie job <taskId> --run SLUG` |
+| See today's spend against the cap, and unsettled jobs | `kie limits` |
+| Wait for a job submitted with `--no-wait`, or rejoin after exit 5 | `kie job <local job id>` |
 | Draw text, a logo, numbers or a screenshot | `kie render --template T` |
 | Read a file's real duration, size and loudness | `kie probe <file>` |
 | See a clip without playing it; get its last frame for the next shot | `kie frames <video> --run SLUG` |
@@ -36,7 +37,7 @@ machine is **skipped with the reason**, not an error, so one key is enough.
 A fallback fires only when a provider genuinely errors. It does **not** fire on
 a budget refusal, on an invalid request, or — most importantly — on an
 **uncertain** result, because that job may exist and paying twice is worse than
-failing. Rejoin with `kie job <id> --provider <p>` instead.
+failing. Rejoin with `kie job <local job id>` instead.
 
 A fallback is always the same model at another reseller; a different model is a
 different entry. Output may still differ slightly between resellers, and the CLI

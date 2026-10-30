@@ -26,7 +26,7 @@ Upload only the selected assets with `kie upload`, then bind the URLs it returns
 
 For audio-enabled campaigns, include both the soundscape and music directions in the full prompt and enable native audio where supported. Music and effects do not imply narration. If native audio is unavailable, explain the needed audio route before changing the workflow. Respect explicit silence or source-speech instructions.
 
-The CLI writes the reproducible record itself into `runs/<slug>/` on every call — `prompt.txt` (the exact submitted bytes), `inputs.json` (source prompt path and hash, model, settings, reference roles), `job.json` and `cost.json`. Add what only you know: deliberate changes, the exact-copy list, and source or evidence URLs. A failed or uncertain submission is not a completed film. **Exit `5` means the job may exist upstream — rejoin it with `kie job <taskId> --run <slug>`, never resubmit**, because a duplicate submission pays twice for one film. A corrective retry writes `out-2.mp4` beside the original rather than replacing it.
+The CLI writes the reproducible record itself into `runs/<slug>/` on every call — `prompt.txt` (the exact submitted bytes), `inputs.json` (source prompt path and hash, model, settings, reference roles), `job.json` and `cost.json`. Add what only you know: deliberate changes, the exact-copy list, and source or evidence URLs. A failed or uncertain submission is not a completed film. **Exit `5` means the job may exist upstream — rejoin it with `kie job <local job id>` (the `j-...` id the CLI prints), never resubmit**, because a duplicate submission pays twice for one film. A corrective retry writes `out-2.mp4` beside the original rather than replacing it.
 
 ## Inspect and revise
 

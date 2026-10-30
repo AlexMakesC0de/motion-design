@@ -57,7 +57,7 @@ renumbered casually.
 | `2` | **Budget refused** — nothing submitted, nothing spent | Report the estimate, ask |
 | `3` | Unknown model / preset / role — never left the machine | Re-read `kie models` |
 | `4` | Provider error, kie.ai's message relayed verbatim | Surface it |
-| `5` | **Uncertain** — the job may exist | `kie job <id>`. **Never resubmit** |
+| `5` | **Uncertain** — the job may exist | `kie job <local job id>`. **Never resubmit** |
 
 Code `5` exists on its own because `production.md` forbids duplicate submission
 after an ambiguous response. A create that times out, aborts mid-flight, or
@@ -65,6 +65,26 @@ returns 200 with no task id all land here rather than being retried into a
 double charge. The only creates that *are* retried are those definitively
 rejected before any work happened: an explicit `429`, or a connection that never
 opened.
+
+### Job records and the daily cap
+
+Every paid job gets a local id (`j-20261030-a1b2c3`) written to
+`runs/.jobs/` before anything is sent. `kie job <id>` waits for it and
+downloads the result; `--no-wait` prints the id to come back with.
+
+A daily cap in dollars (default $10) is checked before each submission:
+`kie limits` shows the cap, today's spend and any unsettled jobs, and
+`kie limits --daily 25` changes it. Jobs in flight hold their estimate
+against the cap until they settle. A job that fails with kie reporting 0
+credits releases its hold; one with no cost report keeps it.
+
+Cost is read from kie's task record (`creditsConsumed`), so `kie spend`
+reports an actual figure per job. WaveSpeed reports none, so its jobs
+count at the estimate.
+
+When a submission ends uncertain without a task id, the job may exist.
+Do not resubmit. Check the provider's task log, then record what you found:
+`kie job resolve <id> --task <task id>` or `kie job resolve <id> --not-created`.
 
 ## Design decisions worth not undoing
 
