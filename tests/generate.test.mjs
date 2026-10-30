@@ -186,10 +186,23 @@ describe("waitJob", () => {
     const job = await submitted(s);
     const w = await waitJob(catalog, s, job.id, {
       timeoutMs: 10,
-      deps: { waitForTask: async () => { throw uncertain("still generating", "t-w"); } },
+      deps: { waitForTask: async () => { throw uncertain("still generating", "t-w", { timedOut: true }); } },
     });
     assert.equal(w.outcome, "pending");
     assert.equal(w.job.state, "submitted");
+  });
+
+  test("a code-5 error that is not the deadline (a 401, a 404, a dead network) is rethrown naming the job, which stays submitted", async () => {
+    const s = store();
+    const job = await submitted(s);
+    await assert.rejects(
+      waitJob(catalog, s, job.id, {
+        timeoutMs: 10,
+        deps: { waitForTask: async () => { throw uncertain("kie.ai: could not read task t-w (401)", "t-w"); } },
+      }),
+      (e) => e.code === EXIT.UNCERTAIN && e.localJobId === job.id && /could not read task/.test(e.message),
+    );
+    assert.equal(s.get(job.id).state, "submitted");
   });
 
   test("a task that succeeded with no artifact URL is charged and recorded, never failed or resubmitted", async () => {
@@ -239,7 +252,7 @@ describe("waitJob", () => {
     const w = await waitJob(catalog, s, job.id, {
       timeoutMs: 30_000,
       deps: {
-        waitForTask: async () => { throw uncertain('x: task t-w still "generating" after 20 min. It is probably still running -- rejoin with: kie job t-w', "t-w"); },
+        waitForTask: async () => { throw uncertain('x: task t-w still "generating" after 20 min. It is probably still running -- rejoin with: kie job t-w', "t-w", { timedOut: true }); },
       },
     });
     assert.equal(w.outcome, "pending");

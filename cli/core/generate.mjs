@@ -202,7 +202,8 @@ export const shouldFailOver = (w) => w.outcome === "failed" && w.job.state === "
 /**
  * Poll a job to a final state, download its results into the run and settle
  * its cost. Running out of time is a normal result ("pending"), never an
- * error: the job stays submitted and can be waited on again.
+ * error: the job stays submitted and can be waited on again. Any other failure
+ * to read the task rethrows as code 5 carrying the local job id.
  */
 export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onTick, deps = {} } = {}) {
   const d = { ...REAL, ...deps };
@@ -220,11 +221,18 @@ export async function waitJob(catalog, store, id, { timeoutMs = 20 * 60_000, onT
   try {
     result = await d.waitForTask(prov, job.family, job.upstreamTaskId, { key, timeoutMs, onTick });
   } catch (err) {
-    if (err.code === EXIT.UNCERTAIN) {
+    if (err.code === EXIT.UNCERTAIN && err.timedOut) {
       // poll.mjs words its own timeout for the legacy rejoin path, which never
       // settles the local job, so the message is built here instead.
       const waited = timeoutMs < 120_000 ? `${Math.round(timeoutMs / 1000)} s` : `${Math.round(timeoutMs / 60_000)} min`;
       return { outcome: "pending", job, message: `${prov.label}: task ${job.upstreamTaskId} is still running after ${waited}.` };
+    }
+    if (err.code === EXIT.UNCERTAIN) {
+      // Not the deadline: the task could not be read (bad key, 404, network). That is
+      // not "still running". The job stays submitted; the error names it.
+      err.localJobId ??= job.id;
+      err.taskId ??= job.upstreamTaskId;
+      throw err;
     }
     if (err.code !== EXIT.PROVIDER) throw err;
     if (err.succeededWithoutUrl) {

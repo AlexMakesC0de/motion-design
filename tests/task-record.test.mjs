@@ -56,6 +56,27 @@ describe("a task that succeeded with nothing to download", () => {
   });
 });
 
+describe("waitForTask marks only its own deadline as a timeout", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => (globalThis.fetch = realFetch));
+
+  test("running past the deadline is code 5 with timedOut", async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ code: 200, msg: "ok", data: { taskId: "t1", state: "generating" } }), { status: 200 });
+    await assert.rejects(
+      waitForTask(kie, "jobs", "t1", { key: "k", timeoutMs: -1 }),
+      (e) => e.code === EXIT.UNCERTAIN && e.timedOut === true,
+    );
+  });
+
+  test("an unreadable task (bad key) is code 5 without timedOut", async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ code: 401, msg: "bad key" }), { status: 200 });
+    await assert.rejects(
+      waitForTask(kie, "jobs", "t1", { key: "k", timeoutMs: 1000 }),
+      (e) => e.code === EXIT.UNCERTAIN && !e.timedOut,
+    );
+  });
+});
+
 describe("an HTTP 5xx answer to a create", () => {
   const realFetch = globalThis.fetch;
   afterEach(() => (globalThis.fetch = realFetch));

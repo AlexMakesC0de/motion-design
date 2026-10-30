@@ -135,7 +135,9 @@ export async function waitForTask(
         `${prov.label}: task ${taskId} still "${state}" after ${Math.round(timeoutMs / 60_000)} min. ` +
           `It is probably still running -- rejoin with: kie job ${taskId}`,
         taskId,
-        { data },
+        // The one code-5 error that means "ran out of time"; a failed read of the
+        // task (bad key, 404, network) is also code 5 but must not look like this.
+        { data, timedOut: true },
       );
     }
 
