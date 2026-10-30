@@ -50,6 +50,7 @@ Every paid submission gets a **local job id** (`j-<yyyymmdd>-<random>`) written 
 | `succeeded` | result downloaded | actual cost, else estimate (`costSource` says which) |
 | `failed-confirmed-free` | provider failed it and its record reports 0 charged (kie `creditsConsumed: 0`) | 0 |
 | `failed-unconfirmed` | failed with no charge confirmation (e.g. WaveSpeed has no cost readout) | estimate |
+| `failed-charged` | failed, and the task record reports a charge | actual cost |
 | `refused` | our own check refused it before sending; nothing left the machine | 0 |
 
 - **An uncertain job is never resubmitted automatically**, by the CLI, the server or the fallback logic. Same rule as today.
@@ -256,3 +257,4 @@ ChatGPT access, the web app, in-app chat, audio generation, shot plans and the q
   - Added input and file-safety rules.
   - Made the installer idempotent and scoped to our own entries.
   - Added structured MCP results, tool annotations and `isError`.
+- 2026-10-30, while planning step 3: added `failed-charged`, because a failed task whose record reports credits consumed is neither free nor unconfirmed. A create the provider rejects outright is `failed-confirmed-free`, matching the existing failover rule. A budget or cap refusal writes no job record. Finishing functions stay in `cli/lib/` rather than moving to `core/finish.mjs`; the MCP server calls them directly.
