@@ -27,6 +27,10 @@ export interface JobView {
   updatedAt: string;
   /** The studio server is waiting on this job right now. */
   following: boolean;
+  /** The local day (YYYY-MM-DD) the job counts against. */
+  day: string | null;
+  /** Core's instruction for an uncertain job, with the `kie job resolve` commands when no task id came back. */
+  uncertainMessage: string | null;
 }
 
 export interface SpendView {
@@ -163,8 +167,126 @@ export interface FramesResult {
   durationS: number;
 }
 
+export interface FilmSummary extends RunSummary {
+  cover: { kind: "video" | "image"; url: string } | null;
+}
+
+export type FileKind = "video" | "image" | "audio" | "srt";
+/** What made a file, from its default name: a generated take, or a finishing tool's output. */
+export type FileOrigin = "take" | "film" | "captioned" | "variant" | "card";
+
+export interface FilmFile {
+  name: string;
+  kind: FileKind;
+  origin: FileOrigin | null;
+  url: string | null;
+  bytes: number;
+  modified: string;
+  /** The job that made this take, when there is one. */
+  job: JobView | null;
+}
+
+export interface FilmDetail {
+  run: string;
+  prompt: string | null;
+  /** Oldest first. */
+  files: FilmFile[];
+  /** Shot names in the order of the film's last assembly. */
+  order: string[];
+}
+
+export interface TaskView {
+  id: string;
+  run: string;
+  tool: "assemble" | "caption" | "variants" | "card";
+  label: string;
+  state: "running" | "done" | "failed";
+  startedAt: string;
+  endedAt: string | null;
+  /** Seconds of output ffmpeg has written so far. */
+  outS: number | null;
+  outputs: { name: string; url: string | null }[];
+  warnings: string[];
+  error: string | null;
+}
+
+export interface TemplateField {
+  name: string;
+  type: "text" | "lines" | "choice" | "image" | "json";
+  label: string;
+  required?: boolean;
+  hint?: string;
+  choices?: string[];
+  example?: unknown;
+}
+
+export interface TemplateInfo {
+  id: string;
+  description: string;
+  durationS: number | null;
+  fields: TemplateField[];
+}
+
+export interface ToolState {
+  ok: boolean;
+  /** Core's message saying how to install it, when missing. */
+  install: string | null;
+}
+
+export interface FinishInfo {
+  tools: { ffmpeg: ToolState; render: ToolState };
+  templates: TemplateInfo[];
+  ratios: string[];
+  transitions: string[];
+  captionStyles: string[];
+  variantModes: string[];
+}
+
+export interface SavedAudio {
+  name: string;
+  kind: "audio";
+  url: string | null;
+  bytes: number;
+}
+
+export interface SavedSrt {
+  name: string;
+  url: string | null;
+  cues: number;
+  problems: string[];
+  lastEndS: number;
+}
+
+export interface LimitsView {
+  dailyUsd: number;
+  perJobUsd: number | null;
+  file: string;
+}
+
+export interface ProviderInfo {
+  name: string;
+  label: string;
+  keyConfigured: boolean;
+  keyEnv: string;
+  keyFile: string;
+  signup: string;
+  balanceReadable: boolean;
+}
+
+export interface SettingsView {
+  limits: LimitsView;
+  providers: ProviderInfo[];
+}
+
+export interface DoctorResult {
+  checks: { level: "ok" | "warn" | "fail" | "info"; text: string }[];
+  failures: number;
+  ranAt: string;
+}
+
 export type StudioEvent =
   | { event: "hello"; data: { at: string } }
   | { event: "job"; data: JobView }
   | { event: "spend"; data: SpendView }
-  | { event: "library"; data: AssetSummary[] };
+  | { event: "library"; data: AssetSummary[] }
+  | { event: "task"; data: TaskView };

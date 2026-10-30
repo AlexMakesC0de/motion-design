@@ -14,6 +14,11 @@ export function onStudioEvent(fn: Listener): () => void {
   };
 }
 
+/** Page tests: deliver `e` to the screens as if it came over the stream. */
+export function emitForTests(e: StudioEvent) {
+  listeners.forEach((fn) => fn(e));
+}
+
 export function useRoute(): string {
   return useSyncExternalStore(
     (cb) => {
