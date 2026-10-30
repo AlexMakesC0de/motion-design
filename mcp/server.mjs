@@ -486,11 +486,20 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         },
         { store, limits, deps: deps.generate },
       );
-      for (const name of expanded.assets) library.recordUse(name, a.run);
+      // The job is submitted and paid for: nothing after this point may throw, or the
+      // client loses the job id. A failed bookkeeping write becomes a warning.
+      const warnings = [];
+      for (const name of expanded.assets) {
+        try {
+          library.recordUse(name, a.run);
+        } catch (err) {
+          warnings.push(`warning: could not record that asset "${name}" was used in ${a.run} (${err.message}); the job is submitted.`);
+        }
+      }
 
       const out = {
         localJobId: sub.job.id,
-        upstreamTaskId: sub.job.upstreamTaskId ?? null,
+        upstreamTaskId: sub.job.upstreamTaskId == null ? null : String(sub.job.upstreamTaskId),
         state: sub.job.state,
         provider: sub.job.provider,
         providerModel: sub.job.providerModel,
@@ -502,6 +511,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       const text = [
         `submitted ${out.localJobId} (${out.provider} · ${out.providerModel}), estimate $${out.estimateUsd.toFixed(2)}`,
         ...(out.refMapping.length ? [`refs: ${out.refMapping.join("; ")}`] : []),
+        ...warnings,
         out.next,
       ];
       return ok(text.join("\n"), out);

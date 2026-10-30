@@ -103,4 +103,25 @@ describe("refusals and uncertainty", () => {
     assert.equal(errorOf(r).upstreamTaskId, "task-77");
     assert.match(errorOf(r).nextAction, /wait_job with job_id "j-/);
   });
+
+  test("a library record that cannot be updated after submit never costs the job id", async () => {
+    writeFileSync(join(RUNS, "gen-demo", "gone.png"), png(1024, 1024));
+    const saved = await call(client, "save_asset", { name: "gone", kind: "product", description: "A product.", images: ["gen-demo/gone.png"] });
+    assert.notEqual(saved.isError, true, saved.content[0].text);
+    // The provider call happens after the refs are expanded and before recordUse, so
+    // removing the record here makes recordUse throw once the job is submitted.
+    deps.generate.createTask = async (...a) => {
+      rmSync(join(process.env.KIE_LIBRARY_DIR, "gone", "asset.json"));
+      return realCreate(...a);
+    };
+    const jobs = jobCount();
+    const r = await call(client, "generate_video", { ...video, refs: [{ source: "gone", role: "identity" }] });
+    deps.generate.createTask = realCreate;
+    assert.notEqual(r.isError, true, r.content[0].text);
+    assert.match(r.structuredContent.localJobId, /^j-\d{8}-[0-9a-f]{6}$/);
+    assert.equal(r.structuredContent.state, "submitted");
+    assert.equal(typeof r.structuredContent.upstreamTaskId, "string");
+    assert.match(r.content[0].text, /warning: .*gone/i);
+    assert.equal(jobCount(), jobs + 1);
+  });
 });
