@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { DoctorResult, LimitsView, SettingsView } from "../api/types";
+import type { ChatSettingsView, DoctorResult, LimitsView, SettingsView } from "../api/types";
+import { ConnectionForm, connectionLabel } from "../chat/ConnectionForm";
 import { usd } from "../studio/format";
 import "./settings.css";
 
@@ -152,6 +153,37 @@ function Doctor() {
   );
 }
 
+function ChatSection() {
+  const [view, setView] = useState<ChatSettingsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api<ChatSettingsView>("/api/chat-settings")
+      .then(setView)
+      .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
+  }, []);
+
+  return (
+    <section className="settings__section" aria-labelledby="chat-title">
+      <h2 id="chat-title">Chat</h2>
+      <p className="settings__hint">
+        The Studio's chat uses the same tools as the CLI. It never asks before spending: within the limits above it goes ahead, and a job over them is
+        refused.
+      </p>
+      {error && (
+        <p className="settings__error" role="alert">
+          {error}
+        </p>
+      )}
+      {view && (
+        <>
+          <p className="settings__note">Now: {connectionLabel(view)}</p>
+          <ConnectionForm initial={view} onSaved={setView} />
+        </>
+      )}
+    </section>
+  );
+}
+
 export function SettingsScreen() {
   const [view, setView] = useState<SettingsView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,10 +231,7 @@ export function SettingsScreen() {
           <Doctor />
         </>
       )}
-      <section className="settings__section" aria-labelledby="chat-title">
-        <h2 id="chat-title">Chat</h2>
-        <p className="settings__hint">Connecting a chat assistant to the studio arrives with the chat build.</p>
-      </section>
+      <ChatSection />
     </div>
   );
 }

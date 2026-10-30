@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { SettingsScreen } from "./SettingsScreen";
-import { routes, settings } from "../test-fixtures";
+import { chatSettings, errorResponse, routes, settings } from "../test-fixtures";
 
 function setup(table: Record<string, (init?: RequestInit) => unknown> = {}) {
   const fetch = vi.fn(routes({ "/api/settings": () => settings(), ...table }));
@@ -146,9 +146,58 @@ describe("SettingsScreen: providers, doctor and chat", () => {
     await waitFor(() => expect(calls(fetch, "/api/settings/doctor")[0][1]!.method).toBe("POST"));
   });
 
-  test("keeps a place for the chat connection", async () => {
-    setup();
-    expect(await screen.findByRole("heading", { name: "Chat" })).toBeInTheDocument();
-    expect(screen.getByText(/arrives with the chat build/)).toBeInTheDocument();
+});
+
+describe("SettingsScreen: chat connection", () => {
+  const keyed = (over = {}) => chatSettings({ openai: { ...chatSettings().openai, keySaved: true, keySource: "file" }, ...over });
+
+  test("shows the connection in use and only whether a key is saved", async () => {
+    setup({
+      "/api/chat-settings": () => keyed({ backend: "openai", model: "gpt-test-1" }),
+      "/api/chat-settings/models": () => ({ models: ["gpt-test-2", "gpt-test-1"] }),
+    });
+    expect(await screen.findByText("Now: OpenAI API key, gpt-test-1")).toBeInTheDocument();
+    const chat = screen.getByRole("region", { name: "Chat" });
+    expect(within(chat).getByRole("radio", { name: /OpenAI API key/ })).toBeChecked();
+    expect(within(chat).getByText("Key saved.")).toBeInTheDocument();
+    expect(await within(chat).findByRole("combobox", { name: "Model" })).toHaveValue("gpt-test-1");
+    expect(within(chat).getByLabelText("Replace the key")).toHaveAttribute("type", "password");
+  });
+
+  test("a pasted key is sent once and cleared; then a model from the key's list is saved with it", async () => {
+    let saved = false;
+    const fetch = setup({
+      "/api/chat-settings": (init) => (init?.method === "PUT" ? keyed({ backend: "openai", model: "gpt-b" }) : chatSettings()),
+      "/api/chat-settings/openai-key": () => {
+        saved = true;
+        return keyed();
+      },
+      "/api/chat-settings/models": () => (saved ? { models: ["gpt-a", "gpt-b"] } : errorResponse(409, "Paste an OpenAI API key first.", { connect: true })),
+    });
+    expect(await screen.findByText("Now: Not connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /OpenAI API key/ }));
+    expect(screen.getByRole("button", { name: "Use this connection" })).toBeDisabled();
+    const field = screen.getByLabelText("OpenAI API key");
+    fireEvent.change(field, { target: { value: "sk-test-0123456789abcdefghij" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    expect(await screen.findByText("Key saved.")).toBeInTheDocument();
+    expect(lastBody(fetch, "/api/chat-settings/openai-key")).toEqual({ key: "sk-test-0123456789abcdefghij" });
+    expect(screen.getByLabelText("Replace the key")).toHaveValue("");
+    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "gpt-b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Use this connection" }));
+    expect(await screen.findByText("Now: OpenAI API key, gpt-b")).toBeInTheDocument();
+    const put = calls(fetch, "/api/chat-settings").find(([, init]) => init?.method === "PUT")!;
+    expect(JSON.parse(String(put[1]!.body))).toEqual({ backend: "openai", model: "gpt-b" });
+  });
+
+  test("Codex not logged in says how to log in, and Check again asks again", async () => {
+    const fetch = setup({
+      "/api/chat-settings": () => chatSettings({ backend: "codex" }),
+      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: false, plan: null, message: "Codex isn't logged in. Run codex login in a terminal, then check again, or use an OpenAI API key." }),
+    });
+    expect(await screen.findByText(/Run codex login in a terminal/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use this connection" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(calls(fetch, "/api/chat-settings/codex")).toHaveLength(2));
   });
 });
