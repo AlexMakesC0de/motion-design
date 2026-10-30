@@ -21,6 +21,9 @@ import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
 import { readLimits, setDailyLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
 import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
+import { openLibrary, KINDS } from "./core/assets.mjs";
+import { expandRefs } from "./core/refs.mjs";
+import { checkLocalFile } from "./core/inputs.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
 import { extractFrames } from "./lib/frames.mjs";
@@ -37,13 +40,15 @@ const HELP = `kie -- motion-design execution layer
   kie doctor
   kie providers
   kie upload     <path>
+  kie asset      save <name> <image>... --kind K --description "..." [--replace]
+                 list | show <name>      saved references; use as --ref zed:identity or --ref zed#2:first_frame
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
-                 [--duration N] [--ar R] [--resolution R] [--ref URL:ROLE]...
+                 [--duration N] [--ar R] [--resolution R] [--ref URL|ASSET:ROLE]...
                  [--param KEY=VALUE]... [--budget U]
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
-                 [--quality Q] [--ar R] [--ref URL:ROLE]... [--background B]
+                 [--quality Q] [--ar R] [--ref URL|ASSET:ROLE]... [--background B]
                  [--param KEY=VALUE]... [--budget U]
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
@@ -87,6 +92,9 @@ const OPTS = {
   duration: { type: "string" },
   ar: { type: "string" },
   ref: { type: "string", multiple: true, default: [] },
+  kind: { type: "string" },
+  description: { type: "string" },
+  replace: { type: "boolean", default: false },
   param: { type: "string", multiple: true, default: [] },
   budget: { type: "string" },
   resolution: { type: "string" },
@@ -360,6 +368,50 @@ function cmdLimits(args) {
   }
 }
 
+function cmdAsset(args, positionals) {
+  const [action, name, ...images] = positionals;
+  const library = openLibrary();
+
+  if (action === "save") {
+    if (!name || !images.length || !args.kind || !args.description) {
+      throw usage(`kie asset save <name> <image>... --kind ${KINDS.join("|")} --description "..." [--replace]`);
+    }
+    const a = library.save({ name, kind: args.kind, description: args.description, images, replace: args.replace });
+    say(`saved ${a.name} (${a.kind}), ${a.images.length} image(s) in ${join(library.dir, a.name)}`);
+    for (const im of a.images) say(`  #${im.n}  ${im.file}  ${im.width ?? "?"}×${im.height ?? "?"}`);
+    return EXIT.OK;
+  }
+
+  if (action === "list" || !action) {
+    const all = library.list();
+    if (args.json) {
+      say(JSON.stringify(all, null, 2));
+      return EXIT.OK;
+    }
+    if (!all.length) say(`No assets yet. Save one: kie asset save <name> <image>... --kind K --description "..."`);
+    for (const a of all) say(`  ${a.name.padEnd(20)} ${a.kind.padEnd(10)} ${a.imageCount} image(s)  ${a.description.slice(0, 60)}`);
+    return EXIT.OK;
+  }
+
+  if (action === "show") {
+    if (!name) throw usage("kie asset show <name>");
+    const a = library.get(name);
+    if (args.json) {
+      say(JSON.stringify(a, null, 2));
+      return EXIT.OK;
+    }
+    say(`${a.name}  (${a.kind})`);
+    say(`  ${a.description}`);
+    for (const im of a.images) {
+      say(`  #${im.n}  ${im.path}  ${im.width ?? "?"}×${im.height ?? "?"}  ${im.upload ? `uploaded ${im.upload.at}` : "not uploaded"}`);
+    }
+    if (a.usedIn?.length) say(`  used in: ${a.usedIn.join(", ")}`);
+    return EXIT.OK;
+  }
+
+  throw usage("kie asset save|list|show");
+}
+
 // -------------------------------------------------------------- generation
 
 const onTick = (state, sec) => process.stderr.write(`\r  ${state} ${sec}s   `);
@@ -390,7 +442,7 @@ function finishWait(w) {
  * confirmed free (state failed-confirmed-free); a job that may have been
  * charged, or is uncertain, never does.
  */
-async function generate(catalog, { capability, model, values, args, artifactBase }) {
+async function generate(catalog, { capability, model, values, args, artifactBase, record }) {
   warnIfStale(catalog);
   const store = openJobs();
   const limits = readLimits();
@@ -406,6 +458,7 @@ async function generate(catalog, { capability, model, values, args, artifactBase
         values,
         run: args.run,
         artifactBase,
+        record,
         budgetUsd: num(args.budget),
         only: args.provider,
         exclude: tried,
@@ -485,6 +538,21 @@ function durationAdvice(catalog, preset, model, requestedS) {
   return lines.join("\n");
 }
 
+/** Parsed --ref values → provider URLs plus the @Image mapping. Asset uploads are reused for 20h. */
+async function refsFor(catalog, args, parsed) {
+  if (!parsed.length) return { refs: [], refMapping: [], assets: [] };
+  const library = openLibrary();
+  const expanded = await expandRefs(parsed, {
+    catalog,
+    library,
+    upload: (path, opts) => uploadFile(catalog, path, opts),
+    dryRun: args["dry-run"],
+  });
+  if (!args["dry-run"]) for (const name of expanded.assets) library.recordUse(name, args.run);
+  for (const line of expanded.refMapping) say(`  ref ${line}`);
+  return expanded;
+}
+
 async function cmdVideo(catalog, args) {
   const presets = loadPresets();
   let usedSourcePromptRaw = false;
@@ -542,10 +610,10 @@ async function cmdVideo(catalog, args) {
   if (!modelId) throw usage("Need --model (or --preset, which supplies one). See: kie models");
 
   const model = resolveModel(catalog, modelId, "video");
-  const refs = (args.ref ?? []).map(parseRef);
+  const parsedRefs = (args.ref ?? []).map(parseRef);
   const params = parseParams(args.param);
 
-  const problems = validateVideoRequest(catalog, model, { durationS, aspectRatio, refs });
+  const problems = validateVideoRequest(catalog, model, { durationS, aspectRatio, refs: parsedRefs });
   if (problems.length) {
     throw unknown(
       `Refused before submitting — nothing was spent:\n` +
@@ -553,6 +621,7 @@ async function cmdVideo(catalog, args) {
         (preset ? durationAdvice(catalog, preset, model, durationS) : ""),
     );
   }
+  const { refs, refMapping, assets } = await refsFor(catalog, args, parsedRefs);
 
   const prompt = readFileSync(promptPath, "utf8");
   const dir = runDir(args.run);
@@ -565,6 +634,7 @@ async function cmdVideo(catalog, args) {
     durationS,
     aspectRatio,
     refs,
+    refMapping,
     params,
     promptChars: prompt.length,
     usedSourcePromptRaw,
@@ -594,6 +664,7 @@ async function cmdVideo(catalog, args) {
     },
     args,
     artifactBase: "out",
+    record: { refMapping, assets },
   });
 }
 
@@ -610,13 +681,14 @@ async function cmdImage(catalog, args) {
 
   // A reference turns this into an edit on routes that keep image-to-image
   // under its own model id, the same switch a first frame makes for video.
-  const refs = (args.ref ?? []).map(parseRef);
+  const parsedRefs = (args.ref ?? []).map(parseRef);
+  const { refs, refMapping, assets } = await refsFor(catalog, args, parsedRefs);
   const params = parseParams(args.param);
 
   const dir = runDir(args.run);
   await writeRecord(dir, "image-prompt.txt", args.prompt);
   if (refs.length || Object.keys(params).length) {
-    await writeRecord(dir, "image-inputs.json", { model: model.id, refs, params, background: args.background ?? null });
+    await writeRecord(dir, "image-inputs.json", { model: model.id, refs, refMapping, params, background: args.background ?? null });
   }
 
   return generate(catalog, {
@@ -634,6 +706,7 @@ async function cmdImage(catalog, args) {
     },
     args,
     artifactBase: "ref",
+    record: { refMapping, assets },
   });
 }
 
@@ -981,7 +1054,8 @@ async function main(argv) {
       return cmdPreflight(catalog, args);
     case "upload": {
       if (!positionals[0]) throw usage("kie upload <path>");
-      const { url, bytes, mime } = await uploadFile(catalog, positionals[0], { providerName: args.provider ?? "kie" });
+      const file = checkLocalFile(positionals[0]);
+      const { url, bytes, mime } = await uploadFile(catalog, file.path, { providerName: args.provider ?? "kie", mime: file.mime });
       say(url);
       warn(`  uploaded ${(bytes / 1e6).toFixed(2)}MB ${mime}`);
       return EXIT.OK;
@@ -996,6 +1070,8 @@ async function main(argv) {
       return cmdJob(catalog, args, positionals);
     case "limits":
       return cmdLimits(args) ?? EXIT.OK;
+    case "asset":
+      return cmdAsset(args, positionals);
     case "spend":
       return cmdSpend(args) ?? EXIT.OK;
     case "probe":

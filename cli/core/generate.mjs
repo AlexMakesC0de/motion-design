@@ -43,11 +43,12 @@ const ledgerEntry = (job, status) => ({
  *
  * Routes are tried in order. Falling over to the next reseller happens only
  * on a clean rejection at create time (code 4); see canFailOver. Every attempt
- * that reaches the network has its own job record.
+ * that reaches the network has its own job record. `req.record` holds extra
+ * fields for the job record, such as the reference mapping.
  */
 export async function submitJob(catalog, req, { store, limits, deps = {}, onEvent = () => {} }) {
   const d = { ...REAL, ...deps };
-  const { capability, model, values, run, artifactBase, budgetUsd, only, exclude = [], dryRun = false } = req;
+  const { capability, model, values, run, artifactBase, budgetUsd, only, exclude = [], dryRun = false, record = {} } = req;
   runDir(run); // validates the slug before anything else happens
 
   const routes = routesFor(catalog, model, { only });
@@ -131,6 +132,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
     let job = await reserve(
       store,
       {
+        ...record,
         run,
         capability,
         model: model.id,
