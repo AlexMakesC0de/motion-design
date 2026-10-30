@@ -15,6 +15,10 @@ import { registerPresets } from "./api/presets.mjs";
 import { registerFilms } from "./api/films.mjs";
 import { registerFinish } from "./api/finish.mjs";
 import { registerSettings } from "./api/settings.mjs";
+import { registerChat } from "./api/chat.mjs";
+import { createTools } from "./chat/tools.mjs";
+import { createChat } from "./chat/session.mjs";
+import { openaiBackend } from "./chat/openai.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
 export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,8 +31,10 @@ export const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
  * the studio jobs a previous run of the server left unsettled (main.mjs).
  * `finish` replaces the finishing tools or their install check (tests):
  * { tools: { assemble, burnCaptions, makeVariants, render }, check }.
+ * `chat.fetch` replaces fetch for the OpenAI backend (tests pass a fake
+ * OpenAI); the chat's MCP tools get the same `deps` as everything else.
  */
-export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false, finish = {} } = {}) {
+export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false, finish = {}, chat: chatOptions = {} } = {}) {
   const router = createRouter();
   let events = null;
   const follower = createFollower({ catalog, deps, onChange: () => events?.nudge() });
@@ -49,6 +55,10 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerFilms(router, { following });
   registerFinish(router, { tasks, ...finish });
   registerSettings(router, { catalog, deps });
+  const tools = createTools({ deps, catalog });
+  const openai = openaiBackend({ fetch: chatOptions.fetch ?? globalThis.fetch, tools });
+  const chat = createChat({ backends: { openai }, tools, publish: (e) => events.publish(e) });
+  registerChat(router, { chat, openai });
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.
@@ -56,6 +66,8 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.closeAll = () =>
     new Promise((r) => {
       events.close();
+      for (const film of chat.films()) chat.stop(film);
+      tools.close().catch(() => {});
       server.closeAllConnections?.();
       server.close(r);
     });
@@ -63,6 +75,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.events = events;
   server.follower = follower;
   server.tasks = tasks;
+  server.chat = chat;
   // Studio jobs a previous run left waiting. Safe beside a CLI or MCP waiter: core settles each job once.
   if (resume) follower.resume();
   return server;
