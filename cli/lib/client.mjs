@@ -56,8 +56,8 @@ async function request(url, { method = "GET", body, key, timeoutMs = 60_000 }) {
 /**
  * A create is NOT idempotent. It is retried only when the request was
  * definitively rejected before any work happened -- an explicit 429, or a
- * connection that never opened. A timeout, an aborted read, or a 200 carrying
- * no task id all mean the job MAY exist, so those surface as `uncertain`
+ * connection that never opened. A timeout, an aborted read, an HTTP 5xx, or a
+ * 200 carrying no task id all mean the job MAY exist, so those surface as `uncertain`
  * rather than being retried into a double charge.
  */
 export async function createTask(prov, family, modelString, input, { key, attempts = 3 } = {}) {
@@ -94,6 +94,16 @@ export async function createTask(prov, family, modelString, input, { key, attemp
         continue;
       }
       throw providerError(`${prov.label} rate limited the request after ${attempts} attempts.`);
+    }
+
+    // A gateway error can arrive after the provider has already queued the
+    // job, so it is not a rejection and must not be retried.
+    if (res.status >= 500) {
+      throw uncertain(
+        `${prov.label}: the create returned HTTP ${res.status}.\n` +
+          `The job MAY have been created. Check ${prov.signup} before resubmitting.`,
+        null,
+      );
     }
 
     const failure = readFailure(prov, res);

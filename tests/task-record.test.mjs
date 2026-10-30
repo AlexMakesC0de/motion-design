@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { loadCatalog } from "../cli/lib/models.mjs";
 import { getProvider, taskCost } from "../cli/lib/providers.mjs";
-import { queryTask } from "../cli/lib/client.mjs";
+import { EXIT } from "../cli/lib/errors.mjs";
+import { queryTask, createTask } from "../cli/lib/client.mjs";
 import { waitForTask } from "../cli/lib/poll.mjs";
 
 const catalog = loadCatalog();
@@ -52,5 +53,20 @@ describe("a task that succeeded with nothing to download", () => {
       waitForTask(kie, "jobs", "t1", { key: "k", timeoutMs: 1000 }),
       (e) => e.succeededWithoutUrl === true && e.data.creditsConsumed === 112,
     );
+  });
+});
+
+describe("an HTTP 5xx answer to a create", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => (globalThis.fetch = realFetch));
+
+  test("is ambiguous, not a rejection: uncertain, and sent exactly once", async () => {
+    let requests = 0;
+    globalThis.fetch = async () => (requests++, new Response("bad gateway", { status: 502 }));
+    await assert.rejects(
+      createTask(kie, "jobs", "bytedance/seedance-2-5", { prompt: "a fox" }, { key: "k" }),
+      (e) => e.code === EXIT.UNCERTAIN && e.taskId === null && /502/.test(e.message) && /MAY have been created/.test(e.message),
+    );
+    assert.equal(requests, 1);
   });
 });
