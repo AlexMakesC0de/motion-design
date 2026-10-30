@@ -659,7 +659,10 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         if (/^file:/i.test(value)) {
           throw unknown(`props may not contain file: URLs ("${value}"); name a file inside runs/ or library/ instead.`);
         }
-        return IMAGE_PATH.test(value) && !/^(https?|data):/i.test(value) ? clientPath(value, roots) : value;
+        if (/^\s*https?:/i.test(value)) {
+          throw unknown("render props may only name local files in the allowed folders; remote URLs would be fetched from this machine.");
+        }
+        return IMAGE_PATH.test(value) && !/^data:/i.test(value) ? clientPath(value, roots) : value;
       }
       if (Array.isArray(value)) return value.map((v) => confineProps(v, roots));
       if (value && typeof value === "object") {

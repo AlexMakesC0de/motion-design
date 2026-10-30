@@ -96,4 +96,16 @@ describe("what a client may smuggle into a local render or filter", () => {
     assert.equal(errorOf(b).code, 3);
     assert.match(b.content[0].text, /file: URL/);
   });
+
+  test("render props naming an http or https URL are refused with code 3, whatever the key or extension", async () => {
+    for (const props of [
+      { logo: "https://example.com/logo.png" },
+      { shots: [{ src: "http://example.com/clip.mp4" }] },
+      { background: "HTTPS://example.com/page" },
+    ]) {
+      const r = await call(client, "render", { run: "finish-demo", template: "logo-reveal", props });
+      assert.equal(errorOf(r).code, 3, JSON.stringify(props));
+      assert.match(r.content[0].text, /render props may only name local files in the allowed folders; remote URLs would be fetched from this machine\./);
+    }
+  });
 });
