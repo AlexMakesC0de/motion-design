@@ -1,0 +1,90 @@
+import { RUNS, KEY, deps, req, tmp } from "./helpers.mjs";
+import { test, describe, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { mkdirSync, utimesSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const { createApp } = await import("../server/app.mjs");
+const { openJobs } = await import("../../cli/core/jobs.mjs");
+
+const film = join(RUNS, "film-demo");
+mkdirSync(film, { recursive: true });
+// Written oldest first; each gets its own modified time so the order is certain.
+const files = ["out.mp4", "out-2.mp4", "music.mp3", "captions.srt", "prompt.txt", "film.mp4", "film-9x16.mp4", "captioned.mp4", "kinetic-type.mp4", "ref.png", ".film.mp4.ab12.part"];
+files.forEach((name, i) => {
+  writeFileSync(join(film, name), "x");
+  const t = new Date(Date.UTC(2026, 9, 31, 10, 0, i));
+  utimesSync(join(film, name), t, t);
+});
+writeFileSync(join(film, "assembly.json"), JSON.stringify({ shots: [{ path: join(film, "out-2.mp4") }, { path: join(film, "out.mp4") }, { path: join(film, "gone.mp4") }] }));
+
+const store = openJobs(join(RUNS, ".jobs"));
+const j = store.create({ run: "film-demo", capability: "video", model: "seedance-2-5", provider: "kie", estimateUsd: 0.56, input: { prompt: "A fox", duration: 4 } });
+store.transition(j.id, "sending");
+store.transition(j.id, "submitted", { upstreamTaskId: "task-1" });
+store.transition(j.id, "succeeded", { artifacts: [join(film, "out.mp4")], actualUsd: 0.5, costSource: "task-record" });
+
+let app, port;
+before(async () => {
+  app = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000 });
+  await new Promise((r) => app.listen(0, "127.0.0.1", r));
+  port = app.address().port;
+});
+after(() => app.closeAll());
+
+describe("GET /api/films", () => {
+  test("one card per run folder, with its newest video as the cover", async () => {
+    const r = await req(port, "/api/films");
+    assert.equal(r.status, 200);
+    const card = r.json.find((f) => f.run === "film-demo");
+    assert.equal(card.takes, 8, "core's count of media files");
+    assert.deepEqual(card.cover, { kind: "video", url: "/media/runs/film-demo/kinetic-type.mp4" });
+  });
+
+  test("a folder whose name is not a run slug is listed without a cover, and does not break the list", async () => {
+    mkdirSync(join(RUNS, "Old Stuff"), { recursive: true });
+    const r = await req(port, "/api/films");
+    assert.equal(r.status, 200);
+    assert.equal(r.json.find((f) => f.run === "Old Stuff").cover, null);
+  });
+});
+
+describe("GET /api/films/:slug", () => {
+  test("lists media and SRT files oldest first, each with its kind and where it came from", async () => {
+    const r = await req(port, "/api/films/film-demo");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(
+      r.json.files.map((f) => [f.name, f.kind, f.origin]),
+      [
+        ["out.mp4", "video", "take"],
+        ["out-2.mp4", "video", "take"],
+        ["music.mp3", "audio", null],
+        ["captions.srt", "srt", null],
+        ["film.mp4", "video", "film"],
+        ["film-9x16.mp4", "video", "variant"],
+        ["captioned.mp4", "video", "captioned"],
+        ["kinetic-type.mp4", "video", "card"],
+        ["ref.png", "image", "take"],
+      ],
+    );
+    const out = r.json.files[0];
+    assert.equal(out.url, "/media/runs/film-demo/out.mp4");
+    assert.equal(out.bytes, 1);
+    assert.equal(out.job.id, j.id, "a take carries the job that made it");
+    assert.equal(out.job.actualUsd, 0.5);
+    assert.equal(r.json.files[1].job, null);
+  });
+
+  test("the shot order is the last assembly's, for the shots still in the folder", async () => {
+    const r = await req(port, "/api/films/film-demo");
+    assert.deepEqual(r.json.order, ["out-2.mp4", "out.mp4"]);
+  });
+
+  test("an unknown film is 400 with core's code 3; a bad slug is refused too", async () => {
+    const r = await req(port, "/api/films/no-such-film");
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.code, 3);
+    assert.match(r.json.error.message, /No run "no-such-film"/);
+    assert.equal((await req(port, "/api/films/Bad%20Slug")).status, 400);
+  });
+});
