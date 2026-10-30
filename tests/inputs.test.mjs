@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { EXIT } from "../cli/lib/errors.mjs";
-import { sniff, imageSize, checkLocalFile, checkHttpsUrl } from "../cli/core/inputs.mjs";
+import { sniff, imageSize, checkLocalFile, checkHttpsUrl, confinePath } from "../cli/core/inputs.mjs";
 import { png, jpeg, webp, mp4 } from "./fixtures/images.mjs";
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), "kie-root-")));
@@ -80,6 +80,19 @@ describe("only allowed folders, when a server is asking", () => {
   test("with no roots (a human at the CLI) any readable path is fine", () => {
     const p = put(outside, "desk.png", png(10, 10));
     assert.equal(checkLocalFile(p).path, p);
+  });
+});
+
+describe("confinePath, for files that are not media", () => {
+  test("a subtitle file inside a root comes back as its real path", () => {
+    const p = put(root, "captions.srt", "1\n00:00:00,000 --> 00:00:01,000\nHi\n");
+    assert.equal(confinePath(p, [root]), p);
+  });
+
+  test("a hidden segment is refused even for a non-media file", () => {
+    mkdirSync(join(root, ".env.d"), { recursive: true });
+    const p = put(join(root, ".env.d"), "x.srt", "1");
+    assert.throws(() => confinePath(p, [root]), (e) => e.code === EXIT.UNKNOWN && /hidden/.test(e.message));
   });
 });
 

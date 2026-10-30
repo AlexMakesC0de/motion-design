@@ -87,3 +87,10 @@ test("--ref accepts an asset name, and still refuses a raw local path", () => {
   assert.deepEqual(parseRef("zed#2:first_frame"), { source: "zed#2", role: "first_frame" });
   assert.throws(() => parseRef("./logo.png:identity"), /local path is not a remote attachment/);
 });
+
+test("a relative local path is resolved against baseDir", async () => {
+  file("rel.png", png(800, 800));
+  const r = await expand([{ source: "rel.png", role: "identity" }], { baseDir: src, dryRun: true, roots: [src] });
+  assert.equal(r.refs[0].label, "rel.png");
+  assert.equal(r.refs[0].file.width, 800);
+});

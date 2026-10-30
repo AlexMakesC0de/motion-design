@@ -2,6 +2,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, realpathSync, 
 import { relative, resolve, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../lib/run.mjs";
 import { unknown } from "../lib/errors.mjs";
+import { limitsPath } from "./spend.mjs";
 
 export const MAX_BYTES = { image: 30_000_000, video: 200_000_000, audio: 30_000_000 };
 const ACCEPTED = "PNG, JPEG, WebP, MP4, MOV, WAV, MP3, AAC, OGG";
@@ -73,6 +74,31 @@ export function allowedRoots(limits) {
 }
 
 /**
+ * The real path of `path` (symlinks followed), refused unless it sits inside
+ * one of `roots` with no hidden segment on the way. For every file an MCP
+ * client names, media or not: a subtitle file or a shot list leaves the
+ * machine as surely as an image once it is burned into a video and uploaded.
+ */
+export function confinePath(path, roots) {
+  let real;
+  try {
+    real = realpathSync(resolve(path));
+  } catch {
+    throw unknown(`No such file: ${path}`);
+  }
+  const root = roots.find((r) => isInside(real, r));
+  if (!root) {
+    throw unknown(
+      `${path} is outside the folders files may be read from. Allowed: ${roots.join(", ")}. ` +
+        `To allow another folder, the user adds it under "allowRoots" in ${limitsPath()}.`,
+    );
+  }
+  const hidden = relative(root, real).split(sep).find((s) => s.startsWith("."));
+  if (hidden) throw unknown(`${path} is or sits in a hidden folder ("${hidden}"); such files are never read.`);
+  return real;
+}
+
+/**
  * Everything a local file must pass before it may be sent to a provider.
  * `roots` is set when an MCP client is asking: the file's real path (symlinks
  * followed) must then sit inside one of them, with no hidden segment on the
@@ -81,25 +107,17 @@ export function allowedRoots(limits) {
  */
 export function checkLocalFile(path, { roots = null, kinds = ["image", "video", "audio"], maxBytes = MAX_BYTES } = {}) {
   let real;
-  try {
-    real = realpathSync(resolve(path));
-  } catch {
-    throw unknown(`No such file: ${path}`);
+  if (roots) {
+    real = confinePath(path, roots);
+  } else {
+    try {
+      real = realpathSync(resolve(path));
+    } catch {
+      throw unknown(`No such file: ${path}`);
+    }
   }
   const stat = statSync(real);
   if (!stat.isFile()) throw unknown(`${path} is not a file.`);
-
-  if (roots) {
-    const root = roots.find((r) => isInside(real, r));
-    if (!root) {
-      throw unknown(
-        `${path} is outside the folders files may be sent from. Allowed: ${roots.join(", ")}. ` +
-          `To allow another folder, the user adds it under "allowRoots" in ~/.config/kie/limits.json.`,
-      );
-    }
-    const hidden = relative(root, real).split(sep).find((s) => s.startsWith("."));
-    if (hidden) throw unknown(`${path} is or sits in a hidden folder ("${hidden}"); such files are never sent.`);
-  }
 
   const head = Buffer.alloc(64);
   const fd = openSync(real, "r");

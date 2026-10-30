@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { unknown } from "../lib/errors.mjs";
 import { checkHttpsUrl, checkLocalFile } from "./inputs.mjs";
 
@@ -18,8 +18,9 @@ const kindFromUrl = (url) =>
  *   a path    checked (and confined to `roots` when set), then uploaded
  * Returns the refs for buildInput plus `refMapping` ("@Image1 = zed#1"),
  * numbered per type in the order the provider will see them.
+ * `baseDir` resolves relative local paths (the MCP server passes runs/).
  */
-export async function expandRefs(refs, { catalog, library, upload, roots = null, dryRun = false }) {
+export async function expandRefs(refs, { catalog, library, upload, roots = null, baseDir = null, dryRun = false }) {
   const out = [];
   for (const { source, role } of refs) {
     if (!catalog.roles.includes(role)) {
@@ -61,7 +62,7 @@ export async function expandRefs(refs, { catalog, library, upload, roots = null,
       continue;
     }
 
-    const f = checkLocalFile(source, { roots });
+    const f = checkLocalFile(baseDir && !isAbsolute(source) ? join(baseDir, source) : source, { roots });
     const url = dryRun ? `pending-upload:${basename(f.path)}` : (await upload(f.path, { mime: f.mime })).url;
     out.push({
       url,
