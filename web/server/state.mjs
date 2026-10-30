@@ -35,13 +35,14 @@ export function jobView(j) {
 }
 
 /** Today against the cap, the per-job ceiling, and the last 14 local days. */
-export function spendView(store, limits, now = new Date()) {
+export function spendView(store, limits, now = new Date(), timeZone = systemTimeZone()) {
   const pos = dailyPosition(store, limits, now);
-  const tz = systemTimeZone();
   const jobs = store.list();
   const days = [];
+  // Step back by calendar days, not 24h blocks: a day with a clock change is 23 or 25 hours long.
+  const [y, m, d] = localDay(now, timeZone).split("-").map(Number);
   for (let i = 13; i >= 0; i--) {
-    const day = localDay(new Date(now.getTime() - i * 86_400_000), tz);
+    const day = new Date(Date.UTC(y, m - 1, d - i, 12)).toISOString().slice(0, 10);
     days.push({ day, usd: round(jobs.filter((j) => j.day === day).reduce((s, j) => s + countedUsd(j), 0)) });
   }
   // Today's bar uses the same rule as the cap (each job judged in its own zone).
