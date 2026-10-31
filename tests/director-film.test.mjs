@@ -154,6 +154,18 @@ describe("film all", () => {
     assert.deepEqual(d.done, ["s1", "s2"]);
   });
 
+  test("a dry run plans every ready shot and submits nothing", async () => {
+    const f = film("dry");
+    const c = ctx(f);
+    for (const id of ["s1", "s2"]) finished(c, f, id, "still", `${id}-still.png`);
+    const r = await filmReady(catalog, f, { ...c, maxUsd: 100, dryRun: true });
+    assert.equal(r.dryRun, true);
+    assert.deepEqual(r.submitted.map((s) => [s.shot, s.jobId, s.dryRun]), [["s1", null, true], ["s2", null, true]]);
+    assert.deepEqual(r.waiting, ["s3"]);
+    assert.equal(c.calls.length, 0);
+    assert.equal(c.store.list().filter((j) => j.stage === "take").length, 0);
+  });
+
   test("a failed take is never refilmed by film all; it is reported for Alex to decide", async () => {
     const f = film("fail");
     const c = ctx(f);

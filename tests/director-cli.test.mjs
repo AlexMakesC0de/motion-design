@@ -92,3 +92,53 @@ describe("kie brief and kie plan", () => {
     assert.match(r.err, /No shot "s9"\. Shots: s1, s2/);
   });
 });
+
+describe("kie shots, film, review and cut", () => {
+  test("film all without --max-usd is refused before anything is read from a provider", () => {
+    const r = kie("film", "--run", "sea");
+    assert.equal(r.code, 1);
+    assert.match(r.err, /max_usd \(--max-usd\)/);
+    assert.equal(kie("film", "--run", "sea", "--max-usd", "lots").code, 1);
+  });
+
+  test("shots lists each shot with no still and no take yet", () => {
+    const r = kie("shots", "--run", "sea");
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^sea · v2 · 2 shot\(s\)\ns1 {2}4s {2}no still · no take\ns2 {2}6s {2}no still · no take\n/);
+  });
+
+  test("filming before the stills names the shots that need one", () => {
+    const r = kie("film", "--run", "sea", "--max-usd", "50");
+    assert.equal(r.code, 1);
+    assert.match(r.err, /Every shot needs its still before filming: s1, s2/);
+  });
+
+  test("review and cut work on takes already filmed", async () => {
+    process.env.KIE_RUNS_DIR = env.KIE_RUNS_DIR;
+    const { openJobs } = await import("../cli/core/jobs.mjs");
+    const store = openJobs();
+    for (const [id, seconds] of [["s1", 5], ["s2", 7]]) {
+      const path = join(env.KIE_RUNS_DIR, "sea", `${id}-take.mp4`);
+      spawnSync("ffmpeg", ["-hide_banner", "-y", "-f", "lavfi", "-i", `testsrc=duration=${seconds}:size=320x180:rate=24`, "-pix_fmt", "yuv420p", path]);
+      const j = store.create({ run: "sea", shot: id, stage: "take", capability: "video", model: "seedance-2-5", provider: "kie", estimateUsd: 1 });
+      store.transition(j.id, "sending");
+      store.transition(j.id, "submitted", { upstreamTaskId: "t" });
+      store.transition(j.id, "succeeded", { artifacts: [path] });
+    }
+    let r = kie("review", "--run", "sea", "--shot", "s1");
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /^s1 · s1-take\.mp4 · 5\.\d\ds\n {2}sheet {2}.+\n {2}first {2}.+\n {2}last {3}.+\nchecks:\n {2}· ok\n/);
+
+    r = kie("review", "--run", "sea", "--shot", "s1", "--file", file("rv.json", { take: "s1-take.mp4", verdict: "pass", checks: [{ check: "ok", ok: true }], bestWindow: { startS: 0.8 } }));
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /saved s1: pass for s1-take\.mp4\n {2}✓ ok/);
+
+    r = kie("cut", "--run", "sea");
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /s1 {2}s1-take\.mp4 {2}0\.8s \+4s\n {2}s2 {2}s2-take\.mp4 {2}0\.5s \+6s\n/);
+    assert.match(r.out, /→ .+\/runs\/sea\/film\.mp4 {2}\(10s\)/);
+
+    r = kie("shots", "--run", "sea");
+    assert.match(r.out, /s1 {2}4s {2}no still · take s1-take\.mp4 · pass\ns2 {2}6s {2}no still · take s2-take\.mp4 · not reviewed\n\ncut: film\.mp4 · 10s/);
+  });
+});

@@ -40,6 +40,12 @@ import { costPlan } from "./director/cost.mjs";
 import { suggestModel, suggestStillModel } from "./director/pick.mjs";
 import { shotWording } from "./director/wording.mjs";
 import { briefLines, planLines } from "./director/show.mjs";
+import { makeStill, makeSheet, adoptSheet } from "./director/still.mjs";
+import { filmShot, filmReady } from "./director/film.mjs";
+import { reviewShot, saveReview } from "./director/review.mjs";
+import { cutFilm } from "./director/cut.mjs";
+import { board, boardLines } from "./director/board.mjs";
+import { UNSETTLED } from "./core/jobs.mjs";
 
 const HELP = `kie -- motion-design execution layer
 
@@ -71,6 +77,18 @@ Director (planning only — free):
   kie plan       --run SLUG --suggest [--shot ID]        the model picker's choice and why
   kie plan       --run SLUG --wording [--shot ID]        each shot's prompt, worded for its model
   kie plan       --menu [--json]                         every size, angle, lens, move, light and cut
+  kie shots      --run SLUG [--json]                     the storyboard: each shot's still, take and review
+
+Director (making — spends kie credits; --dry-run plans and spends nothing, --no-wait returns at once):
+  kie cast       <asset> --run SLUG [--model M]          a reference sheet for a Library character, product or location
+  kie cast       adopt <job id>                          make a finished sheet the asset's first image
+  kie still      --run SLUG [--shot ID]...               each shot's first frame (default: every shot without one), in order
+  kie shot       --run SLUG --shot ID                    film one shot from its still (also redoes a take)
+  kie film       --run SLUG --max-usd U                  film every ready shot, wait, then the shots that continue from them;
+                                                         refused when what is left costs more than U
+  kie review     --run SLUG --shot ID [--file REVIEW.json]   frames of the take to judge, or save the verdict
+  kie cut        --run SLUG [--music M] [--vo V] [--end-card E] [--out F]
+                                                         the edit: trims, joins and fades into runs/SLUG/film.mp4 (free)
 
   kie job        <local job id>            wait for a job and download it
   kie job resolve <local job id> (--task ID | --not-created)
@@ -160,6 +178,8 @@ const OPTS = {
   menu: { type: "boolean", default: false },
   suggest: { type: "boolean", default: false },
   wording: { type: "boolean", default: false },
+  "max-usd": { type: "string" },
+  "end-card": { type: "string" },
   help: { type: "boolean", default: false },
 };
 
@@ -1028,6 +1048,181 @@ function cmdPlan(catalog, args) {
   return check.errors.length ? EXIT.USAGE : EXIT.OK;
 }
 
+// ------------------------------------------------- director: making (spends)
+
+function directorCtx(catalog, args) {
+  warnIfStale(catalog);
+  return {
+    store: openJobs(),
+    limits: readLimits(),
+    library: openLibrary(),
+    upload: (path, opts) => uploadFile(catalog, path, opts),
+    via: "cli",
+    dryRun: args["dry-run"],
+    onEvent: (e) => (e.type === "submitted" ? say(e.message) : warn(`! ${e.message}`)),
+  };
+}
+
+function dryLines(sub) {
+  say(`dry run — nothing submitted.`);
+  say(`  route:    ${sub.label}`);
+  say(`  estimate: $${sub.estimateUsd.toFixed(2)} (${sub.basis})`);
+  say(`  body:     ${JSON.stringify(sub.input).slice(0, 600)}`);
+}
+
+/** Wait for a submitted director job unless --no-wait; print where its file landed. */
+async function waitFor(catalog, store, sub, args) {
+  if (args["no-wait"]) {
+    say(`not waiting. Rejoin: kie job ${sub.job.id}`);
+    return null;
+  }
+  const w = await waitJob(catalog, store, sub.job.id, { onTick });
+  process.stderr.write("\n");
+  finishWait(w);
+  return w;
+}
+
+async function cmdCast(catalog, args, positionals) {
+  const [first, second] = positionals;
+  if (first === "adopt") {
+    if (!second) throw usage("kie cast adopt <job id>");
+    const asset = adoptSheet(openLibrary(), openJobs(), second);
+    say(`${asset.name} now leads with its sheet: ${asset.images.map((im) => im.path).join(", ")}`);
+    return EXIT.OK;
+  }
+  if (!first || !args.run) throw usage("kie cast <asset> --run SLUG [--model M] [--dry-run] [--no-wait]   or   kie cast adopt <job id>");
+  const c = directorCtx(catalog, args);
+  const r = await makeSheet(catalog, args.run, first, { ...c, model: args.model });
+  say(`${r.asset} sheet on ${r.model}`);
+  for (const line of r.refMapping) say(`  ref ${line}`);
+  if (r.dryRun) return dryLines(r), EXIT.OK;
+  const w = await waitFor(catalog, c.store, r, args);
+  if (w) say(`Look at it, then make it ${r.asset}'s first image: kie cast adopt ${r.job.id}`);
+  return EXIT.OK;
+}
+
+async function cmdStill(catalog, args) {
+  if (!args.run) throw usage("kie still --run SLUG [--shot ID]... [--dry-run] [--no-wait]");
+  const c = directorCtx(catalog, args);
+  let ids = args.shot;
+  if (!ids.length) {
+    const b = board(c.store, args.run, { assets: c.library.list() });
+    if (!b.plan) throw usage(`runs/${args.run} has no plan yet. Save one: kie plan --run ${args.run} --file plan.json`);
+    ids = b.shots.filter((s) => !s.continuesFrom && !s.still).map((s) => s.id);
+    if (!ids.length) return say("Every shot has its still. Name one with --shot to make another."), EXIT.OK;
+  }
+  // One at a time, waiting between: the first still becomes the style reference for the rest.
+  for (const id of ids) {
+    const r = await makeStill(catalog, args.run, id, c);
+    say(`${r.shot} still on ${r.model}${r.style ? ` · style from ${r.style}` : ""}`);
+    for (const line of r.refMapping) say(`  ref ${line}`);
+    for (const n of r.notes) warn(`! ${n}`);
+    if (r.dryRun) dryLines(r);
+    else await waitFor(catalog, c.store, r, args);
+  }
+  return EXIT.OK;
+}
+
+async function cmdShot(catalog, args) {
+  if (!args.run || args.shot.length !== 1) throw usage("kie shot --run SLUG --shot ID [--dry-run] [--no-wait]");
+  const c = directorCtx(catalog, args);
+  const r = await filmShot(catalog, args.run, args.shot[0], c);
+  say(`${r.shot} take on ${r.model} · ${r.generatedS}s from ${r.firstFrame}`);
+  for (const n of r.notes) warn(`! ${n}`);
+  if (r.dryRun) return dryLines(r), EXIT.OK;
+  await waitFor(catalog, c.store, r, args);
+  return EXIT.OK;
+}
+
+async function cmdFilm(catalog, args) {
+  if (!args.run) throw usage("kie film --run SLUG --max-usd U [--dry-run] [--no-wait]");
+  const maxUsd = args["max-usd"] == null ? undefined : Number(args["max-usd"]);
+  if (maxUsd !== undefined && !Number.isFinite(maxUsd)) throw usage(`--max-usd must be a number of dollars, got "${args["max-usd"]}".`);
+  const c = directorCtx(catalog, args);
+  const waited = new Set();
+  const told = new Set();
+  for (;;) {
+    const r = await filmReady(catalog, args.run, { ...c, maxUsd });
+    for (const s of r.submitted) say(`${s.shot}  ${r.dryRun ? "would film" : `filming ${s.jobId}`} on ${s.model} · ${s.generatedS}s · ~$${s.estimateUsd.toFixed(2)}`);
+    for (const f of r.failed.filter((f) => !told.has(f.shot) && told.add(f.shot))) warn(`! ${f.shot}'s take ${f.state}: ${f.error ?? "no message"}. Film all does not redo it; decide, then kie shot --run ${args.run} --shot ${f.shot}.`);
+    if (r.stopped) {
+      warn(`! Stopped at ${r.stopped.shot}: ${r.stopped.message}`);
+      return r.stopped.code;
+    }
+    if (r.dryRun) {
+      if (r.waiting.length) say(`then ${r.waiting.join(", ")} (they start on the last frame of the shot before)`);
+      say(`about $${r.remainingUsd.toFixed(2)} for what is left, of $${maxUsd.toFixed(2)} agreed`);
+      return EXIT.OK;
+    }
+    if (args["no-wait"]) {
+      if (r.waiting.length) say(`${r.waiting.join(", ")} wait for the shot before. Run kie film again once it is done.`);
+      return EXIT.OK;
+    }
+    const pending = c.store.list().filter((j) => j.run === args.run && j.stage === "take" && UNSETTLED.has(j.state) && !waited.has(j.id));
+    if (!pending.length) {
+      say(`done: ${r.done.join(", ") || "none"}${r.failed.length ? ` · failed: ${r.failed.map((f) => f.shot).join(", ")}` : ""}${r.waiting.length ? ` · waiting: ${r.waiting.join(", ")}` : ""}`);
+      return r.failed.length ? EXIT.PROVIDER : EXIT.OK;
+    }
+    for (const j of pending) {
+      waited.add(j.id);
+      say(`waiting for ${j.shot} (${j.id})`);
+      const w = await waitJob(catalog, c.store, j.id, { onTick });
+      process.stderr.write("\n");
+      if (w.outcome === "succeeded") say(`  → ${w.artifacts.join(", ")}`);
+      else if (w.outcome === "pending") throw uncertain(`${w.message}\n${uncertainMessage(w.job)}`, w.job.upstreamTaskId, { localJobId: w.job.id });
+      else warn(`! ${j.shot}: ${w.message ?? w.job.error ?? w.job.state}`);
+    }
+  }
+}
+
+async function cmdReview(args) {
+  if (!args.run || args.shot.length !== 1) throw usage("kie review --run SLUG --shot ID [--file REVIEW.json]");
+  const id = args.shot[0];
+  if (args.file) {
+    const saved = saveReview(args.run, id, readJsonFile(args.file));
+    say(`saved ${id}: ${saved.verdict} for ${saved.take}`);
+    for (const c of saved.checks) say(`  ${c.ok ? "✓" : "✗"} ${c.check}${c.note ? ` — ${c.note}` : ""}`);
+    return EXIT.OK;
+  }
+  const r = await reviewShot(args.run, id, { store: openJobs() });
+  if (args.json) return say(JSON.stringify(r, null, 2)), EXIT.OK;
+  say(`${r.shot} · ${r.take} · ${r.durationS.toFixed(2)}s`);
+  say(`  sheet  ${r.sheet}`);
+  say(`  first  ${r.first}`);
+  say(`  last   ${r.last}`);
+  say(`checks:`);
+  for (const c of r.checks) say(`  · ${c}`);
+  say(`\nSave the verdict: kie review --run ${args.run} --shot ${r.shot} --file review.json`);
+  say(`  { "take": "${r.take}", "verdict": "pass|redo", "checks": [{ "check": "...", "ok": true, "note": "..." }], "bestWindow": { "startS": 0.5 } }`);
+  return EXIT.OK;
+}
+
+async function cmdCut(args) {
+  if (!args.run) throw usage("kie cut --run SLUG [--music M] [--vo V] [--end-card E] [--out F]");
+  const dir = runDir(args.run, { create: false });
+  const r = await cutFilm(args.run, {
+    store: openJobs(),
+    music: args.music ? inPath(dir, args.music) : null,
+    vo: args.vo ? inPath(dir, args.vo) : null,
+    endCard: args["end-card"] ? inPath(dir, args["end-card"]) : null,
+    out: args.out ? outPath(dir, args.out, "film", ".mp4") : null,
+    onLine: tick,
+  });
+  process.stderr.write("\n");
+  for (const seg of r.segments) say(`  ${seg.shot}  ${seg.file}  ${seg.startS}s +${seg.durationS}s${seg.keepAudio ? "  (its own sound)" : ""}`);
+  for (const n of r.notes) warn(`! ${n}`);
+  say(`  → ${r.out}  (${r.totalS}s)`);
+  return EXIT.OK;
+}
+
+function cmdShots(args) {
+  if (!args.run) throw usage("kie shots --run SLUG [--json]");
+  const b = board(openJobs(), args.run, { assets: openLibrary().list() });
+  if (args.json) return say(JSON.stringify(b, null, 2)), EXIT.OK;
+  for (const line of boardLines(b)) say(line);
+  return EXIT.OK;
+}
+
 function cmdTemplates() {
   say(`Code-rendered graphic motion. No key, no spend, pixel-exact, re-renderable.\n`);
   for (const [id, desc] of Object.entries(TEMPLATES)) say(`  ${id.padEnd(14)} ${desc}`);
@@ -1159,6 +1354,20 @@ async function main(argv) {
       return cmdBrief(args) ?? EXIT.OK;
     case "plan":
       return cmdPlan(catalog, args) ?? EXIT.OK;
+    case "shots":
+      return cmdShots(args);
+    case "cast":
+      return cmdCast(catalog, args, positionals);
+    case "still":
+      return cmdStill(catalog, args);
+    case "shot":
+      return cmdShot(catalog, args);
+    case "film":
+      return cmdFilm(catalog, args);
+    case "review":
+      return cmdReview(args);
+    case "cut":
+      return cmdCut(args);
     case "templates":
       return cmdTemplates();
     case "render":

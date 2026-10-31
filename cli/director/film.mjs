@@ -119,7 +119,7 @@ export async function filmReady(catalog, film, ctx) {
     throw budget(`Filming what is left (${todo.map((r) => r.shot.id).join(", ")}) costs about ${money(remainingUsd)}, more than the ${money(maxUsd)} agreed. Nothing was submitted.`);
   }
 
-  const out = { submitted: [], filming: [], waiting: [], done: [], failed: [], stopped: null, remainingUsd };
+  const out = { submitted: [], filming: [], waiting: [], done: [], failed: [], stopped: null, remainingUsd, dryRun: Boolean(ctx.dryRun) };
   const ready = (r) => {
     const prev = continuesFrom(plan, r.shot.id);
     return !prev || Boolean(media[prev.id].take);
@@ -132,7 +132,7 @@ export async function filmReady(catalog, film, ctx) {
     else {
       try {
         const sub = await filmShot(catalog, film, r.shot.id, ctx);
-        out.submitted.push({ shot: r.shot.id, jobId: sub.job.id, model: sub.model, generatedS: sub.generatedS, estimateUsd: sub.estimateUsd });
+        out.submitted.push({ shot: r.shot.id, jobId: sub.job?.id ?? null, model: sub.model, generatedS: sub.generatedS, estimateUsd: sub.estimateUsd, ...(sub.dryRun ? { dryRun: true, label: sub.label } : {}) });
       } catch (err) {
         out.stopped = { shot: r.shot.id, code: err.code ?? EXIT.USAGE, message: err.message, localJobId: err.localJobId ?? null };
         (err.localJobId ? out.filming : out.waiting).push(r.shot.id);

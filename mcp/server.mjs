@@ -31,6 +31,7 @@ import { status, listModels, listPresets, estimate, listRuns, getRun } from "../
 import { ok, fail } from "./results.mjs";
 import { artifactPreview, imagePreview } from "./preview.mjs";
 import { registerDirector } from "./director.mjs";
+import { registerMaking } from "./making.mjs";
 
 const VERSION = "0.1.0";
 
@@ -42,7 +43,9 @@ const INSTRUCTIONS =
   "If a call times out or its result is lost, call status before generating again: an unsettled job may already exist. " +
   "Relative paths are inside runs/; only runs/, library/ and folders the user allowed can be read. " +
   "To make a film, direct it: agree a brief (save_brief), plan the shots from the menu (get_menu, save_plan), " +
-  "and let the checker, the model picker and shot_wording do the craft; all of these are free.";
+  "and let the checker, the model picker and shot_wording do the craft; all of these are free. " +
+  "Then make it only as far as the user asked: make_still for each shot (first shot first), show the storyboard (get_shots), " +
+  "film_all with the total the user agreed as max_usd, wait_job, review_shot and save_review for every take, then cut_film.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -153,6 +156,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   registerGenerate(); // Task 5
   registerFinish(); // Task 6
   registerDirector(tool, { catalog, ctx });
+  registerMaking(tool, { catalog, ctx, deps, runFile });
   return server;
 
   function registerLook() {
@@ -615,7 +619,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       {
         title: "Wait for a job",
         description:
-          "Wait for a generate_image or generate_video job, up to max_wait_s (default 60, at most 120). Still running is a normal result (outcome pending): call again. " +
+          "Wait for any generating job (generate_image, generate_video, make_still, make_sheet, film_shot, film_all), up to max_wait_s (default 60, at most 120). Still running is a normal result (outcome pending): call again. " +
           "On success the files are in the run folder, the actual cost is recorded, and a preview is shown. Free.",
         inputSchema: {
           job_id: z.string(),
