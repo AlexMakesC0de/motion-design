@@ -63,9 +63,9 @@ describe("tools over the in-process MCP client", () => {
   const tools = createTools({ deps });
   after(() => tools.close());
 
-  test("offers the 18 MCP tools as function tools, without the schema keywords the Responses API rejects", async () => {
+  test("offers the 27 MCP tools as function tools, without the schema keywords the Responses API rejects", async () => {
     const fns = await tools.functions();
-    assert.equal(fns.length, 18);
+    assert.equal(fns.length, 27);
     const video = fns.find((f) => f.name === "generate_video");
     assert.equal(video.type, "function");
     assert.equal(video.strict, false);

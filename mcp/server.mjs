@@ -30,6 +30,7 @@ import { allowedRoots, confinePath, confineProps } from "../cli/core/inputs.mjs"
 import { status, listModels, listPresets, estimate, listRuns, getRun } from "../cli/core/views.mjs";
 import { ok, fail } from "./results.mjs";
 import { artifactPreview, imagePreview } from "./preview.mjs";
+import { registerDirector } from "./director.mjs";
 
 const VERSION = "0.1.0";
 
@@ -39,7 +40,9 @@ const INSTRUCTIONS =
   "against a per-job budget and a daily cap. Error 2 means nothing was spent: ask the user. " +
   "Error 5 means a job may exist: never resubmit it. " +
   "If a call times out or its result is lost, call status before generating again: an unsettled job may already exist. " +
-  "Relative paths are inside runs/; only runs/, library/ and folders the user allowed can be read.";
+  "Relative paths are inside runs/; only runs/, library/ and folders the user allowed can be read. " +
+  "To make a film, direct it: agree a brief (save_brief), plan the shots from the menu (get_menu, save_plan), " +
+  "and let the checker, the model picker and shot_wording do the craft; all of these are free.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -149,6 +152,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   registerAssets();
   registerGenerate(); // Task 5
   registerFinish(); // Task 6
+  registerDirector(tool, { catalog, ctx });
   return server;
 
   function registerLook() {

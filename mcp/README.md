@@ -30,6 +30,7 @@ the same code as the `kie` CLI.
 | Assets | `save_asset`, `list_assets`, `get_asset` | free |
 | Generate | `generate_image`, `generate_video`, `wait_job` | spends kie credits |
 | Finish | `frames`, `probe`, `assemble`, `variants`, `caption`, `render` | free, local |
+| Direct | `get_menu`, `get_brief`, `save_brief`, `get_plan`, `save_plan`, `update_shot`, `check_plan`, `suggest_model`, `shot_wording` | free, local |
 
 ## Limits that protect your money
 
