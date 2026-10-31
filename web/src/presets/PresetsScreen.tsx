@@ -4,7 +4,7 @@ import type { PresetDetail, PresetInfo } from "../api/types";
 import { applyPreset } from "../studio/promptStore";
 import "./presets.css";
 
-/** The motion-design preset gallery. "Use this" fills the prompt bar and opens the Studio. */
+/** The motion-design preset gallery. "Use this" fills the prompt bar and opens Create. */
 export function PresetsScreen() {
   const [presets, setPresets] = useState<PresetInfo[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export function PresetsScreen() {
     try {
       const p = await api<PresetDetail>(`/api/presets/${encodeURIComponent(id)}`);
       applyPreset(p);
-      window.location.hash = "#/studio";
+      window.location.hash = "#/create";
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     } finally {

@@ -1,17 +1,10 @@
-/* Studio: feed in the middle, prompt bar at the bottom, chat rail on the right (chat/chat.css).
+/* Create: the takes feed, with the prompt bar at the bottom. The chat is the drawer (chat/chat.css).
    Tokens only (theme/tokens.css). Amber is for Generate and costs, nothing else. */
 
-.studio { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); height: 100%; }
+.studio { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); height: 100%; }
 .studio__main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-3); min-height: 0; }
 
 .studio__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); flex-wrap: wrap; }
-.view-switch { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); }
-.view-switch__option {
-  padding: 4px var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-2); font-size: var(--text-sm); cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.view-switch__option:hover { color: var(--text); }
-.view-switch__option[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
 
 /* Working in */
 .film-picker { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--text-sm); }
@@ -137,9 +130,8 @@
 .viewer__hint, .viewer__note { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
 .viewer__note { color: var(--text); white-space: pre-line; }
 
-/* Narrow windows: the chat stacks under the feed (chat.css), the viewer stacks. */
+/* Narrow windows: the prompt bar and the viewer stack. */
 @media (max-width: 760px) {
-  .studio { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .feed__grid { --row-h: 140px; }
   .prompt-bar__row { flex-direction: column; align-items: stretch; }
   .prompt-bar__go { margin-left: 0; align-items: stretch; }

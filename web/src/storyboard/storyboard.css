@@ -145,11 +145,8 @@
 }
 .inspector__media > .button { align-self: flex-start; }
 
-/* Narrow windows: the page scrolls as one, rather than the board inside a sliver above the chat. */
+/* Narrow windows: the page scrolls as one, rather than the board inside a sliver. */
 @media (max-width: 760px) {
-  .app__main[data-tab="studio"]:has(.studio--board) { overflow-y: auto; }
-  .studio--board { height: auto; grid-template-rows: auto auto; }
-  .studio--board .studio__main { grid-template-rows: auto auto; }
   .board { overflow: visible; }
 }
 

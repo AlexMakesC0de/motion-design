@@ -18,8 +18,8 @@ interface Drop {
 const objectUrl = (file: File) => (typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : null);
 let nextDrop = 1;
 
-function goToStudio() {
-  window.location.hash = "#/studio";
+function goToCreate() {
+  window.location.hash = "#/create";
 }
 
 /** One asset: its images, where it was used, and a way into the prompt bar. */
@@ -69,7 +69,7 @@ function AssetPanel({ name, roles, onClose }: { name: string; roles: string[]; o
           disabled={!pickedRole}
           onClick={() => {
             addRef({ source: asset.name, role: pickedRole });
-            goToStudio();
+            goToCreate();
           }}
         >
           Use in prompt
@@ -90,7 +90,7 @@ function AssetPanel({ name, roles, onClose }: { name: string; roles: string[]; o
                 className="button button--quiet"
                 onClick={() => {
                   setRun(t.run);
-                  goToStudio();
+                  goToCreate();
                 }}
               >
                 Show in {t.run}

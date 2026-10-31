@@ -20,6 +20,8 @@ interface ChatState {
 let state: ChatState = { open: readOpen(), outbox: null };
 /** The element that opened the drawer, so closing gives focus back. */
 let opener: HTMLElement | null = null;
+/** Outbox ids only grow, so a cleared outbox never makes a new message look already handed over. */
+let lastOutbox = 0;
 const listeners = new Set<() => void>();
 
 function set(next: Partial<ChatState>) {
@@ -49,7 +51,12 @@ export const toggleChat = () => (state.open ? closeChat() : openChat());
 
 export function sendToChat(text: string) {
   openChat();
-  set({ outbox: { id: (state.outbox?.id ?? 0) + 1, text } });
+  set({ outbox: { id: ++lastOutbox, text } });
+}
+
+/** The chat took the message (sent it, or left it in the box): a drawer opened later must not hand it over again. */
+export function clearOutbox() {
+  if (state.outbox) set({ outbox: null });
 }
 
 export function useChatDrawer(): ChatState {
@@ -65,4 +72,5 @@ export function useChatDrawer(): ChatState {
 export function resetChatForTests() {
   state = { open: readOpen(), outbox: null };
   opener = null;
+  lastOutbox = 0;
 }

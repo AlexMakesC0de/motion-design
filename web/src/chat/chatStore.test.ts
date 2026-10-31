@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { closeChat, getChat, openChat, sendToChat, toggleChat, resetChatForTests } from "./chatStore";
+import { clearOutbox, closeChat, getChat, openChat, sendToChat, toggleChat, resetChatForTests } from "./chatStore";
 
 beforeEach(() => {
   localStorage.clear();
@@ -27,5 +27,12 @@ describe("chatStore", () => {
     expect(getChat()).toMatchObject({ open: true, outbox: { id: 1, text: "Plan the shots for rainy-coffee" } });
     sendToChat("again");
     expect(getChat().outbox).toEqual({ id: 2, text: "again" });
+  });
+  test("a taken message is cleared, and the next one still gets a new number", () => {
+    sendToChat("first");
+    clearOutbox();
+    expect(getChat().outbox).toBeNull();
+    sendToChat("second");
+    expect(getChat().outbox).toEqual({ id: 2, text: "second" });
   });
 });

@@ -43,9 +43,22 @@ function Entry({ entry }: { entry: ChatEntry }) {
  * tools as the CLI and the MCP server, so jobs it starts show up in the feed
  * like any other. With nothing connected it shows the two ways to connect.
  */
-export function ChatPanel({ film, outbox, onClose }: { film: string | null; outbox?: { id: number; text: string } | null; onClose?: () => void }) {
+export function ChatPanel({
+  film,
+  outbox,
+  onClose,
+  onTaken,
+}: {
+  film: string | null;
+  outbox?: { id: number; text: string } | null;
+  onClose?: () => void;
+  /** Called once the outbox message is sent or left in the box, so it is not handed over again. */
+  onTaken?: () => void;
+}) {
   const [open, setOpen] = useState(() => Boolean(onClose) || !narrow());
   const [settings, setSettings] = useState<ChatSettingsView | null>(null);
+  // Whether /api/chat-settings has answered (or failed): until then we can't tell if a handed message can be sent.
+  const [checked, setChecked] = useState(false);
   const [text, setText] = useState("");
   const chat = useChat(film);
   const log = useRef<HTMLOListElement>(null);
@@ -53,7 +66,8 @@ export function ChatPanel({ film, outbox, onClose }: { film: string | null; outb
   useEffect(() => {
     api<ChatSettingsView>("/api/chat-settings")
       .then(setSettings)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setChecked(true));
   }, []);
 
   useEffect(() => {
@@ -64,15 +78,16 @@ export function ChatPanel({ film, outbox, onClose }: { film: string | null; outb
   const connected = settings?.backend != null;
 
   // A message handed over from elsewhere on the page (the storyboard's "Plan this"): sent at once when the chat can
-  // take it, otherwise left in the box to send by hand.
+  // take it, otherwise left in the box to send by hand. A drawer that has just opened waits for the settings first.
   const handed = useRef<number | null>(null);
   useEffect(() => {
-    if (!outbox || handed.current === outbox.id) return;
+    if (!outbox || !checked || handed.current === outbox.id) return;
     handed.current = outbox.id;
+    onTaken?.();
     setOpen(true);
     if (connected && !chat.busy) chat.send(outbox.text).then((sent) => !sent && setText(outbox.text));
     else setText(outbox.text);
-  }, [outbox, connected, chat]);
+  }, [outbox, checked, connected, chat, onTaken]);
 
   const via = settings ? connectionShort(settings) : null;
   const picker = settings != null && (!connected || chat.connect);

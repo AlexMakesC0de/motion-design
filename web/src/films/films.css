@@ -1,26 +1,14 @@
-/* Films: run folders as cards, then a film page with shots and outputs. Tokens only.
+/* A film page with shots and outputs (the film's Finish step). Tokens only.
    Amber is for costs only here. */
 
-.films, .film { display: flex; flex-direction: column; gap: var(--space-4); }
-.films__head h1, .film__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
-.films__head p, .film__prompt { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
+.film { display: flex; flex-direction: column; gap: var(--space-4); }
+.film__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
+.film__prompt { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
 .film__error { margin: 0; color: var(--bad-ink); }
 .film__prompt[data-folded="true"] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .film__more { margin-top: var(--space-1); padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: var(--text-xs); text-decoration: underline; cursor: pointer; }
 .film__more:hover { color: var(--text); }
 .film__none { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
-
-.films__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
-.film-card {
-  display: flex; flex-direction: column; gap: var(--space-1); padding-bottom: var(--space-3);
-  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1);
-  color: var(--text); text-decoration: none; overflow: hidden;
-  transition: border-color var(--dur-fast) var(--ease-out);
-}
-.film-card:hover { border-color: var(--text-3); }
-.film-card__cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); margin-bottom: var(--space-1); }
-.film-card__name { padding: 0 var(--space-3); font-size: var(--text-md); }
-.film-card__meta { padding: 0 var(--space-3); color: var(--text-2); font-size: var(--text-xs); }
 
 .film__back { color: var(--text-2); font-size: var(--text-sm); }
 .film__back:hover { color: var(--text); }

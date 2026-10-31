@@ -24,10 +24,10 @@ describe("PresetsScreen", () => {
     expect(screen.getAllByText("minimax-h3 · 15s · 16:9")[0]).toHaveClass("mono");
   });
 
-  test("Use this fills the prompt bar from the shared store and opens the Studio", async () => {
+  test("Use this fills the prompt bar from the shared store and opens Create", async () => {
     render(<PresetsScreen />);
     fireEvent.click(await screen.findByRole("button", { name: "Use Kinetic typography" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/studio"));
+    await waitFor(() => expect(window.location.hash).toBe("#/create"));
     expect(getDraft()).toMatchObject({ prompt: "SOURCE PROMPT", model: "minimax-h3", durationS: 15, aspectRatio: "16:9", preset: "kinetic-typography" });
   });
 });

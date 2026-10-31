@@ -85,6 +85,6 @@ describe("LibraryScreen", () => {
     expect(within(panel).getByText(/seedance-2-5 · 4s · 480p/)).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole("button", { name: "Use in prompt" }));
     expect(getDraft().refs).toEqual([{ source: "zed", role: "identity" }]);
-    expect(window.location.hash).toBe("#/studio");
+    expect(window.location.hash).toBe("#/create");
   });
 });

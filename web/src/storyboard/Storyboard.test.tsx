@@ -2,9 +2,10 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { Storyboard } from "./Storyboard";
 import { resetMenuForTests } from "./useBoard";
-import { StudioScreen } from "../studio/StudioScreen";
+import { App } from "../app/App";
+import { resetChatForTests } from "../chat/chatStore";
 import { resetForTests } from "../studio/promptStore";
-import { chatSettings, job, model, routes } from "../test-fixtures";
+import { chatSettings, routes } from "../test-fixtures";
 import type { BoardShot, BoardView, DirectorMenu, Shot } from "../api/types";
 
 const entry = (id: string, label = id) => ({ id, label, when: `when ${id}` });
@@ -226,30 +227,43 @@ describe("Storyboard", () => {
   });
 });
 
-describe("the Studio's storyboard view", () => {
-  beforeEach(() => resetForTests({}, ""));
+describe("a film's storyboard in the shell", () => {
+  beforeEach(() => {
+    resetForTests({}, "");
+    localStorage.clear();
+    resetChatForTests();
+  });
 
-  test("a film with a plan opens on its storyboard, and Plan this goes to the chat", async () => {
+  test("Brief shows the storyboard; Plan this opens the chat drawer and sends the idea once", async () => {
     stub({
-      "/api/runs": () => [{ run: "zed", modified: "", files: 2, takes: 1 }],
-      "/api/models": () => [model()],
-      "/api/library": () => [],
-      "/api/vocab": () => ({ kinds: [], roles: [] }),
-      "/api/jobs": () => [job()],
+      "/api/films/zed/progress": () => ({
+        step: "brief",
+        steps: { brief: "current", references: "locked", shots: "locked", finish: "locked" },
+        next: { text: "Write the brief", step: "brief" },
+        counts: { shots: 0, stills: 0, takes: 0, outputs: 0 },
+        spentUsd: 0,
+        legacy: false,
+      }),
       "/api/chat-settings": () => chatSettings({ backend: "codex" }),
       "/api/chat/zed": (init) => (init?.method === "POST" ? { entry: { id: "u1", kind: "user", text: "x", at: "" } } : { film: "zed", busy: false, entries: [] }),
       "/api/films/zed/board": () => board({ plan: null, shots: [] }),
     });
-    render(<StudioScreen />);
+    window.location.hash = "#/films/zed/brief";
+    const { unmount } = render(<App />);
     expect(await screen.findByRole("region", { name: "Storyboard" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Storyboard" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Chat drawer" })).toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: "The idea" }), { target: { value: "A calm inbox" } });
     fireEvent.click(screen.getByRole("button", { name: "Plan this" }));
-    await waitFor(() => expect(sent("/api/chat/zed")[0]?.body).toEqual({ text: "Plan this film (zed): A calm inbox" }));
+    expect(await screen.findByRole("dialog", { name: "Chat drawer" })).toBeInTheDocument();
+    await waitFor(() => expect(sent("/api/chat/zed")).toEqual([expect.objectContaining({ body: { text: "Plan this film (zed): A calm inbox" } })]));
 
-    fireEvent.click(screen.getByRole("button", { name: "Takes" }));
-    expect(await screen.findByRole("region", { name: "Takes" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument();
+    // Closing and opening the drawer again does not send the idea a second time.
+    fireEvent.click(screen.getByRole("button", { name: "Close chat" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Studio" })).getByRole("button", { name: "Chat" }));
+    await screen.findByRole("dialog", { name: "Chat drawer" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent("/api/chat/zed")).toHaveLength(1);
+    unmount();
+    window.location.hash = "";
   });
 });

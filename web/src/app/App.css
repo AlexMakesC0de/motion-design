@@ -1,24 +1,33 @@
-.app { display: flex; flex-direction: column; height: 100%; }
-.app__top {
-  display: flex; align-items: center; gap: var(--space-5);
-  padding: var(--space-2) var(--space-4);
-  background: var(--surface-1);
-  border-bottom: 1px solid var(--line);
-}
-.app__brand {
-  color: var(--text); font-weight: 600; text-decoration: none; letter-spacing: 0.01em;
-  padding: var(--space-1) 0; border-radius: var(--radius-sm);
-}
+.app { display: grid; grid-template-columns: 76px minmax(0, 1fr); height: 100%; }
+.app__col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
-.nav { display: flex; gap: var(--space-1); }
-.nav a {
-  color: var(--text-2); text-decoration: none; font-size: var(--text-md); white-space: nowrap;
-  padding: 6px var(--space-3); border-radius: var(--radius-sm);
+.rail {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
+  padding: var(--space-3) 0; background: var(--surface-1); border-right: 1px solid var(--line);
+}
+.rail__brand { color: var(--text); font-weight: 700; text-decoration: none; padding: var(--space-2) 0 var(--space-3); }
+.rail__item {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; padding: var(--space-2) 0;
+  border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-2);
+  font: inherit; font-size: var(--text-xs); text-decoration: none; cursor: pointer;
   transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
-.nav a:hover { color: var(--text); background: var(--surface-2); }
-.nav a:active { background: var(--surface-3); }
-.nav a[aria-current="page"] { color: var(--text); background: var(--surface-3); font-weight: 500; }
+.rail__item:hover { color: var(--text); background: var(--surface-2); }
+.rail__item[aria-current="page"], .rail__item[aria-expanded="true"] { color: var(--text); background: var(--surface-3); }
+.rail__gap { flex: 1; }
+
+.topbar {
+  display: flex; align-items: center; gap: var(--space-4); min-height: 48px;
+  padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--line); background: var(--surface-1);
+}
+.topbar__where { font-weight: 600; color: var(--text); }
+.topbar__where a { color: var(--text-2); text-decoration: none; font-weight: 400; }
+.topbar__where a:hover { color: var(--text); }
+.topbar__jobs {
+  margin-left: auto; padding: 3px var(--space-3); border: 1px solid var(--line); border-radius: 999px;
+  color: var(--text-2); font-size: var(--text-sm); text-decoration: none;
+}
+.topbar__jobs + .spend-meter { margin-left: 0; }
 
 .spend-meter {
   margin-left: auto; display: flex; align-items: center; gap: var(--space-2);
@@ -42,14 +51,15 @@
 }
 .banner code { color: var(--text); }
 
-.app__main { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-6) var(--space-4) var(--space-5); }
-/* The Studio scrolls its feed itself, so the prompt bar stays on screen. */
-.app__main[data-tab="studio"] { overflow: hidden; padding-top: var(--space-4); padding-bottom: var(--space-4); }
+.app__main { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-5) var(--space-5) var(--space-5); }
+/* Create scrolls its feed itself, so the prompt bar stays on screen. */
+.app__main[data-screen="create"] { overflow: hidden; padding-top: var(--space-4); padding-bottom: var(--space-4); }
 
-/* Narrow windows: brand and spend share the first row, the tabs scroll on their own row. */
+/* Narrow windows: the rail becomes a bottom bar. */
 @media (max-width: 760px) {
-  .app__top { flex-wrap: wrap; column-gap: var(--space-3); row-gap: var(--space-2); }
-  .nav { order: 3; flex-basis: 100%; gap: 0; margin-inline: calc(-1 * var(--space-2)); overflow-x: auto; }
-  .nav a { padding-inline: var(--space-2); }
+  .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .rail { order: 2; flex-direction: row; overflow-x: auto; padding: var(--space-1); border-right: 0; border-top: 1px solid var(--line); }
+  .rail__brand, .rail__gap { display: none; }
+  .rail__item { width: auto; min-width: 56px; }
   .spend-meter__bar { width: 48px; }
 }

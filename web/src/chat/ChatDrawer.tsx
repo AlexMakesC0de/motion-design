@@ -3,7 +3,7 @@
 // focus back to whatever opened it.
 import { useEffect, useRef } from "react";
 import { ChatPanel } from "./ChatPanel";
-import { closeChat, useChatDrawer } from "./chatStore";
+import { clearOutbox, closeChat, useChatDrawer } from "./chatStore";
 
 export function ChatDrawer({ film }: { film: string | null }) {
   const { open, outbox } = useChatDrawer();
@@ -20,7 +20,7 @@ export function ChatDrawer({ film }: { film: string | null }) {
   if (!open) return null;
   return (
     <div className="drawer" role="dialog" aria-modal="false" aria-label="Chat drawer" ref={box}>
-      <ChatPanel film={film} outbox={outbox} onClose={closeChat} />
+      <ChatPanel film={film} outbox={outbox} onClose={closeChat} onTaken={clearOutbox} />
     </div>
   );
 }
