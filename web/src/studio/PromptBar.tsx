@@ -120,10 +120,9 @@ export function PromptBar({ models, assets, roles, run, onSubmitted, onUncertain
     setDraft(fitToModel(first, draft));
   }, [models, draft]);
 
-  // A real blocker is a warning. An empty prompt is only what is left to do, so it reads as a quiet hint.
-  const blocker = estimateError ?? refusalReason(estimate) ?? (!run ? "Pick a film to work in." : null);
-  const hint = !blocker && !draft.prompt.trim() ? "Write a prompt." : null;
-  const reason = blocker ?? hint;
+  // Only a real blocker is said out loud. An empty prompt just keeps Generate off; the placeholder already asks for one.
+  const reason = estimateError ?? refusalReason(estimate) ?? (!run ? "Pick a film to work in." : null);
+  const empty = !draft.prompt.trim();
   const price = estimate?.estimateUsd != null ? usd(estimate.estimateUsd) : "…";
   const roleChoices = model?.capability === "video" ? model.refRoles : roles;
 
@@ -190,21 +189,21 @@ export function PromptBar({ models, assets, roles, run, onSubmitted, onUncertain
           <RefPicker assets={assets} roles={roleChoices} />
         </div>
         <div className="prompt-bar__go">
-          <button type="button" className="generate" disabled={Boolean(reason) || sending || !estimate || Boolean(unsure)} aria-describedby={reason ? "generate-reason" : undefined} onClick={generate}>
+          {reason && (
+            <p id="generate-reason" className="prompt-bar__reason" role="status">
+              {reason}
+              {onlyBudgetBlocks(estimate) && estimate?.estimateUsd != null && (
+                <button type="button" className="prompt-bar__lift" onClick={() => setDraft({ budgetUsd: estimate.estimateUsd })}>
+                  Allow {usd(estimate.estimateUsd)} for this job
+                </button>
+              )}
+            </p>
+          )}
+          <button type="button" className="generate" disabled={Boolean(reason) || empty || sending || !estimate || Boolean(unsure)} aria-describedby={reason ? "generate-reason" : undefined} onClick={generate}>
             {sending ? "Sending…" : "Generate"} <span className="mono">{price}</span>
           </button>
         </div>
       </div>
-      {reason && (
-        <p id="generate-reason" className={hint ? "prompt-bar__reason prompt-bar__reason--hint" : "prompt-bar__reason"} role="status">
-          {reason}
-          {onlyBudgetBlocks(estimate) && estimate?.estimateUsd != null && (
-            <button type="button" className="prompt-bar__lift" onClick={() => setDraft({ budgetUsd: estimate.estimateUsd })}>
-              Allow {usd(estimate.estimateUsd)} for this job
-            </button>
-          )}
-        </p>
-      )}
       {failure && (
         <p className="prompt-bar__failure" role="alert">
           {failure}

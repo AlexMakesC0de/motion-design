@@ -71,10 +71,12 @@
 .prompt-bar:focus-within { border-color: var(--surface-3); }
 .prompt-bar__row { display: flex; align-items: flex-end; gap: var(--space-3); }
 .prompt-bar__chips { display: flex; flex-wrap: wrap; gap: var(--space-2); flex: 1; min-width: 0; }
-.prompt-bar__go { margin-left: auto; }
-.prompt-bar__reason { margin: 0; font-size: var(--text-sm); color: var(--warn); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-/* Nothing is wrong yet, the prompt is just empty: a hint, not a warning. */
-.prompt-bar__reason--hint { color: var(--text-3); }
+/* Why Generate is off sits right above it, where the eye already is. */
+.prompt-bar__go { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+.prompt-bar__reason {
+  margin: 0; max-width: 44ch; font-size: var(--text-sm); color: var(--warn); text-align: right;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-1) var(--space-2);
+}
 .prompt-bar__lift { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; cursor: pointer; font-size: var(--text-sm); }
 .prompt-bar__failure { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bad-surface); color: var(--bad-ink); font-size: var(--text-sm); white-space: pre-line; }
 .prompt-bar__unsure { display: flex; align-items: flex-start; gap: var(--space-3); }
@@ -140,6 +142,8 @@
   .studio { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
   .feed__grid { --row-h: 140px; }
   .prompt-bar__row { flex-direction: column; align-items: stretch; }
+  .prompt-bar__go { margin-left: 0; align-items: stretch; }
+  .prompt-bar__reason { max-width: none; text-align: left; justify-content: flex-start; }
   .generate { justify-content: center; }
   .viewer { padding: var(--space-2); }
   .viewer__panel { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
