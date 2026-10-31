@@ -2,7 +2,7 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { HomeScreen } from "./HomeScreen";
-import { routes } from "../test-fixtures";
+import { errorResponse, routes } from "../test-fixtures";
 import type { FilmSummary } from "../api/types";
 
 const film = (run: string, modified: string): FilmSummary => ({ run, modified, files: 1, takes: 1, cover: null, progress: null });
@@ -61,6 +61,22 @@ describe("HomeScreen", () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
     render(<HomeScreen />);
     expect(await screen.findByRole("option", { name: "Character animation" })).toHaveValue("character");
+  });
+
+  test("Start film waits for the film list, which its name must not clash with", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/director/menu": () => menu }))); // /api/films never answers
+    render(<HomeScreen />);
+    fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
+    await screen.findByRole("option", { name: "Character animation" }); // the menu has loaded; the list has not
+    expect(screen.getByRole("button", { name: "Start film" })).toBeDisabled();
+  });
+
+  test("a film list that fails to load says so, and Start film stays off", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => errorResponse(500, "disk full"), "/api/director/menu": () => menu })));
+    render(<HomeScreen />);
+    fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your films, so a new one can't be named yet: disk full");
+    expect(screen.getByRole("button", { name: "Start film" })).toBeDisabled();
   });
 
   test("Start film waits for words", async () => {

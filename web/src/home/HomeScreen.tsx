@@ -18,7 +18,9 @@ const ASPECTS = ["16:9", "9:16", "1:1", "21:9"];
 const FILM_TYPES = [{ id: "live-action", label: "Live-action look" }];
 
 export function HomeScreen() {
-  const [films, setFilms] = useState<FilmSummary[]>([]);
+  // null until /api/films answers: the new film's folder name is made unique against this list.
+  const [films, setFilms] = useState<FilmSummary[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [menu, setMenu] = useState<DirectorMenu | null>(null);
   const [text, setText] = useState("");
   const [aspect, setAspect] = useState("16:9");
@@ -28,13 +30,15 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<FilmSummary[]>("/api/films").then(setFilms).catch(() => {});
+    api<FilmSummary[]>("/api/films")
+      .then(setFilms)
+      .catch((e) => setListError(`Couldn't load your films, so a new one can't be named yet: ${e instanceof ApiError ? e.message : String(e)}`));
     api<DirectorMenu>("/api/director/menu").then(setMenu).catch(() => {});
   }, []);
 
   async function start() {
     const takeaway = text.trim();
-    if (!takeaway || busy) return;
+    if (!takeaway || busy || !films) return;
     setBusy(true);
     setError(null);
     const slug = filmSlug(takeaway, films.map((f) => f.run));
@@ -88,18 +92,18 @@ export function HomeScreen() {
           <a className="home__preset" href="#/presets">
             Start from a preset
           </a>
-          <button type="submit" className="generate home__go" disabled={!text.trim() || busy}>
+          <button type="submit" className="generate home__go" disabled={!text.trim() || busy || !films}>
             Start film
           </button>
         </div>
-        {error && (
+        {(error ?? listError) && (
           <p className="home__error" role="alert">
-            {error}
+            {error ?? listError}
           </p>
         )}
       </form>
 
-      {films.length > 0 && (
+      {films && films.length > 0 && (
         <section className="home__recent" aria-labelledby="recent-h">
           <div className="home__recent-head">
             <h2 id="recent-h">Recent films</h2>
