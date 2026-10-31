@@ -2,7 +2,6 @@
    Amber is for costs only here. */
 
 .film { display: flex; flex-direction: column; gap: var(--space-4); }
-.film__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
 .film__prompt { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
 .film__error { margin: 0; color: var(--bad-ink); }
 .film__prompt[data-folded="true"] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
@@ -10,8 +9,6 @@
 .film__more:hover { color: var(--text); }
 .film__none { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
 
-.film__back { color: var(--text-2); font-size: var(--text-sm); }
-.film__back:hover { color: var(--text); }
 .film__body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-5); align-items: start; }
 .film__main { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 .film__section { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }

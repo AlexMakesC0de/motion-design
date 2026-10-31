@@ -18,3 +18,5 @@
 .home__recent-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3); }
 .home__recent-head h2 { margin: 0; font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); font-weight: 500; }
 .home__recent-head a { color: var(--text); font-size: var(--text-sm); }
+/* Four recent films fit one row. */
+.home__recent .projects__grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }

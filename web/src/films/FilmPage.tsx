@@ -4,6 +4,7 @@ import type { FilmDetail, FilmFile } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { shotSpec, takeCost } from "../studio/format";
 import { FinishPanel } from "./FinishPanel";
+import "./films.css";
 
 /** A prompt longer than this starts folded to three lines. */
 const PROMPT_FOLD_CHARS = 280;
@@ -76,10 +77,6 @@ export function FilmPage({ slug }: { slug: string }) {
   return (
     <div className="film">
       <header className="film__head">
-        <a className="film__back" href="#/films">
-          All films
-        </a>
-        <h1 className="mono">{slug}</h1>
         {detail?.prompt && (
           <>
             <p id="film-prompt" className="film__prompt" data-folded={long && !fullPrompt}>
