@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { BoardShot, BoardView, DirectorMenu, ReviewFrames, Shot } from "../api/types";
+import type { BoardShot, BoardView, DirectorMenu, RedoResult, ReviewFrames, Shot } from "../api/types";
 import { usd } from "../studio/format";
 
 /** The menu fields a shot is framed with, in the order a cinematographer reads them. */
@@ -35,13 +35,14 @@ function changesOf(before: Shot, d: Draft): Partial<Shot> {
 }
 
 /** The take's frames and the verdict on it: each check passed or not, with a note. */
-function ReviewPanel({ film, shot, frames, onSaved, onClose }: { film: string; shot: BoardShot; frames: ReviewFrames; onSaved: (b: BoardView) => void; onClose: () => void }) {
+function ReviewPanel({ film, shot, frames, onSaved, onClose }: { film: string; shot: BoardShot; frames: ReviewFrames; onSaved: (b: BoardView, redo: RedoResult | null) => void; onClose: () => void }) {
   const [checks, setChecks] = useState(() => frames.checks.map((check) => ({ check, ok: true, note: "" })));
   const [failure, setFailure] = useState<string | null>(null);
   async function save(verdict: "pass" | "redo") {
     try {
       const review = { take: frames.take, verdict, checks: checks.map((c) => ({ check: c.check, ok: c.ok, ...(c.note.trim() ? { note: c.note.trim() } : {}) })) };
-      onSaved(await api<BoardView>(`/api/films/${encodeURIComponent(film)}/shots/${shot.id}/review`, { method: "PUT", body: { review } }));
+      const r = await api<BoardView & { redo: RedoResult | null }>(`/api/films/${encodeURIComponent(film)}/shots/${shot.id}/review`, { method: "PUT", body: { review } });
+      onSaved(r, r.redo ?? null);
       onClose();
     } catch (e) {
       setFailure(e instanceof ApiError ? e.message : String(e));
@@ -90,6 +91,7 @@ export function Inspector({ film, board, shot, menu, apply }: { film: string; bo
   const [failure, setFailure] = useState<string | null>(null);
   const [confirmTake, setConfirmTake] = useState(false);
   const [frames, setFrames] = useState<ReviewFrames | null>(null);
+  const [redo, setRedo] = useState<RedoResult | null>(null);
   const base = `/api/films/${encodeURIComponent(film)}`;
   const changes = changesOf(before, draft);
   const dirty = Object.keys(changes).length > 0;
@@ -285,7 +287,23 @@ export function Inspector({ film, board, shot, menu, apply }: { film: string; bo
               </button>
             ))}
         </div>
-        {frames && <ReviewPanel film={film} shot={shot} frames={frames} onSaved={apply} onClose={() => setFrames(null)} />}
+        {redo && (
+          <p className={redo.submitted ? "inspector__hint" : "inspector__error"} role="status">
+            {redo.submitted ? `Auto-redo: filming ${shot.id} again (redo ${redo.redo} of 2), about ${usd(redo.estimateUsd ?? 0)}.` : `Auto-redo held back: ${redo.reason}`}
+          </p>
+        )}
+        {frames && (
+          <ReviewPanel
+            film={film}
+            shot={shot}
+            frames={frames}
+            onSaved={(b, r) => {
+              apply(b);
+              setRedo(r);
+            }}
+            onClose={() => setFrames(null)}
+          />
+        )}
       </section>
     </aside>
   );

@@ -149,3 +149,13 @@
   .studio--board .studio__main { grid-template-rows: auto auto; }
   .board { overflow: visible; }
 }
+
+/* Auto-redo, beside the go buttons */
+.auto-redo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); }
+.auto-redo .mono { color: var(--accent); }
+.auto-redo label { max-width: 52ch; }
+.auto-redo__usd { white-space: nowrap; color: var(--accent); }
+.auto-redo__usd input {
+  width: 7ch; margin-left: 2px; padding: 2px var(--space-1);
+  background: var(--surface-2); color: var(--accent); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--text-sm);
+}

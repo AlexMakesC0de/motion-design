@@ -91,4 +91,22 @@ describe("making a film through the tools", { skip: !hasFfmpeg && "needs ffmpeg"
     assert.deepEqual(cut.structuredContent.segments.map((s) => [s.shot, s.startS]), [["s1", 0.2], ["s2", 0]]);
     assert.ok(existsSync(join(RUNS, "pier", "cut.json")));
   });
+
+  test("with auto-redo on, a redo verdict refilms the shot; the take that lands replaces it", async () => {
+    const off = await call(client, "set_auto_redo", { run: "pier", on: true });
+    assert.equal(errorOf(off).code, 1);
+    ok(await call(client, "set_auto_redo", { run: "pier", on: true, max_usd: 100 }));
+    const before = calls.create.length;
+    const r = await call(client, "save_review", { run: "pier", shot: "s2", take: "s2-take.mp4", verdict: "redo", checks: [{ check: "the pier reads", ok: false, note: "the pier melts" }] });
+    ok(r);
+    assert.equal(r.structuredContent.redo.submitted, true);
+    assert.equal(calls.create.length, before + 1);
+    assert.match(r.content[0].text, /auto-redo: refilming s2 \(redo 1 of 2\)/);
+    ok(await call(client, "wait_job", { job_id: r.structuredContent.redo.jobId }));
+    const shots = await call(client, "get_shots", { run: "pier" });
+    const s2 = shots.structuredContent.shots.find((s) => s.id === "s2");
+    assert.equal(s2.take, "s2-take-2.mp4");
+    assert.equal(s2.review, null, "the verdict was on the take before");
+    assert.equal(shots.structuredContent.production.autoRedo, true);
+  });
 });

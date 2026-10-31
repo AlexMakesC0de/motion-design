@@ -431,6 +431,8 @@ export interface BoardShot {
   filming: string[];
   failed: { jobId: string; state: JobState; error: string | null } | null;
   review: Review | null;
+  /** Takes filmed for this shot, leaving out those that failed free. */
+  tries: number;
   stills: Attempt[];
   takes: Attempt[];
 }
@@ -450,8 +452,19 @@ export interface BoardView {
     availableTodayUsd: number | null;
   };
   left: { stills: string[]; stillsUsd: number; takes: string[]; takesUsd: number };
+  production: { autoRedo: boolean; maxUsd: number | null; takesSpentUsd: number };
   queue: { kind: "stills" | "film"; waiting: string[]; maxUsd: number | null; stopped: { shot: string | null; message: string; code?: number | null } | null } | null;
   cut: { out: string; totalS: number; url: string | null; notes: string[] } | null;
+}
+
+/** What auto-redo did after a review: refilmed the shot, or held back and why. */
+export interface RedoResult {
+  submitted: boolean;
+  shot: string;
+  jobId?: string | null;
+  redo?: number;
+  estimateUsd?: number;
+  reason?: string;
 }
 
 export interface ReviewFrames {

@@ -45,6 +45,7 @@ import { filmShot, filmReady } from "./director/film.mjs";
 import { reviewShot, saveReview } from "./director/review.mjs";
 import { cutFilm } from "./director/cut.mjs";
 import { board, boardLines } from "./director/board.mjs";
+import { MAX_REDOS, afterReview, saveProduction } from "./director/redo.mjs";
 import { UNSETTLED } from "./core/jobs.mjs";
 
 const HELP = `kie -- motion-design execution layer
@@ -87,6 +88,9 @@ Director (making — spends kie credits; --dry-run plans and spends nothing, --n
   kie film       --run SLUG --max-usd U                  film every ready shot, wait, then the shots that continue from them;
                                                          refused when what is left costs more than U
   kie review     --run SLUG --shot ID [--file REVIEW.json]   frames of the take to judge, or save the verdict
+                                                         (with auto-redo on, a redo verdict refilms the shot)
+  kie auto-redo  on|off --run SLUG [--max-usd U]         refilm takes judged redo on their own: at most 2 redos a shot,
+                                                         the film's takes within U in all
   kie cut        --run SLUG [--music M] [--vo V] [--end-card E] [--out F]
                                                          the edit: trims, joins and fades into runs/SLUG/film.mp4 (free)
 
@@ -1175,13 +1179,20 @@ async function cmdFilm(catalog, args) {
   }
 }
 
-async function cmdReview(args) {
+async function cmdReview(catalog, args) {
   if (!args.run || args.shot.length !== 1) throw usage("kie review --run SLUG --shot ID [--file REVIEW.json]");
   const id = args.shot[0];
   if (args.file) {
     const saved = saveReview(args.run, id, readJsonFile(args.file));
     say(`saved ${id}: ${saved.verdict} for ${saved.take}`);
     for (const c of saved.checks) say(`  ${c.ok ? "✓" : "✗"} ${c.check}${c.note ? ` — ${c.note}` : ""}`);
+    const c = directorCtx(catalog, args);
+    const redo = await afterReview(catalog, args.run, id, saved, c);
+    if (redo && !redo.submitted) warn(`! auto-redo held back: ${redo.reason}`);
+    if (redo?.submitted) {
+      say(`auto-redo: ${redo.dryRun ? "would refilm" : "refilming"} ${id} (redo ${redo.redo} of ${MAX_REDOS}) on ${redo.model}, about $${redo.estimateUsd.toFixed(2)}`);
+      if (!redo.dryRun) await waitFor(catalog, c.store, { job: { id: redo.jobId } }, args);
+    }
     return EXIT.OK;
   }
   const r = await reviewShot(args.run, id, { store: openJobs() });
@@ -1194,6 +1205,15 @@ async function cmdReview(args) {
   for (const c of r.checks) say(`  · ${c}`);
   say(`\nSave the verdict: kie review --run ${args.run} --shot ${r.shot} --file review.json`);
   say(`  { "take": "${r.take}", "verdict": "pass|redo", "checks": [{ "check": "...", "ok": true, "note": "..." }], "bestWindow": { "startS": 0.5 } }`);
+  return EXIT.OK;
+}
+
+function cmdAutoRedo(args, positionals) {
+  const [mode] = positionals;
+  if (!args.run || !["on", "off"].includes(mode)) throw usage("kie auto-redo on --run SLUG --max-usd U   or   kie auto-redo off --run SLUG");
+  const maxUsd = args["max-usd"] == null ? undefined : Number(args["max-usd"]);
+  const p = saveProduction(args.run, { autoRedo: mode === "on", maxUsd });
+  say(p.autoRedo ? `auto-redo on for ${args.run}: a take judged redo is refilmed, up to ${MAX_REDOS} times a shot, while the film's takes stay within $${p.maxUsd.toFixed(2)} in all` : `auto-redo off for ${args.run}: redos wait for you (kie shot)`);
   return EXIT.OK;
 }
 
@@ -1365,7 +1385,9 @@ async function main(argv) {
     case "film":
       return cmdFilm(catalog, args);
     case "review":
-      return cmdReview(args);
+      return cmdReview(catalog, args);
+    case "auto-redo":
+      return cmdAutoRedo(args, positionals);
     case "cut":
       return cmdCut(args);
     case "templates":

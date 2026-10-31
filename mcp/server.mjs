@@ -45,7 +45,8 @@ const INSTRUCTIONS =
   "To make a film, direct it: agree a brief (save_brief), plan the shots from the menu (get_menu, save_plan), " +
   "and let the checker, the model picker and shot_wording do the craft; all of these are free. " +
   "Then make it only as far as the user asked: make_still for each shot (first shot first), show the storyboard (get_shots), " +
-  "film_all with the total the user agreed as max_usd, wait_job, review_shot and save_review for every take, then cut_film.";
+  "film_all with the total the user agreed as max_usd, wait_job, review_shot and save_review for every take, then cut_film. " +
+  "A take judged redo waits for the user (film_shot) unless they switched auto-redo on (set_auto_redo).";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };

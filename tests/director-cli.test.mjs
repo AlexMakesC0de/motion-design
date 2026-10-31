@@ -113,6 +113,19 @@ describe("kie shots, film, review and cut", () => {
     assert.match(r.err, /Every shot needs its still before filming: s1, s2/);
   });
 
+  test("auto-redo needs the total to switch on, and shows on the storyboard", () => {
+    let r = kie("auto-redo", "on", "--run", "sea");
+    assert.equal(r.code, 1);
+    assert.match(r.err, /Auto-redo needs max_usd/);
+    r = kie("auto-redo", "on", "--run", "sea", "--max-usd", "6");
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /auto-redo on for sea: .*up to 2 times a shot, .*within \$6\.00 in all/);
+    assert.match(kie("shots", "--run", "sea").out, /auto-redo on: up to 2 redos a shot, takes within \$6\.00 in all/);
+    r = kie("auto-redo", "off", "--run", "sea");
+    assert.equal(r.code, 0, r.err);
+    assert.doesNotMatch(kie("shots", "--run", "sea").out, /auto-redo/);
+  });
+
   test("review and cut work on takes already filmed", async () => {
     process.env.KIE_RUNS_DIR = env.KIE_RUNS_DIR;
     const { openJobs } = await import("../cli/core/jobs.mjs");

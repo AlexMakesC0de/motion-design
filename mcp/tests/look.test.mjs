@@ -16,11 +16,11 @@ const TOOLS = [
   "generate_image", "generate_video", "wait_job",
   "frames", "probe", "assemble", "variants", "caption", "render",
   "get_menu", "get_brief", "save_brief", "get_plan", "save_plan", "update_shot", "check_plan", "suggest_model", "shot_wording",
-  "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
+  "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film", "set_auto_redo",
 ];
 
 describe("the tool list", () => {
-  test("all 36 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 37 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all"]) {

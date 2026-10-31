@@ -4,7 +4,7 @@ import { RUNS_DIR, runDir } from "../lib/run.mjs";
 import { unknown, usage } from "../lib/errors.mjs";
 
 /** The director's files in a film folder. Anything else is refused. */
-export const FILM_FILES = ["brief.json", "shots.json", "reviews.json", "cut.json"];
+export const FILM_FILES = ["brief.json", "shots.json", "reviews.json", "cut.json", "production.json"];
 
 const linked = (film, what) => unknown(`runs/${film}${what} is a link; the director only writes plain files in a film.`);
 

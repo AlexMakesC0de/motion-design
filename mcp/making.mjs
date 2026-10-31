@@ -9,6 +9,7 @@ import { filmShot, filmReady } from "../cli/director/film.mjs";
 import { reviewShot, saveReview } from "../cli/director/review.mjs";
 import { cutFilm } from "../cli/director/cut.mjs";
 import { board, boardLines } from "../cli/director/board.mjs";
+import { MAX_REDOS, afterReview, saveProduction } from "../cli/director/redo.mjs";
 import { imagePreview } from "./preview.mjs";
 import { ok } from "./results.mjs";
 
@@ -69,7 +70,7 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       description:
         "The storyboard: each shot's still and take in use, every attempt, takes being filmed or failed, the review of the take in use, and the last cut. Free.",
       inputSchema: { run },
-      outputSchema: { film: z.string(), brief: Data.nullable(), plan: Data.nullable(), shots: z.array(Data), cut: Data.nullable() },
+      outputSchema: { film: z.string(), brief: Data.nullable(), plan: Data.nullable(), shots: z.array(Data), production: Data, cut: Data.nullable() },
       annotations: LOOK,
     },
     async (a) => {
@@ -205,7 +206,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
     {
       title: "Save a review",
       description:
-        "Record the verdict on the take a shot uses: pass or redo, every check judged with a note on what failed, and optionally the best window to keep (bestWindow.startS, used by the cut). Free.",
+        "Record the verdict on the take a shot uses: pass or redo, every check judged with a note on what failed, and optionally the best window to keep (bestWindow.startS, used by the cut). Free, " +
+        "unless the film has auto-redo on: then a redo verdict refilms the shot at once (spends kie credits), at most twice a shot and within the total the user set; then wait_job.",
       inputSchema: {
         run,
         shot,
@@ -214,8 +216,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
         checks: z.array(z.object({ check: z.string(), ok: z.boolean(), note: z.string().optional() })),
         best_window_start_s: z.number().min(0).optional(),
       },
-      outputSchema: { take: z.string(), verdict: z.string(), checks: z.array(Data), bestWindow: Data.optional(), at: z.string() },
-      annotations: LOCAL_WRITE,
+      outputSchema: { take: z.string(), verdict: z.string(), checks: z.array(Data), bestWindow: Data.optional(), at: z.string(), redo: Data.nullable() },
+      annotations: SPEND,
     },
     async (a) => {
       const saved = saveReview(a.run, a.shot, {
@@ -224,7 +226,28 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
         checks: a.checks,
         ...(a.best_window_start_s != null ? { bestWindow: { startS: a.best_window_start_s } } : {}),
       });
-      return ok(`${a.shot}: ${saved.verdict} for ${saved.take}`, saved);
+      const redo = await afterReview(catalog, a.run, a.shot, saved, making(a));
+      const lines = [`${a.shot}: ${saved.verdict} for ${saved.take}`];
+      if (redo?.submitted) lines.push(`auto-redo: refilming ${a.shot} (redo ${redo.redo} of ${MAX_REDOS}) as ${redo.jobId} on ${redo.model}, about $${redo.estimateUsd.toFixed(2)}. Call wait_job with job_id "${redo.jobId}", then review it.`);
+      else if (redo) lines.push(`auto-redo held back: ${redo.reason}`);
+      return ok(lines.join("\n"), { ...saved, redo });
+    },
+  );
+
+  tool(
+    "set_auto_redo",
+    {
+      title: "Auto-redo",
+      description:
+        "Switch auto-redo on or off for a film. On: a take judged redo (save_review) is refilmed at once, at most twice a shot, while the film's takes stay within max_usd in all (first takes and redos together). " +
+        "Only when the user asked for it and named the total. Free itself.",
+      inputSchema: { run, on: z.boolean(), max_usd: z.number().positive().optional().describe("The most this film's takes may cost in all, redos included. Required to switch on.") },
+      outputSchema: { autoRedo: z.boolean(), maxUsd: z.number().nullable() },
+      annotations: LOCAL_WRITE,
+    },
+    async (a) => {
+      const p = saveProduction(a.run, { autoRedo: a.on, maxUsd: a.max_usd });
+      return ok(p.autoRedo ? `auto-redo on for ${a.run}: up to ${MAX_REDOS} redos a shot, takes within $${p.maxUsd.toFixed(2)} in all` : `auto-redo off for ${a.run}`, p);
     },
   );
 

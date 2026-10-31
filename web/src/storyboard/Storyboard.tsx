@@ -83,6 +83,69 @@ function BriefCard({ board, menu }: { board: BoardView; menu: DirectorMenu | nul
 }
 
 /**
+ * Auto-redo for this film: off, or on with the total its takes may cost,
+ * first takes and redos together. Switching on asks for that total first.
+ */
+function AutoRedo({ film, board, apply }: { film: string; board: BoardView; apply: (b: BoardView) => void }) {
+  const p = board.production;
+  const [asking, setAsking] = useState(false);
+  const [total, setTotal] = useState(() => String(Math.max(1, Math.ceil(board.cost.filmUsd * 1.5))));
+  const [failure, setFailure] = useState<string | null>(null);
+  async function save(on: boolean) {
+    setFailure(null);
+    try {
+      apply(await api<BoardView>(`/api/films/${encodeURIComponent(film)}/production`, { method: "PUT", body: on ? { auto_redo: true, max_usd: Number(total) } : { auto_redo: false } }));
+      setAsking(false);
+    } catch (e) {
+      setFailure(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+  if (p.autoRedo) {
+    return (
+      <span className="auto-redo">
+        <span>
+          Auto-redo on · takes <span className="mono">{usd(p.takesSpentUsd)}</span> of <span className="mono">{usd(p.maxUsd ?? 0)}</span>
+        </span>
+        <button type="button" className="button button--quiet" onClick={() => save(false)}>
+          Turn off
+        </button>
+        {failure && <span className="go__bad">{failure}</span>}
+      </span>
+    );
+  }
+  if (!asking) {
+    return (
+      <button type="button" className="button button--quiet" onClick={() => setAsking(true)}>
+        Auto-redo off
+      </button>
+    );
+  }
+  return (
+    <form
+      className="auto-redo"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save(true);
+      }}
+    >
+      <label>
+        A take judged redo is filmed again, twice at most, while all the takes stay within{" "}
+        <span className="auto-redo__usd">
+          $<input className="mono" type="number" min={0.5} step={0.5} value={total} onChange={(e) => setTotal(e.target.value)} aria-label="Most the takes may cost, in dollars" />
+        </span>
+      </label>
+      <button type="submit" className="button" disabled={!(Number(total) > 0)}>
+        Turn on
+      </button>
+      <button type="button" className="button button--quiet" onClick={() => setAsking(false)}>
+        Cancel
+      </button>
+      {failure && <span className="go__bad">{failure}</span>}
+    </form>
+  );
+}
+
+/**
  * The storyboard (layout A): the brief, a timeline with each shot as wide as
  * it is long, the still strip, the inspector for the chosen shot, and the
  * buttons that spend: stills (cents each) and Film all, which asks once more
@@ -210,6 +273,7 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
           </p>
         )}
         <div className="go__actions">
+          <AutoRedo film={film} board={board} apply={apply} />
           {left.stills.length > 0 && (
             <button type="button" className="button" disabled={busy || blocked || working} onClick={() => act(`${base}/stills`, {})}>
               Make {plural(left.stills.length, "still")} <span className="mono">{usd(left.stillsUsd)}</span>

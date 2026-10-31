@@ -12,7 +12,7 @@ import { shotFit } from "./fit.mjs";
 import { shotWording } from "./wording.mjs";
 import { shotMedia } from "./media.mjs";
 import { soundShot } from "./still.mjs";
-import { readPlan } from "./plan.mjs";
+import { readPlan, updateShot } from "./plan.mjs";
 
 const money = (usd) => `$${usd.toFixed(2)}`;
 
@@ -73,6 +73,14 @@ export async function filmShot(catalog, film, shotId, ctx) {
     await writeRecord(dir, `${shot.id}-take-prompt.txt`, wording.prompt);
   } catch (err) {
     result.notes.push(`The take is submitted, but ${shot.id}-take-prompt.txt was not written (${err.message}).`);
+  }
+  // A take somebody chose would outrank the new one; filming again means the new one is wanted.
+  if (shot.take) {
+    try {
+      updateShot(catalog, film, shot.id, { take: null }, { assets, menu });
+    } catch (err) {
+      result.notes.push(`${shot.id} still uses ${shot.take}; pick the new take once it lands (${err.message}).`);
+    }
   }
   return result;
 }

@@ -158,4 +158,31 @@ describe("the storyboard API", { skip: !hasFfmpeg && "needs ffmpeg" }, () => {
     r = await send("POST", "/api/films/pier/shots/s1/use", { still: null });
     assert.equal(r.json.shots[0].still, "s1-still.png");
   });
+
+  test("with auto-redo on, a redo verdict films the shot again and the new take is followed in", async () => {
+    let r = await send("PUT", "/api/films/pier/production", { auto_redo: true });
+    assert.equal(r.status, 400);
+    assert.match(r.text, /Auto-redo needs max_usd/);
+    r = await send("PUT", "/api/films/pier/production", { auto_redo: true, max_usd: 50 });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.production.autoRedo, true);
+    assert.ok(r.json.production.takesSpentUsd > 0);
+
+    const before = calls.create.length;
+    r = await send("PUT", "/api/films/pier/shots/s1/review", { review: { take: "s1-take.mp4", verdict: "redo", checks: [{ check: "the pier reads", ok: false, note: "still melts" }] } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.redo.submitted, true);
+    assert.equal(r.json.redo.redo, 1);
+    await settle();
+    assert.equal(calls.create.length, before + 1);
+    const b = (await get("/api/films/pier/board")).json;
+    assert.equal(b.shots[0].take, "s1-take-2.mp4");
+    assert.equal(b.shots[0].tries, 2);
+    assert.equal(b.shots[0].review, null);
+
+    r = await send("PUT", "/api/films/pier/production", { auto_redo: false });
+    assert.equal(r.json.production.autoRedo, false);
+    r = await send("PUT", "/api/films/pier/shots/s1/review", { review: { take: "s1-take-2.mp4", verdict: "redo", checks: [{ check: "the pier reads", ok: false }] } });
+    assert.equal(r.json.redo, null, "off: the redo waits for Alex");
+  });
 });

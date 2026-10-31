@@ -37,7 +37,7 @@ const planShot = (id: string, over: Partial<Shot> = {}): Shot => ({
 });
 const boardShot = (id: string, over: Partial<BoardShot> = {}): BoardShot => ({
   id, durationS: 4, continuesFrom: null, still: null, stillUrl: null, stillStale: false, take: null, takeUrl: null,
-  filming: [], failed: null, review: null, stills: [], takes: [], ...over,
+  filming: [], failed: null, review: null, tries: 0, stills: [], takes: [], ...over,
 });
 const board = (over: Partial<BoardView> = {}): BoardView => ({
   film: "zed",
@@ -53,6 +53,7 @@ const board = (over: Partial<BoardView> = {}): BoardView => ({
     stillsUsd: 0.08, filmUsd: 1.4, totalUsd: 1.48, complete: true, availableTodayUsd: 10,
   },
   left: { stills: ["s1", "s2"], stillsUsd: 0.08, takes: ["s1", "s2"], takesUsd: 1.404 },
+  production: { autoRedo: false, maxUsd: null, takesSpentUsd: 0 },
   queue: null,
   cut: null,
   ...over,
@@ -150,7 +151,7 @@ describe("Storyboard", () => {
     });
     stub({
       "/api/films/zed/shots/s1/review": (init) =>
-        init?.method === "PUT" ? taken : { shot: "s1", take: "s1-take.mp4", durationS: 5, checks: ["Zed reads"], sheetUrl: "/sheet.png", firstUrl: "/f.png", lastUrl: "/l.png" },
+        init?.method === "PUT" ? { ...taken, redo: { submitted: false, shot: "s1", reason: "Auto-redo is off for zed." } } : { shot: "s1", take: "s1-take.mp4", durationS: 5, checks: ["Zed reads"], sheetUrl: "/sheet.png", firstUrl: "/f.png", lastUrl: "/l.png" },
     });
     render(<Storyboard film="zed" board={taken} error={null} apply={apply} onPlan={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
@@ -163,6 +164,23 @@ describe("Storyboard", () => {
     expect(sent("/api/films/zed/shots/s1/review", "PUT")[0].body).toEqual({
       review: { take: "s1-take.mp4", verdict: "redo", checks: [{ check: "Zed reads", ok: false, note: "face melts at 2s" }] },
     });
+    expect(await screen.findByRole("status")).toHaveTextContent("Auto-redo held back: Auto-redo is off for zed.");
+  });
+
+  test("auto-redo asks for the total the takes may cost before it switches on", async () => {
+    const apply = vi.fn();
+    const on = board({ production: { autoRedo: true, maxUsd: 3, takesSpentUsd: 0.7 } });
+    stub({ "/api/films/zed/production": () => on });
+    const { rerender } = render(<Storyboard film="zed" board={board()} error={null} apply={apply} onPlan={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Auto-redo off" }));
+    const total = screen.getByRole("spinbutton", { name: "Most the takes may cost, in dollars" });
+    expect(total).toHaveValue(3); // the film's takes ($1.40) × 1.5, rounded up
+    fireEvent.change(total, { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Turn on" }));
+    await waitFor(() => expect(apply).toHaveBeenCalledWith(on));
+    expect(sent("/api/films/zed/production", "PUT")[0].body).toEqual({ auto_redo: true, max_usd: 4 });
+    rerender(<Storyboard film="zed" board={on} error={null} apply={apply} onPlan={() => {}} />);
+    expect(screen.getByText(/Auto-redo on · takes/)).toHaveTextContent("Auto-redo on · takes $0.70 of $3.00");
   });
 
   test("filming one shot asks first, with its price", async () => {

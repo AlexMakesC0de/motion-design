@@ -17,6 +17,7 @@ import { costPlan } from "../../../cli/director/cost.mjs";
 import { makeStill } from "../../../cli/director/still.mjs";
 import { filmShot, filmReady } from "../../../cli/director/film.mjs";
 import { reviewShot, saveReview } from "../../../cli/director/review.mjs";
+import { afterReview, saveProduction, takesSpentUsd } from "../../../cli/director/redo.mjs";
 import { cutFilm } from "../../../cli/director/cut.mjs";
 import { board } from "../../../cli/director/board.mjs";
 import { context, jobView } from "../state.mjs";
@@ -82,6 +83,7 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
         takes: takesLeft.map((s) => s.id),
         takesUsd: r2(takesLeft.reduce((t, s) => t + (costOf(s.id).takeUsd ?? 0), 0)),
       },
+      production: { ...b.production, takesSpentUsd: takesSpentUsd(store, film) },
       queue: q ? { kind: q.stills ? "stills" : "film", waiting: q.stills ?? [], maxUsd: q.film?.maxUsd ?? null, stopped: q.stopped ?? null } : null,
       cut: b.cut ? { ...b.cut, url: url(b.cut.out) } : null,
     };
@@ -232,8 +234,20 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
     const r = await reviewShot(params.slug, params.id, { store: context().store });
     return { ...r, sheetUrl: mediaUrl(r.sheet), firstUrl: mediaUrl(r.first), lastUrl: mediaUrl(r.last) };
   });
-  router.put("/api/films/:slug/shots/:id/review", ({ params, body = {} }) => {
-    saveReview(params.slug, params.id, body.review, { take: body.review?.take });
+  /** Save a verdict; with auto-redo on, a redo refilms the shot within the film's limits (one at a time per film). */
+  router.put("/api/films/:slug/shots/:id/review", ({ params, body = {} }) =>
+    serial(params.slug, async () => {
+      const saved = saveReview(params.slug, params.id, body.review, { take: body.review?.take });
+      const redo = await afterReview(catalog, params.slug, params.id, saved, making());
+      if (redo?.submitted && redo.jobId) follower.follow(redo.jobId);
+      return { ...view(params.slug), redo };
+    }),
+  );
+
+  /** Auto-redo on (with the total the film's takes may cost) or off. */
+  router.put("/api/films/:slug/production", ({ params, body = {} }) => {
+    const maxUsd = body.max_usd == null ? undefined : Number(body.max_usd);
+    saveProduction(params.slug, { autoRedo: body.auto_redo, maxUsd });
     return view(params.slug);
   });
 

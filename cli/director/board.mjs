@@ -5,6 +5,7 @@ import { readPlan } from "./plan.mjs";
 import { shotMedia } from "./media.mjs";
 import { readReviews } from "./review.mjs";
 import { readFilmJson } from "./files.mjs";
+import { readProduction } from "./redo.mjs";
 
 /**
  * The storyboard: for each shot the still and take it uses, every attempt,
@@ -15,7 +16,8 @@ import { readFilmJson } from "./files.mjs";
 export function board(store, film, { assets = [], menu = loadMenu() } = {}) {
   const plan = readPlan(film);
   const brief = readBrief(film);
-  if (!plan) return { film, brief, plan: null, shots: [], cut: readFilmJson(film, "cut.json", { ifInvalid: null }) ?? null };
+  const production = readProduction(film);
+  if (!plan) return { film, brief, plan: null, shots: [], production, cut: readFilmJson(film, "cut.json", { ifInvalid: null }) ?? null };
   const media = shotMedia(store, film, plan, { assets, brief, menu });
   const reviews = readReviews(film);
   const shots = plan.shots.map((s, i) => {
@@ -33,11 +35,12 @@ export function board(store, film, { assets = [], menu = loadMenu() } = {}) {
       filming: m.takes.filter((t) => UNSETTLED.has(t.state)).map((t) => t.jobId),
       failed: !m.take && lastTake && !UNSETTLED.has(lastTake.state) && lastTake.state !== "succeeded" ? { jobId: lastTake.jobId, state: lastTake.state, error: lastTake.error } : null,
       review,
+      tries: m.takes.filter((t) => t.state !== "failed-confirmed-free").length,
       stills: m.stills,
       takes: m.takes,
     };
   });
-  return { film, brief, plan, shots, cut: readFilmJson(film, "cut.json", { ifInvalid: null }) ?? null };
+  return { film, brief, plan, shots, production, cut: readFilmJson(film, "cut.json", { ifInvalid: null }) ?? null };
 }
 
 /** One line per shot: its still, its take and the verdict on it. */
@@ -50,6 +53,7 @@ export function boardLines(b) {
     const review = s.review ? `${s.review.verdict}${s.review.checks.some((c) => !c.ok) ? ` · ${s.review.checks.filter((c) => !c.ok).map((c) => c.note ?? c.check).join("; ")}` : ""}` : s.take ? "not reviewed" : "";
     lines.push(`${s.id}  ${s.durationS}s  ${still} · ${take}${review ? ` · ${review}` : ""}`);
   }
+  if (b.production?.autoRedo) lines.push("", `auto-redo on: up to 2 redos a shot, takes within $${b.production.maxUsd.toFixed(2)} in all`);
   if (b.cut) lines.push("", `cut: ${b.cut.out} · ${b.cut.totalS}s`);
   return lines;
 }
