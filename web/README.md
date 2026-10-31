@@ -11,6 +11,24 @@ This builds the page if needed, starts a server on http://127.0.0.1:4317 (or the
 
 If you stop the server, the open page shows a banner and reconnects by itself when you start it again.
 
+## Chat
+
+The panel on the right of Studio is an assistant that uses the same tools as Claude Code and Codex: it can price a shot, generate it, wait for it and finish the film. Jobs it starts appear in the feed like any other.
+
+Connect it once, in the panel or in Settings:
+
+- **ChatGPT subscription:** install Codex (`npm install -g @openai/codex`) and run `codex login`. The studio runs Codex in the background; messages count against your ChatGPT plan, not an API bill.
+- **OpenAI API key:** paste the key in Settings, or set `OPENAI_API_KEY` before `npm run studio`. A pasted key is saved in `~/.config/kie/openai.key`, readable only by you, and the page only ever shows that a key is saved. Pick the model from the list your key can use. Each message is billed to that OpenAI account.
+
+The chat also needs the MCP server's packages: `npm --prefix mcp install` (once).
+
+What to expect:
+
+- It does not ask before spending. Your per-job limit and daily cap still apply to every job; when one refuses, the chat says so and stops.
+- One message runs at most 24 tool calls. **Stop** ends a reply at once.
+- Each film keeps its own conversation in `runs/<film>/chat.jsonl`, so reopening a film brings it back.
+- Through Codex, the chat sees only the motion-design tools. Codex's other tool servers, its shell, web search, browser and plugins are switched off, and it cannot change files. Nothing in `~/.codex/config.toml` is edited.
+
 ## Why it is safe to leave running
 
 - It listens on 127.0.0.1 only and refuses requests addressed to any other host name.
@@ -19,7 +37,7 @@ If you stop the server, the open page shows a banner and reconnects by itself wh
 
 ## Layout
 
-- `server/`: `node:http` server, no dependencies. `api/*.mjs` call `cli/core`.
+- `server/`: `node:http` server, no dependencies. `api/*.mjs` call `cli/core`. `chat/` runs the chat: `openai.mjs` (API key), `codex.mjs` (subscription, with the protocol types in `codex-protocol/`) and `transcript.mjs` (one message format for both).
 - `src/`: React page, built with Vite into `dist/`.
 - `tests/`: server tests (`node --test`). Page tests sit next to their components (`vitest`).
 
