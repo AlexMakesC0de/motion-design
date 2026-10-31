@@ -5,6 +5,8 @@ import { onStudioEvent } from "../app/useStudio";
 import { shotSpec, takeCost } from "../studio/format";
 import { FinishPanel } from "./FinishPanel";
 
+/** A prompt longer than this starts folded to three lines. */
+const PROMPT_FOLD_CHARS = 280;
 const OUTPUT_LABEL = { film: "Film", captioned: "Captioned", variant: "Variant", card: "Text card" } as const;
 
 const isShot = (f: FilmFile) => f.kind === "video" && f.origin === "take";
@@ -43,6 +45,7 @@ export function FilmPage({ slug }: { slug: string }) {
   const [detail, setDetail] = useState<FilmDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
+  const [fullPrompt, setFullPrompt] = useState(false);
 
   const load = useCallback(
     () =>
@@ -67,6 +70,8 @@ export function FilmPage({ slug }: { slug: string }) {
   const byName = new Map((detail?.files ?? []).map((f) => [f.name, f]));
   const outputs = (detail?.files ?? []).filter(isOutput).reverse();
   const chosen = shots.filter((s) => s.on).length;
+  // Prompts for long takes run to pages; fold them so the shots and Finish stay on the first screen.
+  const long = (detail?.prompt?.length ?? 0) > PROMPT_FOLD_CHARS;
 
   return (
     <div className="film">
@@ -75,7 +80,18 @@ export function FilmPage({ slug }: { slug: string }) {
           All films
         </a>
         <h1 className="mono">{slug}</h1>
-        {detail?.prompt && <p className="film__prompt">{detail.prompt}</p>}
+        {detail?.prompt && (
+          <>
+            <p id="film-prompt" className="film__prompt" data-folded={long && !fullPrompt}>
+              {detail.prompt}
+            </p>
+            {long && (
+              <button type="button" className="film__more" aria-expanded={fullPrompt} aria-controls="film-prompt" onClick={() => setFullPrompt((v) => !v)}>
+                {fullPrompt ? "Fold the prompt" : "Show the whole prompt"}
+              </button>
+            )}
+          </>
+        )}
       </header>
 
       {error && (

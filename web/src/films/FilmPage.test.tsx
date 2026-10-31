@@ -38,6 +38,17 @@ describe("FilmPage", () => {
     expect(screen.getByText("1 of 2 shots chosen")).toBeInTheDocument();
   });
 
+  test("a long prompt starts folded, and Show the whole prompt opens it", async () => {
+    const prompt = "A slow push in on the laptop. ".repeat(40);
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/zed": () => ({ ...film(), prompt }) })));
+    render(<FilmPage slug="zed" />);
+    const show = await screen.findByRole("button", { name: "Show the whole prompt" });
+    expect(document.querySelector(".film__prompt")).toHaveAttribute("data-folded", "true");
+    fireEvent.click(show);
+    expect(document.querySelector(".film__prompt")).toHaveAttribute("data-folded", "false");
+    expect(screen.getByRole("button", { name: "Fold the prompt" })).toHaveAttribute("aria-expanded", "true");
+  });
+
   test("Assemble takes the chosen shots in the order shown", async () => {
     const fetch = vi.fn(
       routes({

@@ -187,6 +187,9 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
   const allTaken = shots.every((s) => s.take);
   const blocked = check.errors.length > 0;
   const working = Boolean(queue && !queue.stopped);
+  const needStills = left.takes.length > 0 && left.stills.length > 0;
+  // Findings with no shot, or a shot no longer in the plan, are about the film as a whole; the inspector shows the rest.
+  const filmWide = [...check.errors.map((f) => ({ ...f, tone: "bad" })), ...check.warnings.map((f) => ({ ...f, tone: "warn" }))].filter((f) => !shots.some((s) => s.id === f.shot));
 
   async function act(path: string, body: unknown, after?: (r: any) => void) {
     setBusy(true);
@@ -209,6 +212,15 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
   return (
     <section className="board" aria-label="Storyboard" style={frame ? ({ "--frame": frame } as CSSProperties) : undefined}>
       {board.brief && <BriefCard board={board} menu={menu} />}
+      {filmWide.length > 0 && (
+        <ul className="board__findings" aria-label="About the whole film">
+          {filmWide.map((f) => (
+            <li key={`${f.rule}-${f.message}`} data-tone={f.tone}>
+              {f.message}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="timeline" role="group" aria-label={`Timeline, ${total}s`}>
         {shots.map((s) => (
@@ -260,6 +272,12 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
           {plural(shots.filter((s) => s.still).length, "still")} of {shots.filter((s) => !s.continuesFrom).length} · {plural(shots.filter((s) => s.take).length, "take")} of {shots.length} · {total}s of {board.brief?.durationS ?? "?"}s
           {check.errors.length > 0 && <span className="go__bad"> · {plural(check.errors.length, "error")}, fix in the inspector or the chat</span>}
           {check.warnings.length > 0 && <span className="go__warn"> · {plural(check.warnings.length, "warning")}</span>}
+          {needStills && (
+            <>
+              {" · "}
+              <span id="film-all-why">Every shot needs its still first.</span>
+            </>
+          )}
         </p>
         {queue?.stopped && (
           <p className="go__stopped" role="alert">
@@ -308,7 +326,7 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
                 </button>
               </span>
             ) : (
-              <button type="button" className="generate" disabled={busy || blocked || working || left.stills.length > 0} onClick={() => setConfirming(true)} title={left.stills.length ? "Every shot needs its still first." : undefined}>
+              <button type="button" className="generate" disabled={busy || blocked || working || needStills} onClick={() => setConfirming(true)} aria-describedby={needStills ? "film-all-why" : undefined}>
                 Film all {left.takes.length} <span className="mono">{usd(left.takesUsd)}</span>
               </button>
             ))}

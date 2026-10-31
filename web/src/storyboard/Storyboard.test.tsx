@@ -143,6 +143,23 @@ describe("Storyboard", () => {
     expect(screen.getByText(/1 error, fix in the inspector or the chat/)).toBeInTheDocument();
   });
 
+  test("what the checker says about the whole film is spelled out, not only counted", () => {
+    const check = { errors: [], warnings: [{ shot: null, rule: "no-wide", message: "No wide shot: a live-action film usually establishes the place before going close." }] };
+    render(<Storyboard film="zed" board={board({ check })} error={null} apply={() => {}} onPlan={() => {}} />);
+    const list = screen.getByRole("list", { name: "About the whole film" });
+    expect(within(list).getByText(/^No wide shot/)).toBeInTheDocument();
+  });
+
+  test("a shot with no still says why it cannot be filmed yet", () => {
+    const { rerender } = render(<Storyboard film="zed" board={board()} error={null} apply={() => {}} onPlan={() => {}} />);
+    expect(screen.getByRole("button", { name: /^Film this shot/ })).toBeDisabled();
+    expect(screen.getByText("Make the still first: the take starts from it.")).toBeInTheDocument();
+    expect(screen.getByText("Every shot needs its still first.")).toBeInTheDocument();
+    rerender(<Storyboard film="zed" board={withStills()} error={null} apply={() => {}} onPlan={() => {}} />);
+    expect(screen.queryByText("Make the still first: the take starts from it.")).toBeNull();
+    expect(screen.queryByText("Every shot needs its still first.")).toBeNull();
+  });
+
   test("the inspector saves only what changed", async () => {
     const apply = vi.fn();
     stub({ "/api/films/zed/shots/s2": () => board() });

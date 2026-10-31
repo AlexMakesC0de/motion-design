@@ -287,6 +287,7 @@ export function Inspector({ film, board, shot, menu, apply }: { film: string; bo
               </button>
             ))}
         </div>
+        {!shot.still && !shot.continuesFrom && !shot.take && <p className="inspector__hint">Make the still first: the take starts from it.</p>}
         {redo && (
           <p className={redo.submitted ? "inspector__hint" : "inspector__error"} role="status">
             {redo.submitted ? `Auto-redo: filming ${shot.id} again (redo ${redo.redo} of 2), about ${usd(redo.estimateUsd ?? 0)}.` : `Auto-redo held back: ${redo.reason}`}
