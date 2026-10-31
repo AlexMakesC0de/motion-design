@@ -18,6 +18,13 @@ export const CHAT_FILE = "chat.jsonl";
 export const MAX_STEPS = 24;
 const KINDS = new Set(["user", "assistant", "tool", "notice"]);
 
+/**
+ * The MCP tools that can reserve and submit a paid job (annotated open-world,
+ * not read-only, not idempotent). Cut off mid-call, one may have submitted.
+ */
+export const SPENDING_TOOLS = new Set(["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "save_review"]);
+export const STOPPED_SPENDING = "stopped; it may still have been submitted, see the feed";
+
 /** A chat failure with one sentence for the page. `connect` means: show the two connection options. */
 export class ChatError extends Error {
   constructor(message, { connect = false } = {}) {
@@ -258,7 +265,8 @@ export function createTurnLog(onEntry) {
         }
         if (e.kind === "tool" && e.state === "running") {
           e.state = "failed";
-          e.result = "stopped before it finished";
+          // A free tool never submits; a spending one may have got past the point Stop can reach.
+          e.result = SPENDING_TOOLS.has(e.name) ? STOPPED_SPENDING : "stopped before it finished";
           onEntry(e);
         }
       }

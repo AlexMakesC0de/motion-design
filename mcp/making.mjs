@@ -12,6 +12,7 @@ import { board, boardLines } from "../cli/director/board.mjs";
 import { MAX_REDOS, afterReview, saveProduction } from "../cli/director/redo.mjs";
 import { imagePreview } from "./preview.mjs";
 import { ok } from "./results.mjs";
+import { stoppable } from "./stop.mjs";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -23,13 +24,17 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
   const dryRun = z.boolean().optional().describe("Plan the job and its price; submit nothing, spend nothing.");
   const Data = z.record(z.string(), z.unknown());
 
-  /** The making context for one call: the store, limits, Library and uploads, with the server's stubs in tests. */
-  const making = (a) => {
+  /**
+   * The making context for one call: the store, limits, Library and uploads,
+   * with the server's stubs in tests. `extra.signal` (the call cancelled)
+   * stops core before it reserves and submits.
+   */
+  const making = (a, extra = {}) => {
     const c = ctx();
     return {
       ...c,
       upload: deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts)),
-      deps: deps.generate,
+      deps: stoppable(deps.generate, extra.signal),
       via: "mcp",
       dryRun: a.dry_run ?? false,
     };
@@ -91,8 +96,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       outputSchema: Submitted,
       annotations: SPEND,
     },
-    async (a) => {
-      const r = await makeSheet(catalog, a.run, a.asset, { ...making(a), model: a.model });
+    async (a, extra) => {
+      const r = await makeSheet(catalog, a.run, a.asset, { ...making(a, extra), model: a.model });
       return submitted(r, `${r.asset}'s sheet`, { asset: r.asset, prompt: r.prompt });
     },
   );
@@ -125,8 +130,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       outputSchema: Submitted,
       annotations: SPEND,
     },
-    async (a) => {
-      const r = await makeStill(catalog, a.run, a.shot, making(a));
+    async (a, extra) => {
+      const r = await makeStill(catalog, a.run, a.shot, making(a, extra));
       return submitted(r, `${r.shot}'s still`, { shot: r.shot, prompt: r.prompt, style: r.style });
     },
   );
@@ -142,8 +147,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       outputSchema: Submitted,
       annotations: SPEND,
     },
-    async (a) => {
-      const r = await filmShot(catalog, a.run, a.shot, making(a));
+    async (a, extra) => {
+      const r = await filmShot(catalog, a.run, a.shot, making(a, extra));
       return submitted(r, `${r.shot}'s take (${r.generatedS}s)`, { shot: r.shot, prompt: r.prompt, params: r.params, generatedS: r.generatedS, firstFrame: r.firstFrame });
     },
   );
@@ -168,8 +173,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       },
       annotations: SPEND,
     },
-    async (a) => {
-      const r = await filmReady(catalog, a.run, { ...making(a), maxUsd: a.max_usd });
+    async (a, extra) => {
+      const r = await filmReady(catalog, a.run, { ...making(a, extra), maxUsd: a.max_usd });
       const lines = [
         ...r.submitted.map((s) => `${s.shot}: ${r.dryRun ? "would film" : `filming ${s.jobId}`} on ${s.model}, ${s.generatedS}s, about $${s.estimateUsd.toFixed(2)}`),
         ...(r.filming.length ? [`filming: ${r.filming.join(", ")}`] : []),
@@ -219,14 +224,14 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       outputSchema: { take: z.string(), verdict: z.string(), checks: z.array(Data), bestWindow: Data.optional(), at: z.string(), redo: Data.nullable() },
       annotations: SPEND,
     },
-    async (a) => {
+    async (a, extra) => {
       const saved = saveReview(a.run, a.shot, {
         take: a.take,
         verdict: a.verdict,
         checks: a.checks,
         ...(a.best_window_start_s != null ? { bestWindow: { startS: a.best_window_start_s } } : {}),
       });
-      const redo = await afterReview(catalog, a.run, a.shot, saved, making(a));
+      const redo = await afterReview(catalog, a.run, a.shot, saved, making(a, extra));
       const lines = [`${a.shot}: ${saved.verdict} for ${saved.take}`];
       if (redo?.submitted) lines.push(`auto-redo: refilming ${a.shot} (redo ${redo.redo} of ${MAX_REDOS}) as ${redo.jobId} on ${redo.model}, about $${redo.estimateUsd.toFixed(2)}. Call wait_job with job_id "${redo.jobId}", then review it.`);
       else if (redo) lines.push(`auto-redo held back: ${redo.reason}`);

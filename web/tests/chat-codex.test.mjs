@@ -362,6 +362,18 @@ describe("a Codex turn", () => {
     assert.match(entries[2].text, /^I can't tell whether generate_video went through \(socket hang up\).*Check the feed/);
   });
 
+  test("a spending tool Codex itself gave up on (a timeout, no result) is uncertain; a free one is just failed", async () => {
+    const args = { run: "cx-cut", prompt: "A paper fox.", model: "seedance-2-5" };
+    const cut = (id, tool) => ({ notify: "item/completed", params: { ...ids, item: { type: "mcpToolCall", id, server: "motion-design", tool, status: "failed", arguments: args, result: null, error: { message: "tool call timed out after 300s" } } } });
+    const { backend, sent } = fakeCodex({ turn: [toolCall("t6", "list_runs", {}), cut("t6", "list_runs"), toolCall("t7", "generate_video", args), cut("t7", "generate_video"), { waitFor: "turn/interrupt" }, completed("interrupted")] });
+    const chat = chatWith(backend);
+    await chat.send("cx-cut", "Make it.");
+    await chat.idle("cx-cut");
+    assert.equal(sent("turn/interrupt").length, 1);
+    assert.deepEqual(lines("cx-cut").slice(1, 3), ["list_runs  → failed: tool call timed out after 300s", "generate_video seedance-2-5 \"A paper fox.\" → uncertain: still checking, do not resubmit"]);
+    assert.match(lines("cx-cut").at(-1), /^assistant: I can't tell whether generate_video went through \(tool call timed out after 300s\)/);
+  });
+
   test("a new thread's recap keeps the tool steps, so a job started earlier is not forgotten", () => {
     const entries = [{ id: "u", kind: "user", text: "Make it." }, { id: "t", kind: "tool", name: "generate_video", args: "seedance-2-5", state: "failed", result: "uncertain: still checking, do not resubmit", jobs: ["j-20261031-0a0b0c"] }];
     assert.match(codex.recap(entries), /You: \[tool step\] generate_video seedance-2-5 → failed: .*\(job j-20261031-0a0b0c\)/);

@@ -32,6 +32,7 @@ import { ok, fail } from "./results.mjs";
 import { artifactPreview, imagePreview } from "./preview.mjs";
 import { registerDirector } from "./director.mjs";
 import { registerMaking } from "./making.mjs";
+import { stoppable } from "./stop.mjs";
 
 const VERSION = "0.1.0";
 
@@ -111,10 +112,11 @@ const assetView = (a) => ({
 export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   const server = new McpServer({ name: "motion-design", version: VERSION }, { instructions: INSTRUCTIONS });
 
+  // `extra` carries the call's signal, aborted when the client cancels it: spending tools pass it to stoppable().
   const tool = (name, config, fn) =>
-    server.registerTool(name, config, async (args) => {
+    server.registerTool(name, config, async (args, extra) => {
       try {
-        return await fn(args ?? {});
+        return await fn(args ?? {}, extra ?? {});
       } catch (err) {
         return fail(err);
       }
@@ -462,8 +464,8 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
       provider: z.string().optional().describe("Only this provider (e.g. kie)."),
     };
 
-    /** Expand refs, record the inputs, then reserve and submit through the core. */
-    async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {} }) {
+    /** Expand refs, record the inputs, then reserve and submit through the core (not once `signal` is aborted). */
+    async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {}, signal }) {
       const dir = runDir(a.run);
       const { store, limits, roots, library } = ctx();
       const expanded = await expandRefs(a.refs ?? [], {
@@ -495,7 +497,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           values: { ...values, refs: expanded.refs, params: a.params ?? {}, _useI2v: useI2v(expanded.refs) },
           record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "mcp" },
         },
-        { store, limits, deps: deps.generate },
+        { store, limits, deps: stoppable(deps.generate, signal) },
       );
       // The job is submitted and paid for: nothing after this point may throw, or the
       // client loses the job id. A failed bookkeeping write becomes a warning.
@@ -544,7 +546,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         outputSchema: Submit,
         annotations: SPEND,
       },
-      async (a) => {
+      async (a, { signal }) => {
         const model = resolveModel(catalog, a.model ?? "gpt-image-2", "image");
         if (a.resolution && model.resolutions && !model.resolutions.includes(a.resolution)) {
           throw unknown(`${model.id} supports resolutions ${model.resolutions.join(", ")}.`);
@@ -557,7 +559,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           model,
           a,
           { prompt: a.prompt, resolution: a.resolution, quality: a.quality, aspect_ratio: a.aspect_ratio, background: a.background },
-          { promptFile: "image-prompt.txt", inputsFile: "image-inputs.json", artifactBase: "ref", useI2v: (refs) => refs.length > 0 },
+          { promptFile: "image-prompt.txt", inputsFile: "image-inputs.json", artifactBase: "ref", useI2v: (refs) => refs.length > 0, signal },
         );
       },
     );
@@ -579,7 +581,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         outputSchema: Submit,
         annotations: SPEND,
       },
-      async (a) => {
+      async (a, { signal }) => {
         let modelId = a.model;
         let durationS = a.duration_s;
         let aspectRatio = a.aspect_ratio;
@@ -610,6 +612,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
             artifactBase: "out",
             useI2v: (refs) => refs.some((r) => r.role === "first_frame"),
             extra: { preset: presetId, durationS, aspectRatio },
+            signal,
           },
         );
       },

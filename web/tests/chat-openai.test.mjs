@@ -176,6 +176,19 @@ describe("runTurn", () => {
     }
   });
 
+  test("the chat's list of spending tools is exactly the MCP tools marked as spending", async () => {
+    const { SPENDING_TOOLS } = await import("../server/chat/transcript.mjs");
+    const { connectInProcess } = await import("../../mcp/client.mjs");
+    const { client, close } = await connectInProcess({ deps: stubs.deps });
+    try {
+      const { tools: list } = await client.listTools();
+      const spend = list.filter((x) => x.annotations?.openWorldHint && !x.annotations.readOnlyHint && !x.annotations.idempotentHint).map((x) => x.name);
+      assert.deepEqual([...SPENDING_TOOLS].sort(), spend.sort());
+    } finally {
+      await close();
+    }
+  });
+
   test("Stop pressed before a tool call starts runs no tool", async () => {
     const fake = fakeOpenAI({ replies: [callReply("estimate", { model: "seedance-2-5" })] });
     const ctrl = new AbortController();

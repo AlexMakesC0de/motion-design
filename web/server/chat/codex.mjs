@@ -28,7 +28,8 @@ import { LIBRARY_DIR, REPO_ROOT, RUNS_DIR } from "../../../cli/lib/run.mjs";
 import { limitsPath } from "../../../cli/core/spend.mjs";
 import { EXIT } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
-import { ChatError, MAX_STEPS, appendChat, historyMessages } from "./transcript.mjs";
+import { ChatError, MAX_STEPS, SPENDING_TOOLS, appendChat, historyMessages } from "./transcript.mjs";
+import { UNCERTAIN_CALL } from "./tools.mjs";
 
 export { MCP_NAME };
 
@@ -394,11 +395,16 @@ export function recap(entries) {
 /**
  * A Codex MCP tool call item as an MCP tool result, for the transcript. Our
  * server's errors start "Error <code>: ", so a refusal is read from the text
- * as well, in case Codex drops the result's isError or _meta.
+ * as well, in case Codex drops the result's isError or _meta. A spending
+ * tool that Codex itself failed (a timeout, a lost server) may still have
+ * submitted on the server: that is code 5, never a plain failure to retry.
  */
 export function toolResult(item) {
-  const content = item.result?.content ?? (item.error ? [{ type: "text", text: item.error.message }] : []);
+  let content = item.result?.content ?? (item.error ? [{ type: "text", text: item.error.message }] : []);
   const typed = /^Error [1-5]: /.test(content.find((c) => c?.type === "text")?.text ?? "");
+  if (item.error && !typed && item.server === MCP_NAME && SPENDING_TOOLS.has(item.tool)) {
+    content = [{ type: "text", text: `Error 5: ${item.error.message ?? "Codex lost the call"}; it ${UNCERTAIN_CALL}.` }];
+  }
   return { ...(item.result ?? {}), content, isError: item.status === "failed" || Boolean(item.error) || typed };
 }
 

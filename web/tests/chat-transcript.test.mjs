@@ -179,6 +179,22 @@ describe("createTurnLog", () => {
     assert.match(t.uncertainSentence({ tool: "film_shot", message: "socket hang up\nj-1 is uncertain" }), /^I can't tell whether film_shot went through \(socket hang up\)/);
   });
 
+  test("a spending tool cut off by Stop may still have been submitted; only a free one is plainly stopped", () => {
+    const log = t.createTurnLog(() => {});
+    log.toolStart("a", "generate_video", {});
+    log.toolStart("b", "film_all", {});
+    log.toolStart("c", "list_runs", {});
+    log.settle();
+    assert.deepEqual(
+      log.entries.map((e) => [e.name, e.state, e.result]),
+      [
+        ["generate_video", "failed", "stopped; it may still have been submitted, see the feed"],
+        ["film_all", "failed", "stopped; it may still have been submitted, see the feed"],
+        ["list_runs", "failed", "stopped before it finished"],
+      ],
+    );
+  });
+
   test("say() and notice() add finished lines", () => {
     const log = t.createTurnLog(() => {});
     log.say("Done.");
