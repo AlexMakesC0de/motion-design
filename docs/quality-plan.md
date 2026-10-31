@@ -1,5 +1,7 @@
 # Video quality plan: gaps, phases and the comparison that gates them
 
+> **2026-10-31:** Alex chose to build Phases 2 and 3 without the Phase 1 comparison, and to add the cinematography vocabulary and a chat director this plan had ruled out. See [the director design](superpowers/specs/2026-10-31-director-design.md).
+
 Written 2026-10-30. Evidence: an audit of this repo (skill, `cli/`, `models.json`, every run in `runs/`) plus three research notes:
 
 - [Higgsfield pipeline](research/2026-10-30-higgsfield-pipeline.md): what Cinema Studio, AI Director, Popcorn and Elements actually do underneath

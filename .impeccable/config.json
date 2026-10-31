@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      ".superpowers/brainstorm/**"
+    ],
     "ignoreValues": [
       {
         "rule": "tiny-text",
