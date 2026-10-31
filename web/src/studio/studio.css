@@ -108,15 +108,6 @@
 .chip__remove:hover { color: var(--text); }
 .ref-picker { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2); border: 1px solid var(--surface-3); border-radius: 999px; }
 
-.generate {
-  display: inline-flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-2) var(--space-4); border: 0; border-radius: var(--radius-md);
-  background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: var(--text-md); cursor: pointer;
-  transition: filter var(--dur-fast) var(--ease-out);
-}
-.generate:hover:not(:disabled) { filter: brightness(1.08); }
-.generate:disabled { background: var(--surface-3); color: var(--text-3); cursor: not-allowed; }
-
 /* Take viewer */
 .viewer {
   position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: var(--space-5);

@@ -21,3 +21,13 @@
 .save-asset__replace { display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-xs); margin-top: var(--space-1); }
 .save-asset__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
 .save-asset__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* The amber primary button: Generate, New film. Amber is for this and costs, nothing else. */
+.generate {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); border: 0; border-radius: var(--radius-md);
+  background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: var(--text-md); cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.generate:hover:not(:disabled) { filter: brightness(1.08); }
+.generate:disabled { background: var(--surface-3); color: var(--text-3); cursor: not-allowed; }
