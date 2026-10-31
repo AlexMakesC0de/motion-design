@@ -14,6 +14,10 @@
 // A step with "early": true is sent before the turn/start response.
 // The log gets { argv, envNames } first (variable names only, never values),
 // then { in: message } for every line received.
+// Run as `... features list [flags]`, it prints "features" from the exchange
+// (default: codex-features-0.154.txt, a real codex-cli 0.154.0's list with the
+// studio's flags) and exits with "featuresExit" (default 0), and appends
+// { features: argv } to the log.
 // The shapes follow web/server/chat/codex-protocol; initialize and account/read
 // are copied from a real codex-cli 0.154.0 (email replaced).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,6 +25,12 @@ import { createInterface } from "node:readline";
 
 const [exchangeFile, logFile, ...argv] = process.argv.slice(2);
 const ex = JSON.parse(readFileSync(exchangeFile, "utf8"));
+if (argv[0] === "features") {
+  appendFileSync(logFile, `${JSON.stringify({ features: argv })}\n`);
+  const text = ex.features ?? readFileSync(new URL("./codex-features-0.154.txt", import.meta.url), "utf8");
+  await new Promise((r) => process.stdout.write(text, r));
+  process.exit(ex.featuresExit ?? 0);
+}
 writeFileSync(logFile, `${JSON.stringify({ argv, envNames: Object.keys(process.env) })}\n`);
 
 let threadId = null;

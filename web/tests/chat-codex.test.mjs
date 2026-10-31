@@ -8,10 +8,13 @@ import { fileURLToPath } from "node:url";
 const codex = await import("../server/chat/codex.mjs");
 const { createChat } = await import("../server/chat/session.mjs");
 const { writeConnection } = await import("../server/chat/config.mjs");
-const { readChat, budgetSentence, createTurnLog, MAX_STEPS } = await import("../server/chat/transcript.mjs");
+const { ChatError, readChat, budgetSentence, createTurnLog, MAX_STEPS } = await import("../server/chat/transcript.mjs");
 const { REPO_ROOT } = await import("../../cli/lib/run.mjs");
 
 const FAKE = fileURLToPath(new URL("./fixtures/fake-codex.mjs", import.meta.url));
+// `codex features list` from a real codex-cli 0.154.0, run with the studio's --disable and -c flags.
+const FEATURES = readFileSync(new URL("./fixtures/codex-features-0.154.txt", import.meta.url), "utf8");
+const featureOn = (name) => FEATURES.replace(new RegExp(`^${name} .*$`, "m"), `${name.padEnd(41)}stable             true`);
 // initialize and account/read as a real codex-cli 0.154.0 answered them (email replaced).
 const INITIALIZE = { userAgent: "motion_design_studio/0.154.0", codexHome: "/Users/someone/.codex", platformFamily: "unix", platformOs: "macos" };
 const LOGGED_IN = { account: { type: "chatgpt", email: "someone@example.com", planType: "plus" }, requiresOpenaiAuth: true };
@@ -96,6 +99,42 @@ describe("how Codex is started", () => {
     // Both names checked against `codex features list` in codex-cli 0.154.0, which refuses unknown --disable names.
     assert.ok(codex.DISABLED_FEATURES.includes("view_image"));
     assert.ok(codex.DISABLED_FEATURES.includes("code_mode_host"));
+  });
+
+  test("goals, hooks, notify and every feature the review named as able to act outside the MCP tools are off at spawn", () => {
+    const args = codex.codexArgs({ repo: "/repo", node: "/bin/node", configText: "" });
+    const flags = args.join(" ");
+    const named = ["goals", "hooks", "skill_search", "in_app_chat", "in_app_local_automation", "workspace_dependencies", "remote_plugin", "plugin_sharing", "sleep_tool", "guardian_approval", "tool_call_mcp_elicitation", "auth_elicitation", "multi_agent_v2"];
+    for (const f of named) assert.ok(flags.includes(`--disable ${f} `), f);
+    const c = args.filter((_, i) => args[i - 1] === "-c");
+    assert.ok(c.includes("notify=[]"), "the user's notify program does not run on studio turns");
+  });
+
+  test("the feature list is read line by line, and only allow-listed features may be on", () => {
+    const parsed = codex.parseFeatures(FEATURES);
+    assert.equal(parsed.length, 140);
+    assert.deepEqual(parsed.find((f) => f.name === "apply_patch_preserve_line_endings"), { name: "apply_patch_preserve_line_endings", stage: "under development", enabled: false });
+    assert.deepEqual(codex.checkFeatures(FEATURES), parsed.filter((f) => f.enabled).map((f) => f.name), "the real list with the studio's flags passes");
+    for (const f of parsed.filter((x) => x.enabled)) assert.ok(f.name in codex.ALLOWED_FEATURES, f.name);
+    for (const f of codex.DISABLED_FEATURES) if (f !== "unified_exec") assert.ok(!(f in codex.ALLOWED_FEATURES), f);
+    for (const name of ["goals", "hooks", "multi_agent_v2"]) {
+      assert.throws(() => codex.checkFeatures(featureOn(name)), (e) => e instanceof ChatError && e.message.includes(name), name);
+    }
+    assert.throws(() => codex.checkFeatures("Error: unexpected argument\n"), (e) => e instanceof ChatError && /did not list its features/.test(e.message));
+  });
+
+  test("Codex must be the protocol's major.minor (or one allow-listed), with a message saying how to update", () => {
+    assert.equal(codex.PROTOCOL_VERSION, "0.154");
+    assert.equal(codex.checkVersion("motion_design_studio/0.154.0"), "0.154.0");
+    assert.equal(codex.checkVersion("motion_design_studio/0.154.7 (Mac OS 26.0.0; arm64) xterm-256color"), "0.154.7");
+    for (const v of ["0.155.0", "0.153.2", "1.154.0"]) {
+      assert.throws(
+        () => codex.checkVersion(`motion_design_studio/${v} (Mac OS 26.0.0; arm64)`),
+        (e) => e instanceof ChatError && e.message.includes(`Codex ${v}`) && e.message.includes("npm install -g @openai/codex@0.154") && e.message.includes("npm --prefix web run codex-protocol"),
+        v,
+      );
+    }
+    assert.throws(() => codex.checkVersion(undefined), (e) => e instanceof ChatError && /did not say which version/.test(e.message));
   });
 
   test("the config.toml parser finds servers in every TOML layout, ours left out", () => {
@@ -262,6 +301,44 @@ describe("a Codex turn", () => {
     const entries = readChat("cx-cap").entries;
     assert.equal(entries[1].result, "stopped by the limits, nothing spent");
     assert.equal(entries[2].text, budgetSentence(REFUSAL.slice("Error 2: ".length).split("\nNext:")[0]));
+  });
+
+  test("before the first turn, codex features list runs with the app-server's own flags; a feature off the allowlist stops the turn, naming it", async () => {
+    const { backend, sent, log } = fakeCodex({ features: featureOn("goals"), turn: [message("m", "Never."), completed()] }, { args: () => ["app-server", "--disable", "hooks", "-c", "notify=[]"] });
+    const chat = chatWith(backend);
+    await chat.send("cx-feat", "hi");
+    await chat.idle("cx-feat");
+    assert.deepEqual(log().find((l) => l.features).features, ["features", "list", "--disable", "hooks", "-c", "notify=[]"]);
+    assert.equal(sent("thread/start").length, 0);
+    assert.equal(sent("turn/start").length, 0);
+    assert.match(lines("cx-feat")[1], /^notice: .*\bgoals\b/);
+  });
+
+  test("the feature check runs once per Codex process, and a list that fails stops the turn", async () => {
+    const good = fakeCodex({ turn: [message("m", "Fine."), completed()] });
+    const chat = chatWith(good.backend);
+    await chat.send("cx-feat-once", "one");
+    await chat.idle("cx-feat-once");
+    await chat.send("cx-feat-once", "two");
+    await chat.idle("cx-feat-once");
+    assert.equal(good.log().filter((l) => l.features).length, 1);
+    assert.equal(lines("cx-feat-once").at(-1), "assistant: Fine.");
+
+    const { backend, sent } = fakeCodex({ features: "Error: something\n", featuresExit: 2 });
+    const chat2 = chatWith(backend);
+    await chat2.send("cx-feat-fail", "hi");
+    await chat2.idle("cx-feat-fail");
+    assert.equal(sent("turn/start").length, 0);
+    assert.match(lines("cx-feat-fail")[1], /^notice: Codex did not list its features/);
+  });
+
+  test("a Codex of another version is refused before the turn starts, saying how to update", async () => {
+    const { backend, sent } = fakeCodex({ initialize: { ...INITIALIZE, userAgent: "motion_design_studio/0.160.0 (Mac OS 26.0.0; arm64)" } });
+    const chat = chatWith(backend);
+    await chat.send("cx-version", "hi");
+    await chat.idle("cx-version");
+    assert.equal(sent("thread/start").length, 0);
+    assert.match(lines("cx-version")[1], /^notice: Codex 0\.160\.0 .*npm install -g @openai\/codex@0\.154/);
   });
 
   test("another MCP server live in the thread stops the turn before it starts", async () => {

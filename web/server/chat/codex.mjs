@@ -10,7 +10,11 @@
 // spawn. Every other MCP server in ~/.codex/config.toml is turned off, and
 // so are the features that bring tools of their own (the shell, plugins,
 // apps, computer and browser use, image generation and viewing, code mode,
-// sub-agents). Codex gets the studio's environment without OPENAI_API_KEY. Any approval
+// sub-agents), keep a thread working on its own (goals) or run the user's
+// programs (hooks, notify). Before the first turn on a Codex process, the
+// same flags go through `codex features list`: every feature still on must be
+// on ALLOWED_FEATURES, and Codex must be the version the protocol types were
+// generated from. Codex gets the studio's environment without OPENAI_API_KEY. Any approval
 // request that still arrives (a command, a file change, more permissions) is
 // declined. Before a turn, every other server must report disabled, failed or
 // cancelled; during one, a call to any other server interrupts it.
@@ -28,24 +32,123 @@ import { ChatError, MAX_STEPS, appendChat, historyMessages } from "./transcript.
 
 export { MCP_NAME };
 
-/** Codex features that would give the chat tools besides the motion-design MCP server. Checked by codex at spawn. */
+/**
+ * Codex features turned off at spawn: anything that gives the chat tools
+ * besides the motion-design MCP server, runs code or the user's programs,
+ * keeps a thread going after the studio's turn (goals), spawns agents, asks
+ * the user through Codex's own UI, or is not needed by the chat. Names from
+ * `codex features list` in codex-cli 0.154.0, which refuses unknown names.
+ */
 export const DISABLED_FEATURES = [
   "plugins",
   "apps",
   "computer_use",
   "browser_use",
   "browser_use_external",
+  "browser_use_full_cdp_access",
   "image_generation",
   "multi_agent",
+  "multi_agent_v2",
   "skill_mcp_dependency_install",
+  "skill_search",
   "tool_suggest",
   "memories",
   "shell_tool",
+  "shell_snapshot",
   "unified_exec",
+  "unified_exec_tty",
   "in_app_browser",
+  "in_app_chat",
+  "in_app_local_automation",
+  "in_app_dictation",
+  "in_app_updates",
   "view_image",
   "code_mode_host",
+  "goals",
+  "hooks",
+  "workspace_dependencies",
+  "remote_plugin",
+  "plugin_sharing",
+  "sleep_tool",
+  "guardian_approval",
+  "tool_call_mcp_elicitation",
+  "auth_elicitation",
+  "mentions_v2",
+  "fast_mode",
+  "personality",
 ];
+
+/**
+ * The features that may still be on after DISABLED_FEATURES, each checked in
+ * codex-cli 0.154.0 with the studio's flags. Any other feature on refuses the
+ * turn: a new Codex feature is off-limits until someone reads what it does.
+ */
+export const ALLOWED_FEATURES = {
+  compaction_image_budget: "caps images kept when a long thread is compacted; context bookkeeping only",
+  content_item_kinds: "the shapes of content items in the protocol; no tool, no action",
+  enable_request_compression: "compresses requests to OpenAI; transport only",
+  remote_compaction_v2: "OpenAI compacts a long thread's context; needed for long film chats",
+  unbounded_connection_retries: "retries a dropped connection to OpenAI; Stop still interrupts the turn",
+  unified_exec:
+    "stays on in 0.154 whatever --disable says; it is the engine behind the shell tool, which shell_tool=false removes, and the sandbox is read-only with every command approval declined",
+  // Removed: Codex no longer reads these flags, so on or off changes nothing.
+  collaboration_modes: "removed in Codex: the flag does nothing",
+  item_ids: "removed in Codex: the flag does nothing",
+  resize_all_images: "removed in Codex: the flag does nothing",
+  sqlite: "removed in Codex: the flag does nothing",
+  steer: "removed in Codex: the flag does nothing",
+  terminal_resize_reflow: "removed in Codex: the flag does nothing",
+  tool_search_always_defer_mcp_tools: "removed in Codex: the flag does nothing",
+  tui_app_server: "removed in Codex: the flag does nothing",
+  unified_exec_zsh_fork: "removed in Codex: the flag does nothing",
+};
+
+const PROTOCOL = JSON.parse(readFileSync(new URL("./codex-protocol/methods.json", import.meta.url), "utf8"));
+/** The Codex major.minor the protocol types (and the feature allowlist) were taken from. */
+export const PROTOCOL_VERSION = String(PROTOCOL.generatedBy).match(/(\d+\.\d+)\.\d+/)?.[1] ?? null;
+/** Other major.minor versions checked against this protocol and allowlist. */
+export const ALLOWED_CODEX_VERSIONS = [];
+
+/** `codex features list` as [{ name, stage, enabled }]: one feature a line, "name  stage words  true|false". */
+export function parseFeatures(text) {
+  const out = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = line.match(/^([A-Za-z0-9_.-]+)\s+(\S.*?)\s+(true|false)\s*$/);
+    if (m) out.push({ name: m[1], stage: m[2], enabled: m[3] === "true" });
+  }
+  return out;
+}
+
+/** The names of the features on, when every one is allow-listed; otherwise a ChatError naming the rest. */
+export function checkFeatures(text) {
+  const features = parseFeatures(text);
+  if (!features.length) throw new ChatError("Codex did not list its features, so the turn was not started. Check that codex runs in a terminal, or use an OpenAI API key.");
+  const on = features.filter((f) => f.enabled).map((f) => f.name);
+  const unknown = on.filter((name) => !Object.hasOwn(ALLOWED_FEATURES, name));
+  if (unknown.length) {
+    throw new ChatError(
+      `Codex has features on that the studio's chat has not checked (${unknown.join(", ")}), so the turn was not started. ` +
+        "Turn them off in ~/.codex/config.toml, use the Codex version the studio was checked with, or use an OpenAI API key.",
+    );
+  }
+  return on;
+}
+
+/** The Codex version from initialize's userAgent ("<client>/0.154.0 (...)"), when it is one the studio was checked against. */
+export function checkVersion(userAgent) {
+  const m = typeof userAgent === "string" ? userAgent.match(/^[^/\s]+\/(\d+)\.(\d+)\.(\d+)/) : null;
+  if (!m) throw new ChatError("Codex did not say which version it is, so the turn was not started. Update Codex, or use an OpenAI API key.");
+  const version = `${m[1]}.${m[2]}.${m[3]}`;
+  const minor = `${m[1]}.${m[2]}`;
+  if (minor !== PROTOCOL_VERSION && !ALLOWED_CODEX_VERSIONS.includes(minor)) {
+    throw new ChatError(
+      `Codex ${version} is not the version the studio's chat was checked with (${PROTOCOL_VERSION}.x), so the turn was not started. ` +
+        `Install that one with npm install -g @openai/codex@${PROTOCOL_VERSION}, or update the studio for this Codex ` +
+        "(npm --prefix web run codex-protocol, then re-check its feature allowlist), or use an OpenAI API key.",
+    );
+  }
+  return version;
+}
 
 export const NOT_INSTALLED = "Codex isn't installed. Install it with npm install -g @openai/codex, or use an OpenAI API key.";
 export const NOT_LOGGED_IN = "Codex isn't logged in. Run codex login in a terminal, then check again, or use an OpenAI API key.";
@@ -183,6 +286,7 @@ export function codexArgs({ repo = REPO_ROOT, node = process.execPath, runsDir =
     "app-server",
     ...DISABLED_FEATURES.flatMap((f) => ["--disable", f]),
     "-c", 'web_search="disabled"',
+    "-c", "notify=[]",
     ...configuredMcpServers(configText).flatMap((n) => ["-c", `mcp_servers.${key(n)}.enabled=false`]),
     "-c", `${s}.command=${q(node)}`,
     "-c", `${s}.args=[${q(join(repo, "mcp", "server.mjs"))}]`,
@@ -333,11 +437,13 @@ export function createCodex({
     else stopProcess();
   }
 
+  /** Start Codex, or reuse the running one. Resolves the process record once it has answered initialize. */
   function start() {
     if (proc) return proc.ready;
     // Codex logs in with ChatGPT; an OpenAI key in the studio's environment is not its to see.
     const { OPENAI_API_KEY: _openaiKey, ...env } = process.env;
-    const child = spawn(command, [...prefixArgs, ...build()], { cwd: repo, env, stdio: ["pipe", "pipe", "pipe"] });
+    const args = build();
+    const child = spawn(command, [...prefixArgs, ...args], { cwd: repo, env, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); // Codex logs there; not ours to keep
     child.stdin.on("error", () => {}); // a write after exit; the exit handler reports it
     const rpc = openRpc(child, {
@@ -347,13 +453,17 @@ export function createCodex({
         if (proc === p) stopSoon(); // a stuck app-server: the next try starts a new one
       },
     });
-    const p = { child, rpc };
+    const p = { child, rpc, args, env, userAgent: null, vetted: null };
     p.ready = new Promise((resolve, reject) => {
       child.on("error", (err) => reject(err.code === "ENOENT" ? new ChatError(NOT_INSTALLED, { connect: true }) : err));
       child.once("spawn", resolve);
     })
       .then(() => rpc.request("initialize", { clientInfo: { name: "motion_design_studio", title: "Motion-design studio", version: "0.1.0" }, capabilities: null }))
-      .then(() => rpc.notify("initialized"));
+      .then((init) => {
+        p.userAgent = init?.userAgent ?? null;
+        rpc.notify("initialized");
+        return p;
+      });
     child.on("exit", () => {
       if (proc === p) proc = null;
     });
@@ -363,6 +473,44 @@ export function createCodex({
     });
     proc = p;
     return p.ready;
+  }
+
+  /** `codex features list` run with the app-server's own flags: its output, or a ChatError. */
+  function listFeatures(p) {
+    const flags = p.args[0] === "app-server" ? p.args.slice(1) : p.args;
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, [...prefixArgs, "features", "list", ...flags], { cwd: repo, env: p.env, stdio: ["ignore", "pipe", "pipe"] });
+      let out = "";
+      child.stdout.setEncoding("utf8").on("data", (d) => (out += d));
+      child.stderr.resume();
+      const timer = setTimeout(() => child.kill(), requestTimeoutMs);
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        reject(err.code === "ENOENT" ? new ChatError(NOT_INSTALLED, { connect: true }) : err);
+      });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (code === 0) resolve(out);
+        else reject(new ChatError(`Codex did not list its features (codex features list ended with ${code ?? "a timeout"}), so the turn was not started. Check that codex runs in a terminal, or use an OpenAI API key.`));
+      });
+    });
+  }
+
+  /**
+   * Before the first turn on a Codex process: its version must be the
+   * protocol's, and every feature on must be allow-listed. Checked once per
+   * process; a process that fails is stopped, so the next turn starts a new
+   * one (and checks again) after the user changes something.
+   */
+  function vet(p) {
+    p.vetted ??= (async () => {
+      checkVersion(p.userAgent);
+      checkFeatures(await listFeatures(p));
+    })();
+    p.vetted.catch(() => {
+      if (proc === p) stopSoon();
+    });
+    return p.vetted;
   }
 
   function stopProcess() {
@@ -429,8 +577,9 @@ export function createCodex({
   }
 
   async function runTurn({ film, text, saved, instructions, sink, signal }) {
-    await start();
-    const { rpc, child } = proc;
+    const p = await start();
+    await vet(p);
+    const { rpc, child } = p;
     const threadParams = { cwd: repo, sandbox: "read-only", approvalPolicy: "never", developerInstructions: instructions };
     let threadId = saved.codexThread;
     let fresh = false;
