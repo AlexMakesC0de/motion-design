@@ -64,6 +64,21 @@ describe("FilmPage", () => {
     expect(cost).toHaveClass("mono");
   });
 
+  test("each shot says which take it is: model, duration, ratio and the prompt on one line", async () => {
+    const take = job({ model: "minimax-h3", durationS: 6, aspectRatio: "9:16", prompt: "Ink drop blooms into the Zethus wordmark" });
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/zed": () => film({ files: [filmFile({ job: take }), filmFile({ name: "out-2.mp4", url: "/media/runs/zed/out-2.mp4", modified: "2026-10-31T10:05:00.000Z" })] }) })));
+    render(<FilmPage slug="zed" />);
+    const shots = await screen.findByRole("list", { name: "Shots" });
+    const [first, second] = within(shots).getAllByRole("listitem");
+    const detail = within(first).getByText("minimax-h3 · 6s · 9:16").closest("p")!;
+    expect(detail).toHaveClass("shot__detail", "mono");
+    expect(detail).toHaveTextContent("minimax-h3 · 6s · 9:16 · Ink drop blooms into the Zethus wordmark");
+    expect(detail).toHaveAttribute("title", "Ink drop blooms into the Zethus wordmark");
+    // A file with no job record has nothing to add, and its name is still the first mono text.
+    expect(second.querySelector(".shot__detail")).toBeNull();
+    expect(second.querySelector(".mono")).toHaveTextContent("out-2.mp4");
+  });
+
   test("gives every output a player and a download link", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/zed": () => film() })));
     render(<FilmPage slug="zed" />);

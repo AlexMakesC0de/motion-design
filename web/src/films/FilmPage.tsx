@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { FilmDetail, FilmFile } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
-import { takeCost } from "../studio/format";
+import { shotSpec, takeCost } from "../studio/format";
 import { FinishPanel } from "./FinishPanel";
 
 const OUTPUT_LABEL = { film: "Film", captioned: "Captioned", variant: "Variant", card: "Text card" } as const;
@@ -101,15 +101,28 @@ export function FilmPage({ slug }: { slug: string }) {
                     return (
                       <li key={s.name} className="shot" data-on={s.on}>
                         {f?.url ? <video className="shot__thumb" src={f.url} preload="metadata" muted /> : <span className="shot__thumb" />}
-                        <label className="shot__use">
-                          <input
-                            type="checkbox"
-                            checked={s.on}
-                            aria-label={`Use ${s.name}`}
-                            onChange={() => setShots((list) => list.map((x) => (x.name === s.name ? { ...x, on: !x.on } : x)))}
-                          />
-                          <span className="mono">{s.name}</span>
-                        </label>
+                        <div className="shot__body">
+                          <label className="shot__use">
+                            <input
+                              type="checkbox"
+                              checked={s.on}
+                              aria-label={`Use ${s.name}`}
+                              onChange={() => setShots((list) => list.map((x) => (x.name === s.name ? { ...x, on: !x.on } : x)))}
+                            />
+                            <span className="mono">{s.name}</span>
+                          </label>
+                          {f?.job && (
+                            <p className="shot__detail mono" title={f.job.prompt ?? undefined}>
+                              <span>{shotSpec(f.job)}</span>
+                              {f.job.prompt && (
+                                <>
+                                  <span aria-hidden="true"> · </span>
+                                  <span>{f.job.prompt}</span>
+                                </>
+                              )}
+                            </p>
+                          )}
+                        </div>
                         <span className="mono shot__cost">{f?.job ? takeCost(f.job) : ""}</span>
                         <span className="shot__move">
                           <button

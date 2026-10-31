@@ -19,7 +19,7 @@ files.forEach((name, i) => {
 writeFileSync(join(film, "assembly.json"), JSON.stringify({ shots: [{ path: join(film, "out-2.mp4") }, { path: join(film, "out.mp4") }, { path: join(film, "gone.mp4") }] }));
 
 const store = openJobs(join(RUNS, ".jobs"));
-const j = store.create({ run: "film-demo", capability: "video", model: "seedance-2-5", provider: "kie", estimateUsd: 0.56, input: { prompt: "A fox", duration: 4 } });
+const j = store.create({ run: "film-demo", capability: "video", model: "seedance-2-5", provider: "kie", estimateUsd: 0.56, input: { prompt: "A fox", duration: 4, aspect_ratio: "16:9" } });
 store.transition(j.id, "sending");
 store.transition(j.id, "submitted", { upstreamTaskId: "task-1" });
 store.transition(j.id, "succeeded", { artifacts: [join(film, "out.mp4")], actualUsd: 0.5, costSource: "task-record" });
@@ -72,6 +72,8 @@ describe("GET /api/films/:slug", () => {
     assert.equal(out.bytes, 1);
     assert.equal(out.job.id, j.id, "a take carries the job that made it");
     assert.equal(out.job.actualUsd, 0.5);
+    // What the film page shows under a shot's name comes with the job, so there is no second request per shot.
+    assert.deepEqual([out.job.model, out.job.durationS, out.job.aspectRatio, out.job.prompt], ["seedance-2-5", 4, "16:9", "A fox"]);
     assert.equal(r.json.files[1].job, null);
   });
 
