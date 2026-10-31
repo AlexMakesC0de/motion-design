@@ -2,7 +2,7 @@
 
 Lets Claude Code and Codex use the kie harness as tools: look at models and
 costs, save reference assets, generate stills and videos inside the spend
-limits, wait for them, and finish films. It runs locally over stdio and calls
+limits, wait for them, direct a film from brief to cut, and finish films. It runs locally over stdio and calls
 the same code as the `kie` CLI.
 
 ## Set up
@@ -31,6 +31,41 @@ the same code as the `kie` CLI.
 | Generate | `generate_image`, `generate_video`, `wait_job` | spends kie credits |
 | Finish | `frames`, `probe`, `assemble`, `variants`, `caption`, `render` | free, local |
 | Direct | `get_menu`, `get_brief`, `save_brief`, `get_plan`, `save_plan`, `update_shot`, `check_plan`, `suggest_model`, `shot_wording` | free, local |
+| Make (look) | `get_shots`, `review_shot`, `save_review`, `adopt_sheet`, `cut_film` | free, local (`save_review` can spend, see below) |
+| Make (spend) | `make_sheet`, `make_still`, `film_shot`, `film_all` | spends kie credits; each takes `dry_run` |
+
+## Making a film
+
+After the plan, the order is `make_still` for each shot (first shot first, it
+sets the look), `get_shots` to show the storyboard, `film_all`, `wait_job`,
+`review_shot` and `save_review` for every take, then `cut_film`. The spending
+tools return a job id at once; call `wait_job`. Use them only as far as the
+user asked.
+
+- `film_all`'s `max_usd` is the total the user stated in this conversation,
+  never one the assistant worked out. The first call writes
+  `runs/<film>/agreement.json` (the total, and each shot left to film with
+  its price). Later calls with the same total continue it and film only
+  those shots, each at no more than its agreed price. A shot added since, or
+  one whose price rose, stops it (code 2) and the user must agree a new
+  total. It never refilms a failed take; `film_shot` does, once the user
+  says so. Call it again after `wait_job` for the shots that continue from
+  earlier ones.
+- One take in flight per shot: `film_shot` and `film_all` refuse while the
+  shot has an unsettled take, and never resubmit one that ended uncertain.
+- Each still and take is budgeted at its own estimated price, so shots above
+  $3 work; the per-job limit and the daily cap still apply.
+- A shot's still must not be stale (its words, the film's aspect ratio or its
+  still model changed since): `make_still` again before `film_shot`. A shot
+  on a continuous cut needs no still.
+- Auto-redo is the user's setting (studio, or `kie auto-redo`). No tool turns
+  it on. With it on, `save_review` with a `redo` verdict refilms the shot at
+  once (at most 2 redos per shot, within the total the user set) and says so;
+  with it off, a redo waits for the user.
+- `make_sheet` and `adopt_sheet` make and adopt a reference sheet for a
+  Library character, product or location; only when the user asked to cast.
+- `cut_film` reads `music`, `vo` and `end_card` from the run folder (through
+  the same path checks as `assemble`) and writes a numbered `film.mp4`.
 
 ## Limits that protect your money
 

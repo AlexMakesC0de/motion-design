@@ -11,9 +11,27 @@ This builds the page if needed, starts a server on http://127.0.0.1:4317 (or the
 
 If you stop the server, the open page shows a banner and reconnects by itself when you start it again.
 
+## Storyboard
+
+The **Storyboard** button above the feed switches a film from its takes to its storyboard. A film opens on it when it has a brief or a plan. It shows what the director in the chat (or `kie plan`) saved, and lets you make the film step by step. Nothing is paid for until you press a button with a price on it.
+
+- **No plan yet:** type the idea under "What is the film?" and press **Plan this**. It goes to the chat as a request to plan the film.
+- **Brief and timeline:** the takeaway, format and look, and a bar with each shot as wide as it is long.
+- **Shot cards:** one per shot, with its still, size, model, take price and a line on where it stands (no still yet, still ready, still from before the last change, filming, take ready to review, take passed, take needs a redo, take failed). A shot that continues from the one before shows "continues from" and needs no still.
+- **Inspector** (click a shot): edit its action, length, camera choices, models, why and checks, and save. The checker's findings for the shot show underneath; an error on the plan disables the buttons that spend. Under it:
+  - **Stills:** **Make the still** (or **New still**) with its price. Earlier stills are shown; click one to use it instead.
+  - **Take:** the video, a **Review**, and **Film this shot** (or **Film again**) with its price. It asks once more ("Film it for about $X?") before it spends.
+- **Review:** shows the take's contact sheet and its checks. Untick a check that failed and say what is wrong, then **Pass** (only when every check is ticked) or **Needs a redo**.
+- **Auto-redo:** off by default. **Auto-redo off** asks for the most all the takes may cost, redos included; then a take judged redo is filmed again on its own, twice at most per shot, within that total. **Turn off** switches it back.
+- **Make N stills:** makes every missing still. When no still sets the look yet, only the first is made and the rest follow once it lands, so they match it.
+- **Film all N:** disabled until every shot has a still. It shows the price of what is left, then asks "Film N shots for up to $X?". Confirming agrees that total: only those shots are filmed, each at no more than its price then. Shots that continue from another start once its take lands. If a shot is added or gets pricier, or a take is refused, the queue stops and says why; pressing **Film all** again agrees the new total.
+- **Cut the film:** appears once every shot has a take. It trims, joins and fades the takes into `film.mp4` (free) and plays it under the storyboard.
+
+The chat (see below) works on the same film: it can save the brief and plan, make stills, film and review, and the page updates as it does. It films only when you ask and uses the total you state; it cannot switch auto-redo on.
+
 ## Chat
 
-The panel on the right of Studio is an assistant that uses the same tools as Claude Code and Codex: it can price a shot, generate it, wait for it and finish the film. Jobs it starts appear in the feed like any other.
+The panel on the right of Studio is an assistant that uses the same tools as Claude Code and Codex: it can price a shot, generate it, wait for it, direct a film and finish it. Jobs it starts appear in the feed like any other.
 
 Connect it once, in the panel or in Settings:
 

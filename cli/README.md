@@ -41,13 +41,19 @@ Corollary: **the CLI refuses an unknown model rather than forwarding it.**
 | `lib/variants.mjs` | Aspect reframing and the caption-order guard |
 | `lib/render.mjs` | Bridge to the Remotion project in `render/` |
 | `director/menu.json` | The director's fixed vocabulary: sizes, angles, lenses, moves, lights, cuts, jobs, film types |
-| `director/files.mjs` | `runs/<film>/brief.json` and `shots.json`: atomic writes, `.history/`, links refused |
+| `director/files.mjs` | The film's files (`brief.json`, `shots.json`, `reviews.json`, `cut.json`, `production.json`, `agreement.json`): atomic writes, a per-film lock, `.history/` (newest 50 versions), links refused |
 | `director/brief.mjs` | The brief's fields and their checks |
 | `director/check.mjs` | The script supervisor: errors that block, warnings that advise |
 | `director/fit.mjs` | Can a model film a shot from its still, at what generated length and price |
 | `director/pick.mjs` | The model picker, from `goodFor` ratings |
 | `director/wording.mjs` | One shot worded for its model, from `promptProfile` |
 | `director/plan.mjs`, `cost.mjs`, `show.mjs` | Saving and editing the plan, its cost, its text view |
+| `director/still.mjs` | A shot's still (worded from the plan), the style still, reference sheets for Library assets |
+| `director/film.mjs` | One take per shot, and Film all with its agreement |
+| `director/media.mjs`, `board.mjs` | Which still and take each shot uses; the storyboard view behind `kie shots` |
+| `director/review.mjs` | Frames of a take to judge, and the saved verdict |
+| `director/redo.mjs` | Auto-redo: its setting (`production.json`) and the refilm within its limits |
+| `director/cut.mjs` | The edit: trims, joins and fades into `film.mp4` |
 
 Zero npm dependencies. Two optional binaries, and the CLI says which commands
 need them: **ffmpeg** for finishing, and `render/`'s own `npm install` for
@@ -128,6 +134,93 @@ its model reads best (`promptProfile`), with the `--param` flags to pass;
 `--suggest` explains each model choice. All of it is free. Old versions of
 both files move to `runs/sea/.history/`. The craft behind the menu is in
 `skills/motion-design/references/director/`.
+
+### Director (making)
+
+These spend kie credits unless noted. `--dry-run` plans the job and its
+price and spends nothing; `--no-wait` returns once the job is submitted
+(`kie job <id>` rejoins it). Each needs a plan that passes the checker
+(`kie plan`), and the files they read are confined to `runs/`, `library/`
+and `allowRoots`.
+
+| Command | Does |
+|---|---|
+| `kie cast <asset> --run SLUG [--model M]` | A reference sheet for a Library character, product or location, made from its own images. Look at it, then `kie cast adopt <job id>` makes it the asset's first image (up to three earlier images follow it) |
+| `kie still --run SLUG [--shot ID]...` | Each shot's first frame, in order; with no `--shot`, every shot without one. A shot that continues from the one before needs none |
+| `kie shot --run SLUG --shot ID` | Film one shot from its still; also how a take is redone |
+| `kie film --run SLUG --max-usd U` | Film every ready shot, wait for the takes, then film the shots that continue from them |
+| `kie review --run SLUG --shot ID [--file REVIEW.json]` | Free. Without `--file`: the contact sheet and first and last frames of the take in use, and the shot's checks. With it: saves the verdict |
+| `kie auto-redo on\|off --run SLUG [--max-usd U]` | Refilm takes judged redo on their own (`on` needs `--max-usd`) |
+| `kie cut --run SLUG [--music M] [--vo V] [--end-card E] [--out F]` | Free, local. The edit, into `runs/SLUG/film.mp4` (`film-2.mp4` next time) |
+| `kie shots --run SLUG [--json]` | Free. The storyboard: each shot's still, take and review |
+
+**Stills.** The still is worded from the plan (look, framing from the menu,
+the cast in their Library words, light) and made on the shot's `stillModel`
+at the film's aspect ratio. The shot's cast go in as identity references and
+the film's style still as a style reference, when the model takes references.
+The style still is `look.styleStill`, else the first shot's still. It must be
+a relative file inside the film folder; `..`, absolute paths, hidden folders
+and addresses are refused. Stills are made one at a time, waiting between,
+because the first becomes the style reference for the rest. With `--no-wait`
+and no style still yet, only the first is made; run `kie still` again once it
+lands. A still records a hash of its words, the film's aspect ratio and the
+shot's still model. If any of them changes the still is stale, and it must be
+remade before filming.
+
+**Takes.** `kie shot` animates the still (image-to-video) at the generated
+length, which is chosen from the route the take is submitted on (the shot
+plus the trim margin), with the shot's wording and its model's params, audio
+off unless it is a lip-sync shot. A shot on a continuous cut needs no still:
+it starts on the real last frame of the shot before, so that shot must have
+its take first. Filming a shot again clears a take somebody had chosen, so
+the new one is the one in use. A missing or stale still, a take already in
+flight, or a shot its model cannot film is refused with exit 1.
+
+**Film all and the agreement.** `kie film --max-usd U` refuses (exit 2) when
+what is left to film costs more than `U`. Otherwise it writes
+`runs/<film>/agreement.json`: the agreed total, and each shot left to film
+with its model, generated length and price then. From then on it films only
+those shots, each at no more than its agreed price, and that price is the
+take's budget, so the takes under one agreement never cost more than the
+total. A shot that is not in the agreement, or whose price has risen, stops
+the queue (exit 2) and needs a new total. Running `kie film` again with the
+same total continues the agreement on record; a different total makes a new
+one. A shot that has a take or is being filmed is skipped. A failed take is
+reported and not refilmed (`kie shot` does that), and `kie film` then exits 4.
+
+**Safety rules.**
+- One take in flight per shot. It is checked early (before anything is
+  uploaded) and again under the spend lock, so two callers cannot both pass.
+  A take whose create ended uncertain counts as in flight: rejoin it, never
+  resubmit.
+- Each still and take is budgeted at its own estimated price (plus a cent
+  for rounding), not the flat default, so a shot priced above $3 works. The
+  per-job limit and the daily cap still apply.
+- Film files are written through a new temporary file, never through a link,
+  and saves of `shots.json` and `reviews.json` hold a per-film lock.
+  `.history/` keeps the newest 50 versions of each file.
+
+**Review and auto-redo.** `kie review` shows what to judge; the verdict is a
+file: `{ "take": "<file>", "verdict": "pass|redo", "checks": [{ "check": "...",
+"ok": true, "note": "..." }], "bestWindow": { "startS": 0.5 } }`. It is saved
+against that take, so a new take is not taken as passed. `bestWindow` is
+where the cut starts that shot. Auto-redo is off until the user switches it
+on, in the studio or with `kie auto-redo on --max-usd U`, where `U` is the
+most the film's takes may cost in all, first takes and redos together. With
+it on, a redo verdict refilms the shot at once, at most 2 redos per shot and
+within `U`; anything outside that is held back with the reason, and
+`kie shot` stays the user's call. The setting is in `production.json`. The
+MCP has no tool for it.
+
+**The cut.** Each shot uses the take in use, starting at the review's best
+window for that take, else 0.5 s in (the trim margin), for the planned length
+(all of the take when it came back shorter). `dissolve` and `whip` cuts
+cross-fade (0.5 s and 0.25 s); every other cut is a hard cut; a last shot cut
+`fade-out` fades to black. `--end-card` (a rendered file) is joined after the
+last shot with a hard cut; `--music` and `--vo` go through the same mix as
+`kie assemble`. A bare file name is looked for in the run folder first. A shot
+with on-screen copy gets a note: the cut does not draw text, so render it
+with `kie render`. `cut.json` records the segments, joins and notes.
 
 ### MCP server
 

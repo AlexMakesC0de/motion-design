@@ -83,7 +83,7 @@ kie caption  --run entri-hero --video film-9x16.mp4 --srt cap.srt  # …then cap
 
 ### Studio (web app)
 
-`npm --prefix web install` once, then `npm run studio`. A local page with the prompt bar, your takes, the library, presets, films, spend and settings, plus a chat that drives the same tools through your ChatGPT subscription or an OpenAI API key. See [web/README.md](web/README.md).
+`npm --prefix web install` once, then `npm run studio`. A local page with the prompt bar, your takes, the library, presets, films, spend and settings, a storyboard for directed films (shots, stills, takes, review and cut), plus a chat that drives the same tools through your ChatGPT subscription or an OpenAI API key. See [web/README.md](web/README.md).
 
 `kie limits --daily 25` sets the daily cap. `kie limits --per-job 2` refuses any single job estimated above $2; `--per-job off` removes that limit. Both apply to the CLI, the MCP tools and the studio.
 

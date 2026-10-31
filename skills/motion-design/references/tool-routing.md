@@ -13,6 +13,7 @@ One shared skill supports Claude Code, Codex and Kimi. All three drive the same
 | Bring a local asset in | `kie upload <path>` |
 | Reuse a character, product or screen across jobs | `kie asset save <name> <image>... --kind K --description "..."`, then `--ref <name>:identity` or `--ref <name>#n:first_frame` |
 | Generate the complete film | `kie video --run SLUG --preset P` |
+| Make a directed film from its saved plan | `kie still`, `kie shot` or `kie film`, `kie review`, `kie cut` (see [production.md](production.md)) |
 | See today's spend against the cap, and unsettled jobs | `kie limits` |
 | Wait for a job submitted with `--no-wait`, or rejoin after exit 5 | `kie job <local job id>` |
 | Draw text, a logo, numbers or a screenshot | `kie render --template T` |
