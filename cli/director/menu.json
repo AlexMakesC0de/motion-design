@@ -1,0 +1,117 @@
+{
+  "_comment": "The director's fixed menu. Every shot in a plan picks from these ids; the checker refuses anything else. `words` is how a prompt says it; `hailuo` is MiniMax Hailuo's bracket command where one exists. The craft behind each entry is in skills/motion-design/references/director/craft.md.",
+  "sizes": [
+    { "id": "extreme-wide", "label": "Extreme wide", "words": "extreme wide shot", "when": "Show the whole world and how small the subject is in it; opens a film or a new place." },
+    { "id": "wide", "label": "Wide", "words": "wide shot", "when": "Establish the place and where everyone is before going closer." },
+    { "id": "full", "label": "Full", "words": "full shot", "when": "The whole body, head to toe; movement, posture and costume." },
+    { "id": "medium-wide", "label": "Medium wide", "words": "medium wide shot", "when": "Knees up; a person and what their hands and surroundings are doing." },
+    { "id": "medium", "label": "Medium", "words": "medium shot", "when": "Waist up; the neutral conversational shot." },
+    { "id": "medium-close-up", "label": "Medium close-up", "words": "medium close-up", "when": "Chest up; reactions while keeping a little context." },
+    { "id": "close-up", "label": "Close-up", "words": "close-up", "when": "The face or the object fills the frame; emotion and decisions." },
+    { "id": "extreme-close-up", "label": "Extreme close-up", "words": "extreme close-up", "when": "An eye, a fingertip, a texture; maximum intensity, used sparingly." },
+    { "id": "insert", "label": "Insert", "words": "insert shot", "when": "A detail the viewer must read: a screen, a button, a label." }
+  ],
+  "angles": [
+    { "id": "eye-level", "label": "Eye level", "words": "eye-level angle", "when": "Neutral and honest; the default." },
+    { "id": "high", "label": "High", "words": "high angle", "when": "Looking down makes the subject smaller or overwhelmed." },
+    { "id": "low", "label": "Low", "words": "low angle", "when": "Looking up makes the subject powerful or heroic." },
+    { "id": "overhead", "label": "Overhead", "words": "overhead top-down angle", "when": "Straight down; desks, layouts, screens treated as graphics." },
+    { "id": "worms-eye", "label": "Worm's eye", "words": "worm's-eye angle", "when": "From the floor; scale and drama." },
+    { "id": "dutch", "label": "Dutch", "words": "dutch angle", "when": "A tilted horizon for unease or energy; rarely, never twice in a row." },
+    { "id": "over-the-shoulder", "label": "Over the shoulder", "words": "over-the-shoulder angle", "when": "Past one person to another person or a screen; puts the viewer in the scene." },
+    { "id": "point-of-view", "label": "Point of view", "words": "point-of-view angle", "when": "What the subject sees." }
+  ],
+  "lenses": [
+    { "id": "14mm", "label": "14mm ultra-wide", "words": "14mm ultra-wide lens", "when": "Exaggerated space for tight interiors and energy; never on a face up close." },
+    { "id": "24mm", "label": "24mm wide", "words": "24mm wide lens", "when": "Roomy and close at once; establishing shots and moving through space." },
+    { "id": "35mm", "label": "35mm", "words": "35mm lens", "when": "Natural and documentary; the storyteller's all-rounder." },
+    { "id": "50mm", "label": "50mm", "words": "50mm lens", "when": "Close to how the eye sees; honest medium shots." },
+    { "id": "85mm", "label": "85mm portrait", "words": "85mm portrait lens", "when": "Flatters faces and melts the background; close-ups." },
+    { "id": "135mm", "label": "135mm telephoto", "words": "135mm telephoto lens", "when": "Compresses the background and isolates; watching from afar." },
+    { "id": "100mm-macro", "label": "100mm macro", "words": "100mm macro lens", "when": "Tiny details large and sharp; textures, product surfaces, UI pixels." }
+  ],
+  "lensLooks": [
+    { "id": "spherical", "label": "Clean spherical", "words": "clean spherical", "when": "A clean modern look with round bokeh." },
+    { "id": "anamorphic", "label": "Anamorphic", "words": "anamorphic", "when": "A cinematic widescreen feel with oval bokeh and horizontal flares." }
+  ],
+  "depths": [
+    { "id": "shallow", "label": "Shallow (f/1.4-2)", "words": "shallow depth of field", "when": "One plane sharp, the rest soft; isolates the subject." },
+    { "id": "medium", "label": "Medium (f/4)", "words": "moderate depth of field", "when": "Subject sharp with readable surroundings." },
+    { "id": "deep", "label": "Deep (f/8-11)", "words": "deep focus", "when": "Everything sharp; wide shots and graphic layouts." }
+  ],
+  "moves": [
+    { "id": "static", "label": "Static", "words": "holds still", "hailuo": "[Static shot]", "when": "Let the action or the composition do the work." },
+    { "id": "push-in", "label": "Push in", "words": "pushes in", "hailuo": "[Push in]", "when": "Move toward the subject to build attention or a realisation." },
+    { "id": "pull-out", "label": "Pull out", "words": "pulls out", "hailuo": "[Pull out]", "when": "Move away to reveal context or close a scene." },
+    { "id": "pan-left", "label": "Pan left", "words": "pans left", "hailuo": "[Pan left]", "when": "Turn on the spot to follow or reveal sideways." },
+    { "id": "pan-right", "label": "Pan right", "words": "pans right", "hailuo": "[Pan right]", "when": "Turn on the spot to follow or reveal sideways." },
+    { "id": "tilt-up", "label": "Tilt up", "words": "tilts up", "hailuo": "[Tilt up]", "when": "Reveal height or lift the mood." },
+    { "id": "tilt-down", "label": "Tilt down", "words": "tilts down", "hailuo": "[Tilt down]", "when": "Bring the eye down to what matters." },
+    { "id": "truck-left", "label": "Truck left", "words": "trucks left", "hailuo": "[Truck left]", "when": "Slide sideways alongside the action for parallax." },
+    { "id": "truck-right", "label": "Truck right", "words": "trucks right", "hailuo": "[Truck right]", "when": "Slide sideways alongside the action for parallax." },
+    { "id": "pedestal-up", "label": "Pedestal up", "words": "rises straight up", "hailuo": "[Pedestal up]", "when": "Lift without tilting to reveal over an object." },
+    { "id": "pedestal-down", "label": "Pedestal down", "words": "lowers straight down", "hailuo": "[Pedestal down]", "when": "Sink without tilting to land on a detail." },
+    { "id": "follow", "label": "Follow", "words": "follows the subject", "hailuo": "[Tracking shot]", "when": "Stay with a moving subject at a constant distance." },
+    { "id": "orbit-left", "label": "Orbit left", "words": "orbits left around the subject", "hailuo": null, "when": "Circle the subject to show it in the round; keep the arc under 45 degrees." },
+    { "id": "orbit-right", "label": "Orbit right", "words": "orbits right around the subject", "hailuo": null, "when": "Circle the subject to show it in the round; keep the arc under 45 degrees." },
+    { "id": "crane-up", "label": "Crane up", "words": "cranes up and over the scene", "hailuo": null, "when": "A big rising move for openings and endings." },
+    { "id": "crane-down", "label": "Crane down", "words": "cranes down into the scene", "hailuo": null, "when": "Descend into the scene from above." },
+    { "id": "handheld", "label": "Handheld", "words": "moves handheld with a slight natural shake", "hailuo": "[Shake]", "when": "Immediacy: creator footage, documentary." },
+    { "id": "zoom-in", "label": "Zoom in", "words": "zooms in", "hailuo": "[Zoom in]", "when": "Magnify without moving; a flat, deliberate emphasis." },
+    { "id": "zoom-out", "label": "Zoom out", "words": "zooms out", "hailuo": "[Zoom out]", "when": "Shrink the view without moving." },
+    { "id": "rack-focus", "label": "Rack focus", "words": "racks focus from the foreground to the background", "hailuo": null, "when": "Shift attention between two planes without moving." }
+  ],
+  "speeds": [
+    { "id": "slow", "label": "Slow", "words": "slowly", "when": "Calm, premium, contemplative." },
+    { "id": "medium", "label": "Medium", "words": "steadily", "when": "Purposeful and neutral." },
+    { "id": "fast", "label": "Fast", "words": "quickly", "when": "Energy and urgency; needs room, so not in short shots." }
+  ],
+  "lights": [
+    { "id": "soft-high-key", "label": "Soft high key", "words": "soft, even high-key light", "when": "Bright and friendly with little shadow; tech and lifestyle." },
+    { "id": "low-key", "label": "Low key", "words": "moody low-key light with deep shadows", "when": "Drama, night, mystery." },
+    { "id": "rembrandt", "label": "Rembrandt", "words": "Rembrandt lighting with a triangle of light on the shadow cheek", "when": "Classic portrait depth for faces." },
+    { "id": "backlit-rim", "label": "Backlit rim", "words": "backlight that rims the subject in light", "when": "Separates the subject from the background; silhouettes and hair light." },
+    { "id": "golden-hour", "label": "Golden hour", "words": "warm, low golden-hour sunlight", "when": "Warmth, nostalgia, hope." },
+    { "id": "night-practicals", "label": "Night with practicals", "words": "night scene lit by practical lamps and screens", "when": "Lamps, signs and screens in frame are the light." },
+    { "id": "studio-product", "label": "Studio product", "words": "studio product lighting with a large softbox and a rim light", "when": "Clean reflections and crisp edges on products." },
+    { "id": "neon", "label": "Neon", "words": "saturated neon colour light", "when": "Nightlife, gaming, energy." },
+    { "id": "overcast", "label": "Overcast natural", "words": "soft overcast daylight", "when": "Natural and gentle with no hard shadows." }
+  ],
+  "cuts": [
+    { "id": "hard", "label": "Hard cut", "words": "hard cut", "when": "The default change of view." },
+    { "id": "on-action", "label": "Cut on action", "words": "cut on action", "when": "Cut mid-movement so the motion hides the edit." },
+    { "id": "match", "label": "Match cut", "words": "match cut", "when": "A shape or motion here matches one in the next shot." },
+    { "id": "whip", "label": "Whip pan", "words": "whip pan", "when": "A fast blur carries the energy into the next shot." },
+    { "id": "dissolve", "label": "Dissolve", "words": "dissolve", "when": "Time passes, or a soft change of mood." },
+    { "id": "continuous", "label": "Continuous", "words": "continuous", "when": "The next shot starts on this shot's last frame: one unbroken moment." }
+  ],
+  "screenDirections": [
+    { "id": "left-to-right", "label": "Left to right", "words": "moving left to right", "when": "Forward, progress, arriving." },
+    { "id": "right-to-left", "label": "Right to left", "words": "moving right to left", "when": "Returning, resisting, leaving." },
+    { "id": "toward-camera", "label": "Toward camera", "words": "moving toward the camera", "when": "Confrontation or arrival." },
+    { "id": "away-from-camera", "label": "Away from camera", "words": "moving away from the camera", "when": "Departure or discovery ahead." },
+    { "id": "none", "label": "None", "words": "", "when": "Nothing travels across the frame." }
+  ],
+  "keyLightSides": [
+    { "id": "left", "label": "Left", "words": "left", "when": "Key light from frame left." },
+    { "id": "right", "label": "Right", "words": "right", "when": "Key light from frame right." },
+    { "id": "front", "label": "Front", "words": "front", "when": "Flat and even; graphics and beauty." },
+    { "id": "back", "label": "Back", "words": "back", "when": "Silhouettes and rims." },
+    { "id": "top", "label": "Top", "words": "top", "when": "Overhead light; product tables and drama." }
+  ],
+  "jobs": [
+    { "id": "motion-graphics", "label": "Motion graphics", "when": "Type, UI and abstract graphic motion." },
+    { "id": "cinematic", "label": "Cinematic", "when": "Live-action-looking scenes with people and places." },
+    { "id": "reference-images", "label": "Working from reference images", "when": "A Library character or product must match its sheet." },
+    { "id": "ugc", "label": "UGC-style footage", "when": "Phone-camera, creator-style footage." },
+    { "id": "lip-sync", "label": "Lip sync", "when": "Someone speaks a line on camera." },
+    { "id": "animation", "label": "Animation", "when": "Stylised or 3D character animation." },
+    { "id": "product-hero", "label": "Product hero", "ratings": "cinematic", "when": "Physical products on turntables, in macro and under light sweeps." }
+  ],
+  "filmTypes": [
+    { "id": "product-ui", "label": "Product ad with UI", "chapter": "product-ui.md", "when": "App screens, a mascot, kinetic type and an end card." },
+    { "id": "live-action", "label": "Live-action look", "chapter": "live-action.md", "when": "Real-looking people and places." },
+    { "id": "character", "label": "Character animation", "chapter": "character.md", "when": "Stylised or 3D characters acting out a short story." },
+    { "id": "product-hero", "label": "Product hero", "chapter": "product-hero.md", "when": "A physical product shown at its best." }
+  ]
+}
