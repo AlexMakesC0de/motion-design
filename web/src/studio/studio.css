@@ -19,6 +19,8 @@
    shared out in proportion to that ratio, so the tiles of a row grow to one height and the row fills. The cap stops the
    last row, or a row of one, from stretching a tile far past its ratio. Order stays left to right, newest first. */
 .feed__grid { --row-h: 200px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
+/* An empty last item takes the last row's spare room, so a short last row keeps --row-h instead of stretching. */
+.feed__grid::after { content: ""; flex: 999 1 0; }
 .feed__empty, .feed__error { color: var(--text-2); margin: var(--space-6) 0; max-width: 60ch; }
 .feed__error { color: var(--bad-ink); }
 
