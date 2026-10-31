@@ -18,6 +18,13 @@ describe("shotOrder", () => {
 });
 
 describe("FilmPage", () => {
+  test("a film with no video takes points to Create, with a link", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/zed": () => film({ files: [] }) })));
+    render(<FilmPage slug="zed" />);
+    expect(await screen.findByText(/No video takes in this film yet/)).toHaveTextContent("No video takes in this film yet. Make some in Create.");
+    expect(screen.getByRole("link", { name: "Create" })).toHaveAttribute("href", "#/create");
+  });
+
   test("lists the takes as shots that move up and down and can be left out", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/zed": () => film() })));
     render(<FilmPage slug="zed" />);

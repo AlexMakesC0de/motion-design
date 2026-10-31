@@ -47,7 +47,7 @@ export function parseRoute(hash: string): Route {
     const step = STEPS.find((s) => s.id === rest[1])?.id ?? null;
     return { screen: "film", slug: decoded(rest[0]), step };
   }
-  if (REDIRECTS[first]) return { redirect: REDIRECTS[first] };
+  if (Object.hasOwn(REDIRECTS, first)) return { redirect: REDIRECTS[first] };
   if (RAIL_IDS.has(first)) return { screen: first as Exclude<Screen, "film"> };
   return { screen: "home" };
 }

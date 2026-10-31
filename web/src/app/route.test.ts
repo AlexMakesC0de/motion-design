@@ -8,6 +8,11 @@ describe("parseRoute", () => {
     expect(parseRoute("#/")).toEqual({ screen: "home" });
     expect(parseRoute("#/nope")).toEqual({ screen: "home" });
   });
+  test("names that are built into every object go Home, not to a redirect", () => {
+    for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"]) {
+      expect(parseRoute(`#/${name}`)).toEqual({ screen: "home" });
+    }
+  });
   test("each rail screen by name", () => {
     for (const s of ["projects", "create", "library", "presets", "spend", "settings"] as const) {
       expect(parseRoute(`#/${s}`)).toEqual({ screen: s });

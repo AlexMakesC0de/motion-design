@@ -162,7 +162,9 @@ export function FilmPage({ slug }: { slug: string }) {
                   })}
                 </ol>
               ) : (
-                <p className="film__none">No video takes in this film yet. Generate some in the Studio.</p>
+                <p className="film__none">
+                  No video takes in this film yet. Make some in <a href="#/create">Create</a>.
+                </p>
               )}
             </section>
 
