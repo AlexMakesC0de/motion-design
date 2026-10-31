@@ -43,8 +43,8 @@ function Entry({ entry }: { entry: ChatEntry }) {
  * tools as the CLI and the MCP server, so jobs it starts show up in the feed
  * like any other. With nothing connected it shows the two ways to connect.
  */
-export function ChatPanel({ film, outbox }: { film: string | null; outbox?: { id: number; text: string } | null }) {
-  const [open, setOpen] = useState(() => !narrow());
+export function ChatPanel({ film, outbox, onClose }: { film: string | null; outbox?: { id: number; text: string } | null; onClose?: () => void }) {
+  const [open, setOpen] = useState(() => Boolean(onClose) || !narrow());
   const [settings, setSettings] = useState<ChatSettingsView | null>(null);
   const [text, setText] = useState("");
   const chat = useChat(film);
@@ -98,9 +98,15 @@ export function ChatPanel({ film, outbox }: { film: string | null; outbox?: { id
       <header className="chat__head">
         <h2 className="chat__title">Chat</h2>
         {film && <span className="chat__film mono">{film}</span>}
-        <button type="button" className="button button--quiet chat__hide" aria-expanded="true" onClick={() => setOpen(false)}>
-          Hide chat
-        </button>
+        {onClose ? (
+          <button type="button" className="button button--quiet chat__hide" onClick={onClose}>
+            Close chat
+          </button>
+        ) : (
+          <button type="button" className="button button--quiet chat__hide" aria-expanded="true" onClick={() => setOpen(false)}>
+            Hide chat
+          </button>
+        )}
         {via && !picker && <span className="chat__via">{via}</span>}
       </header>
 
@@ -123,7 +129,7 @@ export function ChatPanel({ film, outbox }: { film: string | null; outbox?: { id
         ))}
       </ol>
       {!chat.entries.length && !picker && (
-        <p className="chat__empty">{film ? `Ask about ${film}: a price, a shot, a change. Jobs the chat starts appear in the feed.` : "Pick a film to chat about it."}</p>
+        <p className="chat__empty">{film ? `Ask about ${film}: a price, a shot, a change. Jobs the chat starts appear in the film.` : "Pick a film to chat about it."}</p>
       )}
       {chat.error && !chat.connect && (
         <p className="chat__error" role="alert">

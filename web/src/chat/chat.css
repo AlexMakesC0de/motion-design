@@ -69,3 +69,12 @@
   .chat--closed { width: auto; max-height: none; padding: var(--space-2) 0 0; align-items: flex-start; }
   .chat__toggle { writing-mode: horizontal-tb; }
 }
+
+/* The drawer: over the page's right edge, full height under nothing. */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 20;
+  width: min(420px, 100vw); display: flex;
+  background: var(--surface-1); border-left: 1px solid var(--line);
+}
+/* Inside the drawer the chat fills it: no fixed width, grid column or border of its own, also on narrow windows. */
+.drawer .chat { flex: 1; width: auto; grid-column: auto; min-width: 0; max-height: none; border: 0; padding: var(--space-4); }
