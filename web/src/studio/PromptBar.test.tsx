@@ -96,20 +96,20 @@ describe("PromptBar", () => {
 
   test("over the per-job limit: disabled, saying by how much", async () => {
     bar({ withinPerJob: false, perJobUsd: 0.5, allowed: false });
-    expect(await screen.findByText("over the per-job limit by $0.06, raise it in Settings")).toBeInTheDocument();
+    expect(await screen.findByText("over the per-job limit by $0.06, raise it in Settings")).not.toHaveClass("prompt-bar__reason--hint");
     expect(screen.getByRole("button", { name: "Generate $0.56" })).toBeDisabled();
   });
 
   test("a setting the model does not take: disabled with core's words", async () => {
     bar({ problems: ["seedance-2-5 generates 4/5/6s, not 2s."], allowed: false });
-    expect(await screen.findByText("seedance-2-5 generates 4/5/6s, not 2s.")).toBeInTheDocument();
+    expect(await screen.findByText("seedance-2-5 generates 4/5/6s, not 2s.")).not.toHaveClass("prompt-bar__reason--hint");
     expect(screen.getByRole("button", { name: /Generate/ })).toBeDisabled();
   });
 
-  test("an empty prompt: disabled until one is written", async () => {
+  test("an empty prompt: disabled until one is written, said as a quiet hint rather than a warning", async () => {
     resetForTests({ ...ready, prompt: "" }, "zed");
     bar({});
-    expect(await screen.findByText("Write a prompt.")).toBeInTheDocument();
+    expect(await screen.findByText("Write a prompt.")).toHaveClass("prompt-bar__reason--hint");
     fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "A fox" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Generate $0.56" })).toBeEnabled());
   });

@@ -72,6 +72,16 @@ describe("TakeViewer", () => {
     expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   });
 
+  test("the close control is a text button, not a bare glyph", () => {
+    const onClose = vi.fn();
+    render(<TakeViewer job={job()} kinds={KINDS} now={NOW} onClose={onClose} />);
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close).toHaveTextContent("Close");
+    expect(close).toHaveClass("button--quiet", "viewer__close");
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalled();
+  });
+
   test("Escape closes", () => {
     const onClose = vi.fn();
     render(<TakeViewer job={job()} kinds={KINDS} now={NOW} onClose={onClose} />);

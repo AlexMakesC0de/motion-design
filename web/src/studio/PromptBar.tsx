@@ -120,7 +120,10 @@ export function PromptBar({ models, assets, roles, run, onSubmitted, onUncertain
     setDraft(fitToModel(first, draft));
   }, [models, draft]);
 
-  const reason = estimateError ?? refusalReason(estimate) ?? (!run ? "Pick a film to work in." : !draft.prompt.trim() ? "Write a prompt." : null);
+  // A real blocker is a warning. An empty prompt is only what is left to do, so it reads as a quiet hint.
+  const blocker = estimateError ?? refusalReason(estimate) ?? (!run ? "Pick a film to work in." : null);
+  const hint = !blocker && !draft.prompt.trim() ? "Write a prompt." : null;
+  const reason = blocker ?? hint;
   const price = estimate?.estimateUsd != null ? usd(estimate.estimateUsd) : "…";
   const roleChoices = model?.capability === "video" ? model.refRoles : roles;
 
@@ -193,7 +196,7 @@ export function PromptBar({ models, assets, roles, run, onSubmitted, onUncertain
         </div>
       </div>
       {reason && (
-        <p id="generate-reason" className="prompt-bar__reason" role="status">
+        <p id="generate-reason" className={hint ? "prompt-bar__reason prompt-bar__reason--hint" : "prompt-bar__reason"} role="status">
           {reason}
           {onlyBudgetBlocks(estimate) && estimate?.estimateUsd != null && (
             <button type="button" className="prompt-bar__lift" onClick={() => setDraft({ budgetUsd: estimate.estimateUsd })}>

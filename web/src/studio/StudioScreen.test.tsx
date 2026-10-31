@@ -31,8 +31,8 @@ describe("StudioScreen", () => {
     render(<StudioScreen />);
     expect(await screen.findByRole("combobox", { name: "Working in" })).toHaveValue("zed");
     const feed = screen.getByRole("region", { name: "Takes" });
-    const opens = await within(feed).findAllByRole("button", { name: /Open take/ });
-    expect(opens.map((b) => b.getAttribute("aria-label"))).toEqual(["Open take j-20261031-bbbbbb", "Open take j-20261031-aaaaaa"]);
+    const opens = await within(feed).findAllByRole("button", { name: /^Open / });
+    expect(opens.map((b) => b.getAttribute("aria-label"))).toEqual(["Open seedance-2-5 5s take: Newer take.", "Open seedance-2-5 4s take: Older take."]);
   });
 
   test("audio models are left out of the model chip", async () => {
@@ -43,7 +43,7 @@ describe("StudioScreen", () => {
 
   test("Reuse in the viewer fills the prompt bar", async () => {
     render(<StudioScreen />);
-    fireEvent.click(await screen.findByRole("button", { name: "Open take j-20261031-bbbbbb" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open seedance-2-5 5s take: Newer take." }));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Reuse" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("Newer take.");

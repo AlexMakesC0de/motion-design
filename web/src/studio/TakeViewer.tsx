@@ -63,8 +63,8 @@ export function TakeViewer({ job, kinds, now, onClose }: { job: JobView; kinds: 
             <h2 id="viewer-title" className="mono">
               {takeSpec(job)}
             </h2>
-            <button ref={closeRef} type="button" className="button button--quiet" onClick={onClose} aria-label="Close">
-              ×
+            <button ref={closeRef} type="button" className="button button--quiet viewer__close" onClick={onClose} aria-keyshortcuts="Escape">
+              Close
             </button>
           </header>
           <dl className="viewer__facts mono">

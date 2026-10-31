@@ -15,13 +15,20 @@
 
 /* Feed */
 .feed { overflow-y: auto; min-height: 0; padding-right: var(--space-1); }
-.feed__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4) var(--space-3); align-items: start; }
+/* Justified rows: every tile starts as wide as its own ratio makes a frame --row-h tall, then the row's spare room is
+   shared out in proportion to that ratio, so the tiles of a row grow to one height and the row fills. The cap stops the
+   last row, or a row of one, from stretching a tile far past its ratio. Order stays left to right, newest first. */
+.feed__grid { --row-h: 200px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
 .feed__empty, .feed__error { color: var(--text-2); margin: var(--space-6) 0; max-width: 60ch; }
 .feed__error { color: var(--bad-ink); }
 
-.take { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.take {
+  --r: 1; /* the frame's width over its height, set per take */
+  display: flex; flex-direction: column; gap: var(--space-2); min-width: 0;
+  flex: var(--r) 1 calc(var(--row-h) * var(--r)); max-width: calc(var(--row-h) * var(--r) * 1.5);
+}
 .take__frame {
-  display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md);
+  display: block; width: 100%; height: auto; aspect-ratio: var(--r); padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md);
   background: var(--surface-1); overflow: hidden; cursor: zoom-in;
 }
 .take__frame video, .take__frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -35,8 +42,8 @@
 .take[data-state="failed"] .take__empty { background: var(--bad-surface); }
 .take[data-state="uncertain"] .take__frame { border-color: var(--warn); border-style: dashed; }
 
-.take__info { display: flex; flex-direction: column; gap: 2px; }
-.take__spec { margin: 0; font-size: var(--text-xs); color: var(--text-2); display: flex; flex-wrap: wrap; column-gap: 0; }
+.take__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.take__spec { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
 .take__cost { color: var(--accent); }
 .take__via { margin-left: var(--space-2); color: var(--text); }
 .take__status { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
@@ -64,6 +71,8 @@
 .prompt-bar__chips { display: flex; flex-wrap: wrap; gap: var(--space-2); flex: 1; min-width: 0; }
 .prompt-bar__go { margin-left: auto; }
 .prompt-bar__reason { margin: 0; font-size: var(--text-sm); color: var(--warn); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* Nothing is wrong yet, the prompt is just empty: a hint, not a warning. */
+.prompt-bar__reason--hint { color: var(--text-3); }
 .prompt-bar__lift { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; cursor: pointer; font-size: var(--text-sm); }
 .prompt-bar__failure { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bad-surface); color: var(--bad-ink); font-size: var(--text-sm); white-space: pre-line; }
 .prompt-bar__unsure { display: flex; align-items: flex-start; gap: var(--space-3); }
@@ -112,6 +121,7 @@
 .viewer__side { display: flex; flex-direction: column; gap: var(--space-3); min-height: 0; overflow-y: auto; }
 .viewer__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
 .viewer__head h2 { margin: 0; font-size: var(--text-md); font-weight: 500; }
+.viewer__close { min-height: 32px; flex: none; }
 .viewer__facts { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); margin: 0; font-size: var(--text-xs); }
 .viewer__facts dt { color: var(--text-3); }
 .viewer__facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
@@ -126,7 +136,7 @@
 /* Narrow windows: the chat stacks under the feed (chat.css), the viewer stacks. */
 @media (max-width: 760px) {
   .studio { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
-  .feed__grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .feed__grid { --row-h: 140px; }
   .prompt-bar__row { flex-direction: column; align-items: stretch; }
   .generate { justify-content: center; }
   .viewer { padding: var(--space-2); }

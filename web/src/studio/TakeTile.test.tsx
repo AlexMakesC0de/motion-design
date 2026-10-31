@@ -59,10 +59,35 @@ describe("TakeTile", () => {
     expect(screen.getByText("→ wavespeed")).toBeInTheDocument();
   });
 
-  test("clicking the frame opens the take", () => {
+  test("clicking the frame opens the take; the button names the take, not its id", () => {
     const onOpen = vi.fn();
-    render(<TakeTile job={job()} now={NOW} onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open take j-20261031-abc123" }));
+    render(<TakeTile job={job({ model: "minimax-h3", durationS: 6, prompt: "Ink drop blooms into the Zethus wordmark" })} now={NOW} onOpen={onOpen} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open minimax-h3 6s take: Ink drop blooms into the Zethus wordmark" }));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "j-20261031-abc123" }));
+  });
+
+  test("a failed take's button says it failed", () => {
+    tile({ state: "failed-charged", actualUsd: 0.4, error: "content policy", media: [] });
+    expect(screen.getByRole("button", { name: "Open seedance-2-5 4s failed take: A fox runs." })).toBeInTheDocument();
+  });
+
+  test("every join in the caption is the same spaced, hidden dot, including before the price", () => {
+    const { container } = tile({ model: "gpt-image-2", durationS: null, resolution: null, actualUsd: 0.2 });
+    const spec = container.querySelector(".take__spec")!;
+    expect(spec.textContent).toBe("gpt-image-2 · $0.20");
+    expect([...spec.querySelectorAll("[aria-hidden]")].map((d) => d.textContent)).toEqual([" · "]);
+  });
+
+  test("the status line joins its parts with the same separator", () => {
+    const { container } = tile({ state: "submitted", actualUsd: null, media: [], following: false });
+    expect(container.querySelector(".take__status")!.textContent).toBe("not being watched · Check again");
+    expect(container.querySelector(".take__status [aria-hidden]")!.textContent).toBe(" · ");
+  });
+
+  test("the tile carries its frame's ratio, a running one included", () => {
+    const wide = tile({ aspectRatio: "16:9" }).container.querySelector(".take") as HTMLElement;
+    expect(wide.style.getPropertyValue("--r")).toBe("1.7778");
+    const tall = tile({ aspectRatio: "9:16", state: "submitted", actualUsd: null, media: [], following: true }).container.querySelector(".take") as HTMLElement;
+    expect(tall.style.getPropertyValue("--r")).toBe("0.5625");
   });
 });

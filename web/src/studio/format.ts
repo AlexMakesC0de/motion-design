@@ -14,12 +14,27 @@ export function takeCost(job: JobView): string {
   return "—";
 }
 
+/** `5s`, or null for a take with no duration (an image, or a route that does not record one). */
+export function durationLabel(job: JobView): string | null {
+  if (job.durationS == null || job.durationS === "") return null;
+  const s = Number(job.durationS);
+  return Number.isFinite(s) ? `${s}s` : null;
+}
+
 /** `model-id · 5s · 720p`, the engine line every tile shows before its cost. */
 export function takeSpec(job: JobView): string {
-  const parts = [job.model];
-  if (job.durationS != null && job.durationS !== "") parts.push(`${Number(job.durationS)}s`);
-  if (job.resolution) parts.push(job.resolution);
-  return parts.join(" · ");
+  return [job.model, durationLabel(job), job.resolution].filter(Boolean).join(" · ");
+}
+
+/** `model-id · 5s · 16:9`: which engine, how long, what shape. The film page's line under a shot's name. */
+export function shotSpec(job: JobView): string {
+  return [job.model, durationLabel(job), job.aspectRatio].filter(Boolean).join(" · ");
+}
+
+/** The text on one line, cut to `max` characters with an ellipsis. */
+export function clip(text: string, max: number): string {
+  const one = text.replace(/\s+/g, " ").trim();
+  return one.length > max ? `${one.slice(0, max).trimEnd()}…` : one;
 }
 
 /** m:ss since `fromIso`. */
@@ -58,6 +73,19 @@ export function takeStatus(job: JobView, now: number): TakeStatus {
   return { kind: "failed", label, reason };
 }
 
+const STATE_WORD: Record<TakeStatus["kind"], string | null> = { done: null, running: "running", unwatched: "not being watched", uncertain: "uncertain", failed: "failed" };
+
+/**
+ * What a tile's button says to a screen reader: `Open minimax-h3 6s take: Ink drop blooms…`.
+ * Model and duration tell takes apart, the state is named when the take did not succeed,
+ * and the prompt is cut to about 60 characters.
+ */
+export function takeName(job: JobView, status: TakeStatus): string {
+  const what = [job.model, durationLabel(job), STATE_WORD[status.kind]].filter(Boolean).join(" ");
+  const prompt = job.prompt ? clip(job.prompt, 60) : "";
+  return `Open ${what} take${prompt ? `: ${prompt}` : ""}`;
+}
+
 /**
  * Why Generate is disabled, from core's estimate, or null when it may run.
  * Core decides; this only words its verdict and the gap.
@@ -85,8 +113,9 @@ export function mediaFile(url: string): string {
 
 export const isVideo = (url: string) => /\.(mp4|mov|webm)$/i.test(url);
 
-/** CSS aspect-ratio for a take's frame; square when unknown. */
-export function frameRatio(aspectRatio: string | null): string {
+/** Width over height of a take's frame, e.g. 1.7778 for 16:9; 1 (square) when unknown. */
+export function frameRatio(aspectRatio: string | null): number {
   const m = aspectRatio?.match(/^(\d+):(\d+)$/);
-  return m ? `${m[1]} / ${m[2]}` : "1 / 1";
+  const [w, h] = m ? [Number(m[1]), Number(m[2])] : [0, 0];
+  return w > 0 && h > 0 ? Math.round((w / h) * 10_000) / 10_000 : 1;
 }
