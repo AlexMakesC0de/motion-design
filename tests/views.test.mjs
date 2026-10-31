@@ -119,3 +119,21 @@ describe("doctor", () => {
     assert.ok(d.failures >= 1);
   });
 });
+
+describe("planJob prices a job without any spending state", () => {
+  test("the same price and problems as estimate, from the catalog alone", () => {
+    const p = views.planJob(catalog, seedance);
+    assert.equal(p.model.id, "seedance-2-5");
+    assert.equal(p.route.provider, "kie");
+    assert.equal(p.est.usd, views.estimate(catalog, seedance, { store, limits }).estimateUsd);
+    assert.deepEqual(p.problems, []);
+  });
+
+  test("a first frame picks the image-to-video call and checks its contract", () => {
+    const h3 = views.planJob(catalog, { model: "minimax-h3", capability: "video", durationS: 5, aspectRatio: "16:9", refs: [{ role: "first_frame" }] });
+    assert.notEqual(h3.call.model, h3.route.model, "the i2v call, not the text-to-video one");
+    assert.deepEqual(h3.problems, []);
+    const wan = views.planJob(catalog, { model: "wan-3-0", capability: "video", durationS: 5, refs: [{ role: "first_frame" }] });
+    assert.match(wan.problems.join(" "), /No captured contract/);
+  });
+});

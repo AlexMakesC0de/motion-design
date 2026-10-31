@@ -112,12 +112,12 @@ export function listPresets(catalog) {
 }
 
 /**
- * What a planned job would cost and whether the per-job budget, the per-job
- * ceiling and today's cap allow it. Reserves nothing and calls no provider. `refs` are checked by
- * role only; assets are not expanded here.
+ * A planned job without any spending state: the model, the route and call it
+ * would use, the price and every problem with the request. Reads no store or
+ * limits, so the director can price a whole plan with it.
  */
-export function estimate(catalog, req, { store, limits }) {
-  const { model: modelId, capability, durationS, resolution, aspectRatio, refs = [], params = {}, budgetUsd, provider } = req;
+export function planJob(catalog, req) {
+  const { model: modelId, capability, durationS, resolution, aspectRatio, refs = [], params = {}, provider } = req;
   const model = resolveModel(catalog, modelId, capability);
   const problems = model.capability === "video" ? validateVideoRequest(catalog, model, { durationS, aspectRatio, refs }) : [];
 
@@ -141,6 +141,17 @@ export function estimate(catalog, req, { store, limits }) {
   } else {
     problems.push(`No route for ${model.id}${provider ? ` via ${provider}` : ""}.`);
   }
+  return { model, route, call, est, problems };
+}
+
+/**
+ * What a planned job would cost and whether the per-job budget, the per-job
+ * ceiling and today's cap allow it. Reserves nothing and calls no provider. `refs` are checked by
+ * role only; assets are not expanded here.
+ */
+export function estimate(catalog, req, { store, limits }) {
+  const { budgetUsd } = req;
+  const { model, route, call, est, problems } = planJob(catalog, req);
 
   const cap = budgetUsd ?? catalog.defaultBudgetUsd?.[model.capability] ?? null;
   const pos = dailyPosition(store, limits);
