@@ -1,0 +1,205 @@
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
+import { Storyboard } from "./Storyboard";
+import { resetMenuForTests } from "./useBoard";
+import { StudioScreen } from "../studio/StudioScreen";
+import { resetForTests } from "../studio/promptStore";
+import { chatSettings, job, model, routes } from "../test-fixtures";
+import type { BoardShot, BoardView, DirectorMenu, Shot } from "../api/types";
+
+const entry = (id: string, label = id) => ({ id, label, when: `when ${id}` });
+const menu: DirectorMenu = {
+  menu: {
+    sizes: [entry("wide", "Wide"), entry("medium", "Medium"), entry("close-up", "Close-up")],
+    angles: [entry("eye-level", "Eye level")],
+    lenses: [entry("35mm"), entry("85mm")],
+    depths: [entry("deep", "Deep")],
+    moves: [entry("static", "Static"), entry("push-in", "Push in")],
+    speeds: [entry("slow", "Slow")],
+    lights: [entry("golden-hour", "Golden hour")],
+    screenDirections: [entry("none", "None")],
+    cuts: [entry("hard", "Hard cut")],
+    jobs: [entry("cinematic", "Cinematic")],
+    filmTypes: [entry("live-action", "Live action")],
+  },
+  groups: [],
+  aspects: ["16:9"],
+  maxFilmS: 60,
+  videoModels: [{ id: "seedance-2-5", label: "Seedance" }],
+  imageModels: [{ id: "nano-banana-pro", label: "Nano Banana" }],
+};
+
+const planShot = (id: string, over: Partial<Shot> = {}): Shot => ({
+  id, durationS: 4, purpose: "p", subject: "Zed", action: `${id} action`, why: `${id} why`,
+  size: "wide", angle: "eye-level", lens: "35mm", depth: "deep", move: { type: "static" },
+  light: "golden-hour", cut: "hard", job: "cinematic", screenDirection: "none", checks: ["Zed reads"],
+  model: "seedance-2-5", stillModel: "nano-banana-pro", ...over,
+});
+const boardShot = (id: string, over: Partial<BoardShot> = {}): BoardShot => ({
+  id, durationS: 4, continuesFrom: null, still: null, stillUrl: null, stillStale: false, take: null, takeUrl: null,
+  filming: [], failed: null, review: null, stills: [], takes: [], ...over,
+});
+const board = (over: Partial<BoardView> = {}): BoardView => ({
+  film: "zed",
+  brief: { takeaway: "Inbox zero, calm", durationS: 8, aspectRatio: "16:9", filmType: "live-action" },
+  plan: { version: 3, look: { palette: "teal", grade: "soft", filmLook: "35mm grain", lensFamily: "spherical", keyLightSide: "left" }, shots: [planShot("s1"), planShot("s2", { size: "close-up" })] },
+  shots: [boardShot("s1"), boardShot("s2")],
+  check: { errors: [], warnings: [] },
+  cost: {
+    shots: [
+      { id: "s1", stillModel: "nano-banana-pro", stillUsd: 0.04, model: "seedance-2-5", generatedS: 5, takeUsd: 0.7 },
+      { id: "s2", stillModel: "nano-banana-pro", stillUsd: 0.04, model: "seedance-2-5", generatedS: 5, takeUsd: 0.7 },
+    ],
+    stillsUsd: 0.08, filmUsd: 1.4, totalUsd: 1.48, complete: true, availableTodayUsd: 10,
+  },
+  left: { stills: ["s1", "s2"], stillsUsd: 0.08, takes: ["s1", "s2"], takesUsd: 1.404 },
+  queue: null,
+  cut: null,
+  ...over,
+});
+const withStills = () =>
+  board({
+    shots: [boardShot("s1", { still: "s1-still.png", stillUrl: "/media/runs/zed/s1-still.png" }), boardShot("s2", { still: "s2-still.png", stillUrl: "/media/runs/zed/s2-still.png" })],
+    left: { stills: [], stillsUsd: 0, takes: ["s1", "s2"], takesUsd: 1.404 },
+  });
+
+let calls: { path: string; method: string; body: any }[] = [];
+function stub(table: Record<string, (init?: RequestInit) => unknown>) {
+  calls = [];
+  const inner = routes({ "/api/director/menu": () => menu, ...table });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ path: String(input), method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return inner(input, init);
+    }),
+  );
+}
+const sent = (path: string, method = "POST") => calls.filter((c) => c.path === path && c.method === method);
+
+beforeEach(() => {
+  resetMenuForTests();
+  stub({});
+});
+
+describe("Storyboard", () => {
+  test("with no plan it asks for the idea and hands it to the chat", () => {
+    const onPlan = vi.fn();
+    render(<Storyboard film="zed" board={board({ brief: null, plan: null, shots: [] })} error={null} apply={() => {}} onPlan={onPlan} />);
+    const plan = screen.getByRole("button", { name: "Plan this" });
+    expect(plan).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "The idea" }), { target: { value: "A 10s ad for Zed" } });
+    fireEvent.click(plan);
+    expect(onPlan).toHaveBeenCalledWith("Plan this film (zed): A 10s ad for Zed");
+  });
+
+  test("shows the brief and one card per shot, with its model, take cost and state", async () => {
+    render(<Storyboard film="zed" board={board()} error={null} apply={() => {}} onPlan={() => {}} />);
+    expect(screen.getByText("Inbox zero, calm")).toBeInTheDocument();
+    const strip = screen.getByRole("list", { name: "Shots" });
+    const cards = within(strip).getAllByRole("button");
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual(["s1: s1 action", "s2: s2 action"]);
+    expect(within(cards[0]).getByText("$0.70")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("No still yet")).toBeInTheDocument();
+    expect(await within(cards[1]).findByText("s2 · Close-up")).toBeInTheDocument();
+  });
+
+  test("Film all waits for every still, then asks once more with the total before filming", async () => {
+    const apply = vi.fn();
+    const { rerender } = render(<Storyboard film="zed" board={board()} error={null} apply={apply} onPlan={() => {}} />);
+    expect(screen.getByRole("button", { name: /^Film all 2/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Make 2 stills/ })).toHaveTextContent("$0.08");
+
+    stub({ "/api/films/zed/film": () => ({ board: withStills() }) });
+    rerender(<Storyboard film="zed" board={withStills()} error={null} apply={apply} onPlan={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Film all 2/ }));
+    expect(sent("/api/films/zed/film")).toHaveLength(0);
+    expect(screen.getByText(/Film 2 shots for up to/)).toHaveTextContent("$1.41");
+    fireEvent.click(screen.getByRole("button", { name: "Film" }));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    expect(sent("/api/films/zed/film")[0].body).toEqual({ max_usd: 1.41 });
+  });
+
+  test("a plan with errors cannot spend", () => {
+    render(<Storyboard film="zed" board={board({ check: { errors: [{ shot: "s1", rule: "r", message: "s1 crosses the line" }], warnings: [] } })} error={null} apply={() => {}} onPlan={() => {}} />);
+    expect(screen.getByRole("button", { name: /^Make 2 stills/ })).toBeDisabled();
+    expect(screen.getByText("s1 crosses the line")).toBeInTheDocument();
+    expect(screen.getByText(/1 error, fix in the inspector or the chat/)).toBeInTheDocument();
+  });
+
+  test("the inspector saves only what changed", async () => {
+    const apply = vi.fn();
+    stub({ "/api/films/zed/shots/s2": () => board() });
+    render(<Storyboard film="zed" board={board()} error={null} apply={apply} onPlan={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "s2: s2 action" }));
+    const inspector = screen.getByRole("complementary", { name: "Shot s2" });
+    expect(within(inspector).queryByRole("button", { name: "Save shot" })).toBeNull();
+    const lens = within(inspector).getByRole("combobox", { name: "Lens" });
+    await within(lens).findByRole("option", { name: "85mm" });
+    fireEvent.change(lens, { target: { value: "85mm" } });
+    fireEvent.change(within(inspector).getByRole("combobox", { name: "Move" }), { target: { value: "push-in" } });
+    fireEvent.click(within(inspector).getByRole("button", { name: "Save shot" }));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    expect(sent("/api/films/zed/shots/s2", "PUT")[0].body).toEqual({ changes: { lens: "85mm", move: { type: "push-in", speed: "slow" } } });
+  });
+
+  test("a take is reviewed check by check, and a failed check needs a redo", async () => {
+    const apply = vi.fn();
+    const taken = board({
+      shots: [boardShot("s1", { still: "s1-still.png", take: "s1-take.mp4", takeUrl: "/media/runs/zed/s1-take.mp4" }), boardShot("s2")],
+    });
+    stub({
+      "/api/films/zed/shots/s1/review": (init) =>
+        init?.method === "PUT" ? taken : { shot: "s1", take: "s1-take.mp4", durationS: 5, checks: ["Zed reads"], sheetUrl: "/sheet.png", firstUrl: "/f.png", lastUrl: "/l.png" },
+    });
+    render(<Storyboard film="zed" board={taken} error={null} apply={apply} onPlan={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    const review = await screen.findByRole("group", { name: "Review of s1-take.mp4" });
+    fireEvent.click(within(review).getByRole("checkbox", { name: "Zed reads" }));
+    expect(within(review).getByRole("button", { name: "Pass" })).toBeDisabled();
+    fireEvent.change(within(review).getByRole("textbox", { name: "What is wrong: Zed reads" }), { target: { value: "face melts at 2s" } });
+    fireEvent.click(within(review).getByRole("button", { name: "Needs a redo" }));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    expect(sent("/api/films/zed/shots/s1/review", "PUT")[0].body).toEqual({
+      review: { take: "s1-take.mp4", verdict: "redo", checks: [{ check: "Zed reads", ok: false, note: "face melts at 2s" }] },
+    });
+  });
+
+  test("filming one shot asks first, with its price", async () => {
+    stub({ "/api/films/zed/shots/s1/take": () => ({ board: withStills() }) });
+    render(<Storyboard film="zed" board={withStills()} error={null} apply={() => {}} onPlan={() => {}} />);
+    const inspector = screen.getByRole("complementary", { name: "Shot s1" });
+    fireEvent.click(within(inspector).getByRole("button", { name: /^Film this shot/ }));
+    expect(within(inspector).getByText(/Film it for about/)).toHaveTextContent("$0.70");
+    fireEvent.click(within(inspector).getByRole("button", { name: "Film" }));
+    await waitFor(() => expect(sent("/api/films/zed/shots/s1/take")).toHaveLength(1));
+  });
+});
+
+describe("the Studio's storyboard view", () => {
+  beforeEach(() => resetForTests({}, ""));
+
+  test("a film with a plan opens on its storyboard, and Plan this goes to the chat", async () => {
+    stub({
+      "/api/runs": () => [{ run: "zed", modified: "", files: 2, takes: 1 }],
+      "/api/models": () => [model()],
+      "/api/library": () => [],
+      "/api/vocab": () => ({ kinds: [], roles: [] }),
+      "/api/jobs": () => [job()],
+      "/api/chat-settings": () => chatSettings({ backend: "codex" }),
+      "/api/chat/zed": (init) => (init?.method === "POST" ? { entry: { id: "u1", kind: "user", text: "x", at: "" } } : { film: "zed", busy: false, entries: [] }),
+      "/api/films/zed/board": () => board({ plan: null, shots: [] }),
+    });
+    render(<StudioScreen />);
+    expect(await screen.findByRole("region", { name: "Storyboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Storyboard" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "The idea" }), { target: { value: "A calm inbox" } });
+    fireEvent.click(screen.getByRole("button", { name: "Plan this" }));
+    await waitFor(() => expect(sent("/api/chat/zed")[0]?.body).toEqual({ text: "Plan this film (zed): A calm inbox" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Takes" }));
+    expect(await screen.findByRole("region", { name: "Takes" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument();
+  });
+});

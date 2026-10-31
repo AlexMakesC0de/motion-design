@@ -320,3 +320,146 @@ export type StudioEvent =
   | { event: "task"; data: TaskView }
   /** A chat entry was added or changed (entry), or a turn began or ended (busy). */
   | { event: "chat"; data: { film: string; busy: boolean; entry: ChatEntry | null } };
+
+// ---------------------------------------------------------------- director
+
+export interface MenuEntry {
+  id: string;
+  label: string;
+  when: string;
+  words?: string;
+}
+
+export interface DirectorMenu {
+  menu: Record<string, MenuEntry[]>;
+  groups: string[];
+  aspects: string[];
+  maxFilmS: number;
+  videoModels: { id: string; label: string }[];
+  imageModels: { id: string; label: string }[];
+}
+
+export interface Brief {
+  takeaway: string;
+  durationS: number;
+  aspectRatio: string;
+  filmType: string;
+  audience?: string;
+  tone?: string;
+  mustShow?: string[];
+  copy?: string[];
+  sound?: { music?: string; voice?: string; sfx?: string };
+}
+
+export interface Shot {
+  id: string;
+  durationS: number;
+  purpose: string;
+  subject: string;
+  action: string;
+  why: string;
+  size: string;
+  angle: string;
+  lens: string;
+  depth: string;
+  move: { type: string; speed?: string };
+  light: string;
+  cut: string;
+  job: string;
+  screenDirection: string;
+  checks: string[];
+  cast?: string[];
+  copy?: string[];
+  model?: string;
+  modelReason?: string;
+  stillModel?: string;
+  stillReason?: string;
+  keyLightSide?: string;
+  line?: string;
+  still?: string;
+  take?: string;
+}
+
+export interface Plan {
+  version: number;
+  look: { palette: string; grade: string; filmLook: string; lensFamily: string; keyLightSide: string; styleStill?: string };
+  shots: Shot[];
+}
+
+export interface Finding {
+  shot: string | null;
+  rule: string;
+  message: string;
+}
+
+/** One still or take attempt of a shot. */
+export interface Attempt {
+  jobId: string;
+  state: JobState;
+  file: string | null;
+  url: string | null;
+  model: string;
+  estimateUsd: number | null;
+  actualUsd: number | null;
+  error: string | null;
+  createdAt: string;
+  /** Stills: made from older wording than the shot's current one. */
+  stale?: boolean;
+  /** Takes: the frame it started from. */
+  from?: string | null;
+  generatedS?: number | null;
+  job?: JobView | null;
+}
+
+export interface Review {
+  take: string;
+  verdict: "pass" | "redo";
+  checks: { check: string; ok: boolean; note?: string }[];
+  bestWindow?: { startS: number };
+  at: string;
+}
+
+export interface BoardShot {
+  id: string;
+  durationS: number;
+  continuesFrom: string | null;
+  still: string | null;
+  stillUrl: string | null;
+  stillStale: boolean;
+  take: string | null;
+  takeUrl: string | null;
+  filming: string[];
+  failed: { jobId: string; state: JobState; error: string | null } | null;
+  review: Review | null;
+  stills: Attempt[];
+  takes: Attempt[];
+}
+
+export interface BoardView {
+  film: string;
+  brief: Brief | null;
+  plan: Plan | null;
+  shots: BoardShot[];
+  check: { errors: Finding[]; warnings: Finding[] };
+  cost: {
+    shots: { id: string | null; stillModel: string | null; stillUsd: number | null; model: string | null; generatedS: number | null; takeUsd: number | null }[];
+    stillsUsd: number;
+    filmUsd: number;
+    totalUsd: number;
+    complete: boolean;
+    availableTodayUsd: number | null;
+  };
+  left: { stills: string[]; stillsUsd: number; takes: string[]; takesUsd: number };
+  queue: { kind: "stills" | "film"; waiting: string[]; maxUsd: number | null; stopped: { shot: string | null; message: string; code?: number | null } | null } | null;
+  cut: { out: string; totalS: number; url: string | null; notes: string[] } | null;
+}
+
+export interface ReviewFrames {
+  shot: string;
+  take: string;
+  durationS: number;
+  checks: string[];
+  sheetUrl: string;
+  firstUrl: string;
+  lastUrl: string;
+}

@@ -43,7 +43,7 @@ function Entry({ entry }: { entry: ChatEntry }) {
  * tools as the CLI and the MCP server, so jobs it starts show up in the feed
  * like any other. With nothing connected it shows the two ways to connect.
  */
-export function ChatPanel({ film }: { film: string | null }) {
+export function ChatPanel({ film, outbox }: { film: string | null; outbox?: { id: number; text: string } | null }) {
   const [open, setOpen] = useState(() => !narrow());
   const [settings, setSettings] = useState<ChatSettingsView | null>(null);
   const [text, setText] = useState("");
@@ -62,6 +62,18 @@ export function ChatPanel({ film }: { film: string | null }) {
   }, [chat.entries]);
 
   const connected = settings?.backend != null;
+
+  // A message handed over from elsewhere on the page (the storyboard's "Plan this"): sent at once when the chat can
+  // take it, otherwise left in the box to send by hand.
+  const handed = useRef<number | null>(null);
+  useEffect(() => {
+    if (!outbox || handed.current === outbox.id) return;
+    handed.current = outbox.id;
+    setOpen(true);
+    if (connected && !chat.busy) chat.send(outbox.text).then((sent) => !sent && setText(outbox.text));
+    else setText(outbox.text);
+  }, [outbox, connected, chat]);
+
   const via = settings ? connectionShort(settings) : null;
   const picker = settings != null && (!connected || chat.connect);
 
