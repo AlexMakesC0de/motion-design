@@ -86,7 +86,8 @@ Director (making — spends kie credits; --dry-run plans and spends nothing, --n
   kie still      --run SLUG [--shot ID]...               each shot's first frame (default: every shot without one), in order
   kie shot       --run SLUG --shot ID                    film one shot from its still (also redoes a take)
   kie film       --run SLUG --max-usd U                  film every ready shot, wait, then the shots that continue from them;
-                                                         refused when what is left costs more than U
+                                                         refused when what is left costs more than U; only the shots
+                                                         left when U was agreed, each at its price then (a new U agrees again)
   kie review     --run SLUG --shot ID [--file REVIEW.json]   frames of the take to judge, or save the verdict
                                                          (with auto-redo on, a redo verdict refilms the shot)
   kie auto-redo  on|off --run SLUG [--max-usd U]         refilm takes judged redo on their own: at most 2 redos a shot,
@@ -1145,8 +1146,10 @@ async function cmdFilm(catalog, args) {
   const c = directorCtx(catalog, args);
   const waited = new Set();
   const told = new Set();
+  let agreement = null; // after the first round, only what that total covered is filmed
   for (;;) {
-    const r = await filmReady(catalog, args.run, { ...c, maxUsd });
+    const r = await filmReady(catalog, args.run, { ...c, ...(agreement ? { agreement } : { maxUsd }) });
+    agreement = r.agreement;
     for (const s of r.submitted) say(`${s.shot}  ${r.dryRun ? "would film" : `filming ${s.jobId}`} on ${s.model} · ${s.generatedS}s · ~$${s.estimateUsd.toFixed(2)}`);
     for (const f of r.failed.filter((f) => !told.has(f.shot) && told.add(f.shot))) warn(`! ${f.shot}'s take ${f.state}: ${f.error ?? "no message"}. Film all does not redo it; decide, then kie shot --run ${args.run} --shot ${f.shot}.`);
     if (r.stopped) {

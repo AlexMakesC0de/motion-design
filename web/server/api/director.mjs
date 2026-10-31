@@ -30,7 +30,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 export function registerDirector(router, { catalog, deps = {}, follower, tasks, log = (m) => process.stderr.write(m) }) {
   const menu = loadMenu();
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
-  /** Per film: what is still to be submitted when a job settles. { stills: [ids] } or { film: { maxUsd } }, with the last stop. */
+  /** Per film: what is still to be submitted when a job settles. { stills: [ids] } or { film: agreement }, with the last stop. */
   const queues = new Map();
 
   // One queue step at a time per film: two takes settling together must not both find the next shot ready and film it twice.
@@ -96,13 +96,18 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
     return r;
   }
 
-  /** Submit what Film all finds ready and follow each take; a stop is kept on the queue for the page. */
-  async function filmOn(film, maxUsd) {
-    const r = await filmReady(catalog, film, { ...making(), maxUsd });
+  /**
+   * Submit what Film all finds ready and follow each take; a stop is kept on
+   * the queue for the page. `agree` is { maxUsd } for the button (a new
+   * agreement on the total it showed) or { agreement } for a queue step, which
+   * films only what that agreement covers.
+   */
+  async function filmOn(film, agree) {
+    const r = await filmReady(catalog, film, { ...making(), ...agree, fresh: "maxUsd" in agree });
     for (const s of r.submitted) follower.follow(s.jobId);
     const done = !r.stopped && !r.waiting.length;
     if (done && !r.filming.length && !r.submitted.length) queues.delete(film);
-    else queues.set(film, { film: { maxUsd }, stopped: r.stopped });
+    else queues.set(film, { film: r.agreement, stopped: r.stopped });
     return r;
   }
 
@@ -121,7 +126,8 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
 
   async function step(film, job) {
     const q = queues.get(film);
-    if (!q) return;
+    // A stopped queue waits for the person: only a new Make stills or Film all starts it again.
+    if (!q || q.stopped) return;
     try {
       if (q.stills && job.stage === "still") {
         if (job.state !== "succeeded") {
@@ -131,7 +137,7 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
         queues.delete(film);
         for (const s of q.stills) await still(film, s);
       } else if (q.film && job.stage === "take") {
-        await filmOn(film, q.film.maxUsd);
+        await filmOn(film, { agreement: q.film });
       }
     } catch (err) {
       queues.set(film, { ...q, stills: undefined, stopped: { shot: null, message: err.message, code: err.code ?? null } });
@@ -205,11 +211,11 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
     return { submitted, board: view(film) };
   }
 
-  /** Film all: `max_usd` is the total shown on the button, which the person pressed. */
+  /** Film all: `max_usd` is the total shown on the button, which the person pressed: a new agreement, clearing any stop. */
   router.post("/api/films/:slug/film", async ({ params, body = {} }) => {
     const maxUsd = body.max_usd;
     if (typeof maxUsd !== "number" || !(maxUsd >= 0)) throw f.invalid("max_usd", "max_usd is the total agreed for filming, in dollars.");
-    const r = await serial(params.slug, () => filmOn(params.slug, maxUsd));
+    const r = await serial(params.slug, () => filmOn(params.slug, { maxUsd }));
     return { ...r, board: view(params.slug) };
   });
 

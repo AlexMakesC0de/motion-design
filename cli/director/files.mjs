@@ -6,7 +6,7 @@ import { pidAlive } from "../core/jobs.mjs";
 import { provider, unknown, usage } from "../lib/errors.mjs";
 
 /** The director's files in a film folder. Anything else is refused. */
-export const FILM_FILES = ["brief.json", "shots.json", "reviews.json", "cut.json", "production.json"];
+export const FILM_FILES = ["brief.json", "shots.json", "reviews.json", "cut.json", "production.json", "agreement.json"];
 
 /** Old versions kept per file in runs/<film>/.history; older ones are deleted. */
 export const HISTORY_KEEP = 50;

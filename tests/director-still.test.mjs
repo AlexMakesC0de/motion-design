@@ -20,6 +20,7 @@ const { saveBrief } = await import("../cli/director/brief.mjs");
 const { savePlan, readPlan } = await import("../cli/director/plan.mjs");
 const { stillWording, makeStill, styleStillFor, makeSheet, adoptSheet, sheetWording } = await import("../cli/director/still.mjs");
 const { shotMedia } = await import("../cli/director/media.mjs");
+const { stillFit } = await import("../cli/director/fit.mjs");
 
 const catalog = loadCatalog();
 const PNG = Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000" + "1f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4f30000000049454e44ae426082", "hex");
@@ -109,6 +110,15 @@ describe("making a still", () => {
     assert.deepEqual(c.calls[0].input.image_input, ["https://files.test/1.png"]);
     assert.match(c.calls[0].input.prompt, /^A single frame from a live-action film/);
     assert.equal(r.style, null, "no still exists yet, so no style reference");
+  });
+
+  test("the still's budget is its priced estimate, not the catalog's flat default", async () => {
+    const caps = [];
+    const c = ctx();
+    c.deps.preflight = async (_c, _r, o) => (caps.push(o.budgetUsd), { estimatedUsd: 0.06, basis: "stub", cap: o.budgetUsd, creditsBefore: null });
+    await makeStill(catalog, "sea", "s2", { ...c, dryRun: true });
+    const est = stillFit(catalog, "nano-banana-2", { aspectRatio: "16:9" }).estimateUsd;
+    assert.deepEqual(caps, [Math.round((est + 0.01) * 100) / 100]);
   });
 
   test("dry run plans the job and spends nothing", async () => {

@@ -13,8 +13,13 @@ import { shotWording } from "./wording.mjs";
 import { shotMedia } from "./media.mjs";
 import { soundShot } from "./still.mjs";
 import { readPlan, updateShot } from "./plan.mjs";
+import { readFilmJson, writeFilmJson } from "./files.mjs";
 
 const money = (usd) => `$${usd.toFixed(2)}`;
+const r2 = (usd) => Math.round(usd * 100) / 100;
+
+/** Above a shot's priced estimate, the most its take may be estimated at when submitted: rounding only. */
+export const PRICE_MARGIN_USD = 0.01;
 
 /** The shot before `id`, when it runs straight into this one. */
 const continuesFrom = (plan, id) => {
@@ -65,6 +70,11 @@ export async function filmShot(catalog, film, shotId, ctx) {
 
   const fit = shotFit(catalog, shot.model, { plannedS: shot.durationS, aspectRatio: brief?.aspectRatio });
   if (fit.problems.length) throw usage(`${shot.id} cannot be filmed on ${shot.model}: ${fit.problems.join(" ")}`);
+  // The take may cost what the shot was priced at (and, under Film all, no more
+  // than was agreed for it), not the catalog's flat default budget; the per-job
+  // limit and the daily cap still apply in reserve().
+  const priced = Math.min(fit.estimateUsd ?? Infinity, ctx.agreedUsd ?? Infinity);
+  const budgetUsd = Number.isFinite(priced) ? r2(priced + PRICE_MARGIN_USD) : undefined;
   const wording = shotWording(catalog, plan, shot, { menu, assets });
   if (wording.problems.length) throw usage(`${shot.id}: ${wording.problems.join(" ")}`);
 
@@ -77,6 +87,7 @@ export async function filmShot(catalog, film, shotId, ctx) {
       model,
       run: film,
       artifactBase: `${shot.id}-take`,
+      budgetUsd,
       dryRun,
       values: { prompt: wording.prompt, duration: fit.generatedS, aspect_ratio: brief?.aspectRatio, refs: expanded.refs, params: wording.params, _useI2v: true },
       record: { shot: shot.id, stage: "take", plannedS: shot.durationS, generatedS: fit.generatedS, firstFrame: frame, refMapping: expanded.refMapping, via },
@@ -115,18 +126,32 @@ function standing(plan, media) {
   });
 }
 
+/** The Film all agreement on record for a film (agreement.json), or null. */
+export const readAgreement = (film) => readFilmJson(film, "agreement.json", { ifInvalid: null });
+
 /**
  * Film all: submit every shot that is ready, in order, and return at once.
  * Call again when takes finish: a shot on a continuous cut waits for the take
  * before it. Nothing is filmed twice: a shot with a take, or one being filmed,
  * is skipped, and a failed take is reported for Alex to decide (film_shot
  * redoes it). A refusal (limits) or an ambiguous create stops the queue.
- * `maxUsd` is required: the total Alex agreed to, checked against what is
- * left to film before anything is submitted.
+ *
+ * What may be filmed is bound to an agreement: the total Alex agreed
+ * (`maxUsd`), the shots left to film when he agreed it, and each one's price
+ * then. Every call films only shots in it, each at no more than its agreed
+ * price (passed down as the take's budget), so the takes Film all submits
+ * under one agreement never cost more than the total. A shot added since, or
+ * one whose price rose, stops everything with a request to agree again.
+ *
+ * ctx.agreement: continue that agreement (the studio queue, kie film's loop).
+ * ctx.maxUsd: a stated total. It continues the agreement on record when that
+ * was for the same total, else it is a new agreement, checked against what is
+ * left and saved. ctx.fresh (the studio's button, pressed on the total it
+ * showed) always starts a new one.
  */
 export async function filmReady(catalog, film, ctx) {
-  const { store, library, maxUsd, menu = loadMenu() } = ctx;
-  if (!(typeof maxUsd === "number" && maxUsd >= 0)) {
+  const { store, library, maxUsd, agreement: held = null, fresh = false, menu = loadMenu() } = ctx;
+  if (!held && !(typeof maxUsd === "number" && maxUsd >= 0)) {
     throw usage("Film all needs max_usd (--max-usd): the total Alex agreed to spend on filming. Show the cost with kie plan first.");
   }
   const plan = readPlan(film);
@@ -140,12 +165,43 @@ export async function filmReady(catalog, film, ctx) {
   const noStill = todo.filter((r) => !continuesFrom(plan, r.shot.id) && !media[r.shot.id].still).map((r) => r.shot.id);
   if (noStill.length) throw usage(`Every shot needs its still before filming: ${noStill.join(", ")} ${noStill.length === 1 ? "has" : "have"} none. Make them (kie still, or make_still) and look at the storyboard first.`);
 
-  const remainingUsd = Math.round(todo.reduce((t, r) => t + (shotFit(catalog, r.shot.model, { plannedS: r.shot.durationS, aspectRatio: brief?.aspectRatio }).estimateUsd ?? 0), 0) * 100) / 100;
-  if (remainingUsd > maxUsd + 0.005) {
-    throw budget(`Filming what is left (${todo.map((r) => r.shot.id).join(", ")}) costs about ${money(remainingUsd)}, more than the ${money(maxUsd)} agreed. Nothing was submitted.`);
+  const price = new Map(todo.map((r) => [r.shot.id, shotFit(catalog, r.shot.model, { plannedS: r.shot.durationS, aspectRatio: brief?.aspectRatio })]));
+  const remainingUsd = r2(todo.reduce((t, r) => t + (price.get(r.shot.id).estimateUsd ?? 0), 0));
+  const left = todo.map((r) => r.shot.id).join(", ");
+
+  let agreement = held;
+  if (!agreement) {
+    const onRecord = fresh ? null : readAgreement(film);
+    if (onRecord && Math.abs(onRecord.maxUsd - maxUsd) < 0.005) agreement = onRecord;
+    else {
+      if (remainingUsd > maxUsd + 0.005) {
+        throw budget(`Filming what is left (${left}) costs about ${money(remainingUsd)}, more than the ${money(maxUsd)} agreed. Nothing was submitted.`);
+      }
+      agreement = {
+        maxUsd: r2(maxUsd),
+        at: new Date().toISOString(),
+        shots: todo.map((r) => ({ id: r.shot.id, model: r.shot.model, generatedS: price.get(r.shot.id).generatedS, estimateUsd: r2(price.get(r.shot.id).estimateUsd ?? 0) })),
+      };
+      if (!ctx.dryRun) writeFilmJson(film, "agreement.json", agreement);
+    }
   }
 
-  const out = { submitted: [], filming: [], waiting: [], done: [], failed: [], stopped: null, remainingUsd, dryRun: Boolean(ctx.dryRun) };
+  const agreed = new Map(agreement.shots.map((a) => [a.id, a]));
+  const off = [];
+  for (const r of todo) {
+    const a = agreed.get(r.shot.id);
+    const now = price.get(r.shot.id).estimateUsd ?? Infinity;
+    if (!a) off.push(`${r.shot.id} is not in it`);
+    else if (now > a.estimateUsd + 0.005) off.push(`${r.shot.id} now costs about ${Number.isFinite(now) ? money(r2(now)) : "an unknown price"}, more than the ${money(a.estimateUsd)} agreed for it`);
+  }
+  if (off.length) {
+    throw budget(
+      `Film all was agreed at ${money(agreement.maxUsd)} for ${agreement.shots.map((a) => a.id).join(", ") || "no shots"}; ${off.join("; ")}. Nothing was submitted. ` +
+        `What is left (${left}) now costs about ${money(remainingUsd)}: ask the user to agree a new total, then Film all with it.`,
+    );
+  }
+
+  const out = { submitted: [], filming: [], waiting: [], done: [], failed: [], stopped: null, remainingUsd, agreement, dryRun: Boolean(ctx.dryRun) };
   const ready = (r) => {
     const prev = continuesFrom(plan, r.shot.id);
     return !prev || Boolean(media[prev.id].take);
@@ -157,7 +213,7 @@ export async function filmReady(catalog, film, ctx) {
     else if (out.stopped || !ready(r)) out.waiting.push(r.shot.id);
     else {
       try {
-        const sub = await filmShot(catalog, film, r.shot.id, ctx);
+        const sub = await filmShot(catalog, film, r.shot.id, { ...ctx, agreedUsd: agreed.get(r.shot.id).estimateUsd });
         out.submitted.push({ shot: r.shot.id, jobId: sub.job?.id ?? null, model: sub.model, generatedS: sub.generatedS, estimateUsd: sub.estimateUsd, ...(sub.dryRun ? { dryRun: true, label: sub.label } : {}) });
       } catch (err) {
         out.stopped = { shot: r.shot.id, code: err.code ?? EXIT.USAGE, message: err.message, localJobId: err.localJobId ?? null };

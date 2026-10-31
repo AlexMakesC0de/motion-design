@@ -18,7 +18,8 @@ const { loadCatalog } = await import("../cli/lib/models.mjs");
 const { openJobs } = await import("../cli/core/jobs.mjs");
 const { openLibrary } = await import("../cli/core/assets.mjs");
 const { saveBrief } = await import("../cli/director/brief.mjs");
-const { savePlan, readPlan } = await import("../cli/director/plan.mjs");
+const { savePlan, readPlan, updateShot } = await import("../cli/director/plan.mjs");
+const { preflight: realPreflight } = await import("../cli/lib/budget.mjs");
 const { filmShot, filmReady } = await import("../cli/director/film.mjs");
 const { shotWording } = await import("../cli/director/wording.mjs");
 
@@ -231,6 +232,92 @@ describe("film all", () => {
     const again = await filmReady(catalog, f, { ...c, maxUsd: 100 });
     assert.equal(again.filming[0], "s1", "the uncertain take is never resubmitted");
     assert.equal(again.stopped.shot, "s2");
+  });
+});
+
+describe("Film all films only what was agreed", () => {
+  // s1 hard-cuts to s2, which runs into s3: s3 waits for s2's take, so it is filmed on a later call.
+  const agreedPlan = () => ({
+    look,
+    shots: [
+      shot("s1", 4, { model: "seedance-2" }),
+      shot("s2", 4, { size: "medium", cut: "continuous", model: "seedance-2" }),
+      shot("s3", 4, { size: "close-up", lens: "85mm", model: "seedance-2-fast" }),
+    ],
+  });
+  const agreedFilm = (name) => {
+    saveBrief(name, { ...brief, durationS: 12 });
+    savePlan(catalog, name, agreedPlan());
+    return name;
+  };
+  const land = (c, f, id) => {
+    const job = c.store.list().find((j) => j.stage === "take" && j.shot === id);
+    writeFileSync(join(RUNS, f, `${id}-take.mp4`), PNG);
+    c.store.transition(job.id, "succeeded", { artifacts: [join(RUNS, f, `${id}-take.mp4`)] });
+  };
+
+  test("a shot switched to a pricier model after the agreement stops the queue and asks to agree again", async () => {
+    const f = agreedFilm("agreed");
+    const c = ctx(f);
+    for (const id of ["s1", "s2"]) finished(c, f, id, "still", `${id}-still.png`);
+    const a = await filmReady(catalog, f, { ...c, maxUsd: 3.02 });
+    assert.deepEqual(a.submitted.map((s) => s.shot), ["s1", "s2"]);
+    assert.deepEqual(a.agreement.shots.map((s) => [s.id, s.estimateUsd]), [["s1", 1.2], ["s2", 1.2], ["s3", 0.62]]);
+
+    updateShot(catalog, f, "s3", { model: "seedance-2-5" }); // $1.58 now, under the $3.02 total but over the $0.62 agreed for it
+    land(c, f, "s2");
+    for (const again of [{ agreement: a.agreement }, { maxUsd: 3.02 }]) {
+      await assert.rejects(
+        filmReady(catalog, f, { ...c, ...again }),
+        (e) => e.code === EXIT.BUDGET && /s3 now costs about \$1\.58, more than the \$0\.62 agreed for it/.test(e.message) && /agree/.test(e.message),
+      );
+    }
+    assert.equal(c.calls.length, 2, "s3 was not submitted");
+  });
+
+  test("a shot added to the plan mid-queue is not filmed without a new agreement", async () => {
+    const f = agreedFilm("added");
+    const c = ctx(f);
+    for (const id of ["s1", "s2"]) finished(c, f, id, "still", `${id}-still.png`);
+    const a = await filmReady(catalog, f, { ...c, maxUsd: 3.02 });
+    const p = readPlan(f);
+    savePlan(catalog, f, { look: p.look, shots: [...p.shots, shot("s4", 1, { size: "wide", model: "seedance-2-fast" })] });
+    finished(c, f, "s4", "still", "s4-still.png");
+    land(c, f, "s2");
+    for (const again of [{ agreement: a.agreement }, { maxUsd: 3.02 }]) {
+      await assert.rejects(filmReady(catalog, f, { ...c, ...again }), (e) => e.code === EXIT.BUDGET && /s4 is not in it/.test(e.message));
+    }
+    assert.equal(c.calls.length, 2);
+    const fresh = await filmReady(catalog, f, { ...c, maxUsd: 1.12 });
+    assert.deepEqual(fresh.submitted.map((s) => s.shot), ["s3", "s4"], "a new total is a new agreement");
+  });
+
+  test("each take is capped at the price agreed for it", async () => {
+    const f = agreedFilm("capped");
+    const c = ctx(f);
+    for (const id of ["s1", "s2"]) finished(c, f, id, "still", `${id}-still.png`);
+    const caps = [];
+    c.deps.preflight = async (_c, _r, o) => (caps.push(o.budgetUsd), { estimatedUsd: 1, basis: "stub", cap: o.budgetUsd, creditsBefore: null });
+    await filmReady(catalog, f, { ...c, maxUsd: 3.02 });
+    assert.deepEqual(caps, [1.21, 1.21]);
+  });
+});
+
+describe("a shot above the default $3 video budget", () => {
+  test("a 10s Seedance 2.5 shot submits and reserves its estimate", async () => {
+    const f = "long";
+    saveBrief(f, { ...brief, durationS: 10 });
+    savePlan(catalog, f, { look, shots: [shot("s1", 10, { model: "seedance-2-5" })] });
+    // The real budget check, without the balance call.
+    const offline = (cat, route, o) => realPreflight(cat, { ...route, prov: { ...route.prov, credits: null } }, o);
+    const c = ctx(f);
+    c.deps.preflight = offline;
+    finished(c, f, "s1", "still", "s1-still.png");
+    const r = await filmShot(catalog, f, "s1", c);
+    assert.equal(c.calls.length, 1);
+    assert.equal(c.calls[0].input.duration, 11);
+    assert.ok(r.job.estimateUsd > 3, `reserved ${r.job.estimateUsd}`);
+    assert.equal(r.job.estimateUsd, r.estimateUsd);
   });
 });
 

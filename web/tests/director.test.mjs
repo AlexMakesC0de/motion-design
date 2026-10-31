@@ -44,12 +44,12 @@ let app, port;
 const get = (path) => req(port, path);
 const send = (method, path, body) => req(port, path, { method, body });
 /** Wait until no job is followed and no queue step is running. */
-async function settle() {
+async function settle(film = "pier") {
   for (let i = 0; i < 20; i++) {
     await app.follower.idle();
     await app.director.idle();
     await new Promise((r) => setTimeout(r, 20));
-    if (!(await get("/api/jobs?run=pier")).json.some((j) => j.following)) return;
+    if (!(await get(`/api/jobs?run=${film}`)).json.some((j) => j.following)) return;
   }
 }
 
@@ -193,5 +193,76 @@ describe("the storyboard API", { skip: !hasFfmpeg && "needs ffmpeg" }, () => {
     assert.match(both.find((r) => r.status === 400).text, /s2 is already being filmed/);
     assert.equal(calls.create.length, before + 1);
     await settle();
+  });
+
+  test("after a code-5 stop, a take settling later does not move the Film all queue on", async () => {
+    const hard = { look, shots: [shot("s1", 2), shot("s2", 1.5, { size: "medium" }), shot("s3", 1.5, { size: "close-up", lens: "85mm" })] };
+    let r = await send("PUT", "/api/films/dock/brief", { brief });
+    assert.equal(r.status, 200, r.text);
+    r = await send("PUT", "/api/films/dock/plan", { plan: hard });
+    assert.equal(r.status, 200, r.text);
+    r = await send("POST", "/api/films/dock/stills", {});
+    assert.equal(r.status, 200, r.text);
+    await settle("dock");
+    assert.deepEqual((await get("/api/films/dock/board")).json.left.stills, []);
+
+    // s1 is submitted; s2's create ends ambiguously; s1's take is held until after the stop.
+    const realCreate = generate.createTask;
+    const realWait = generate.waitForTask;
+    let takes = 0;
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    generate.createTask = async (...a) => {
+      if (/seedance/.test(a[2]) && ++takes === 2) throw new Error("socket hang up");
+      return realCreate(...a);
+    };
+    generate.waitForTask = async (...a) => (kinds.get(a[2]) === "video" ? (await held, realWait(...a)) : realWait(...a));
+    try {
+      const before = calls.create.length;
+      r = await send("POST", "/api/films/dock/film", { max_usd: 50 });
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json.submitted.map((s) => s.shot), ["s1"]);
+      assert.equal(r.json.stopped.shot, "s2");
+      assert.equal(r.json.stopped.code, 5);
+      release();
+      await settle("dock");
+      assert.equal(calls.create.length, before + 1, "s3 was never submitted");
+      const b = (await get("/api/films/dock/board")).json;
+      assert.equal(b.shots[0].take, "s1-take.mp4");
+      assert.equal(b.shots[2].takes.length, 0);
+      assert.equal(b.queue.stopped.shot, "s2", "the stop stays for the page");
+    } finally {
+      generate.createTask = realCreate;
+      generate.waitForTask = realWait;
+    }
+  });
+
+  test("the queue films only what the button agreed: a shot made pricier mid-queue stops it", async () => {
+    const chain = { look, shots: [shot("s1", 2), shot("s2", 1.5, { size: "medium", cut: "continuous" }), shot("s3", 1.5, { size: "close-up", lens: "85mm", model: "seedance-2-fast" })] };
+    let r = await send("PUT", "/api/films/quay/brief", { brief });
+    r = await send("PUT", "/api/films/quay/plan", { plan: chain });
+    assert.equal(r.status, 200, r.text);
+    await send("POST", "/api/films/quay/stills", {});
+    await settle("quay");
+
+    const realWait = generate.waitForTask;
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    generate.waitForTask = async (...a) => (kinds.get(a[2]) === "video" ? (await held, realWait(...a)) : realWait(...a));
+    try {
+      const before = calls.create.length;
+      r = await send("POST", "/api/films/quay/film", { max_usd: r.json.left.takesUsd + 1 });
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json.submitted.map((s) => s.shot), ["s1", "s2"]);
+      r = await send("PUT", "/api/films/quay/shots/s3", { changes: { model: "seedance-2-5" } });
+      assert.equal(r.status, 200, r.text);
+      release();
+      await settle("quay");
+      assert.equal(calls.create.length, before + 2, "s3 was not filmed at its new price");
+      const q = (await get("/api/films/quay/board")).json.queue;
+      assert.match(q.stopped.message, /s3 now costs about \$\d+\.\d\d, more than the \$0\.50 agreed for it/);
+    } finally {
+      generate.waitForTask = realWait;
+    }
   });
 });

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { RUNS_DIR, runDir, writeRecord } from "../lib/run.mjs";
 import { resolveModel } from "../lib/models.mjs";
 import { usage } from "../lib/errors.mjs";
-import { takesReferences } from "./fit.mjs";
+import { stillFit, takesReferences } from "./fit.mjs";
 import { expandRefs } from "../core/refs.mjs";
 import { submitJob } from "../core/generate.mjs";
 import { loadMenu, entry } from "./menu.mjs";
@@ -99,6 +99,9 @@ export async function makeStill(catalog, film, shotId, ctx) {
   }
   const expanded = await expandRefs(wanted, { catalog, library, roots, baseDir: RUNS_DIR, upload, dryRun });
   const { prompt, sha } = stillWording(plan, shot, { assets, brief, menu, withRefs: expanded.refs.length > 0 });
+  // Budgeted at the still's priced estimate (plus rounding), as the plan showed it; the limits still apply in reserve().
+  const priced = stillFit(catalog, model.id, { aspectRatio: brief?.aspectRatio }).estimateUsd;
+  const budgetUsd = priced == null ? undefined : Math.round((priced + 0.01) * 100) / 100;
 
   const sub = await submitJob(
     catalog,
@@ -107,6 +110,7 @@ export async function makeStill(catalog, film, shotId, ctx) {
       model,
       run: film,
       artifactBase: `${shot.id}-still`,
+      budgetUsd,
       dryRun,
       values: { prompt, aspect_ratio: brief?.aspectRatio, refs: expanded.refs, params: {}, _useI2v: expanded.refs.length > 0 },
       record: { shot: shot.id, stage: "still", stillSha: sha, refMapping: expanded.refMapping, assets: expanded.assets, via },
