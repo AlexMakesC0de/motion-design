@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { runDir } from "../lib/run.mjs";
 import { usage } from "../lib/errors.mjs";
 import { extractFrames } from "../lib/frames.mjs";
-import { readFilmJson, writeFilmJson } from "./files.mjs";
+import { readFilmJson, withFilmLock, writeFilmJson } from "./files.mjs";
 import { readPlan, findShot } from "./plan.mjs";
 import { shotMedia } from "./media.mjs";
 
@@ -48,6 +48,6 @@ export function saveReview(film, shotId, review, { take = review?.take, now } = 
     ...(review.bestWindow ? { bestWindow: { startS: start } } : {}),
     at: (now ? now() : new Date()).toISOString(),
   };
-  writeFilmJson(film, "reviews.json", { ...readReviews(film), [shotId]: saved }, { now });
+  withFilmLock(film, () => writeFilmJson(film, "reviews.json", { ...readReviews(film), [shotId]: saved }, { now }));
   return saved;
 }

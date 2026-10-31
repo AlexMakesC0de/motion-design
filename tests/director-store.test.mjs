@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -50,6 +51,52 @@ describe("film files", () => {
     symlinkSync(join(tmp, "missing.json"), join(RUNS, "f3", "shots.json"));
     assert.throws(() => writeFilmJson("f3", "shots.json", {}), { message: /runs\/f3\/shots\.json is a link/ });
     assert.equal(existsSync(join(tmp, "missing.json")), false, "nothing written through the dangling link");
+  });
+
+  test("a hardlinked temp file is never written through; a hardlinked film file is refused", () => {
+    writeFilmJson("f5", "brief.json", { v: 1 }, { now });
+    const outside = join(tmp, "outside.json");
+    writeFileSync(outside, "keep me");
+    linkSync(outside, join(RUNS, "f5", "brief.json.tmp"));
+    writeFilmJson("f5", "brief.json", { v: 2 }, { now });
+    assert.equal(readFileSync(outside, "utf8"), "keep me", "the outside file is untouched");
+    assert.deepEqual(readFilmJson("f5", "brief.json"), { v: 2 });
+    assert.equal(readdirSync(join(RUNS, "f5")).filter((f) => f.endsWith(".tmp") && f !== "brief.json.tmp").length, 0, "no temp file left behind");
+
+    const shared = join(tmp, "shared.json");
+    writeFileSync(shared, "{}");
+    linkSync(shared, join(RUNS, "f5", "shots.json"));
+    assert.throws(() => writeFilmJson("f5", "shots.json", { v: 1 }), { code: EXIT.UNKNOWN, message: /runs\/f5\/shots\.json has other hard links/ });
+    assert.equal(readFileSync(shared, "utf8"), "{}");
+  });
+
+  test("history keeps the newest 50 versions of each file", () => {
+    for (let v = 1; v <= 60; v += 1) writeFilmJson("f6", "brief.json", { v }, { now });
+    writeFilmJson("f6", "shots.json", { v: 1 }, { now });
+    writeFilmJson("f6", "shots.json", { v: 2 }, { now });
+    const dir = join(RUNS, "f6", ".history");
+    const kept = readdirSync(dir).filter((d) => existsSync(join(dir, d, "brief.json")));
+    assert.equal(kept.length, 50);
+    const versions = kept.map((d) => JSON.parse(readFileSync(join(dir, d, "brief.json"), "utf8")).v).sort((a, b) => a - b);
+    assert.deepEqual([versions[0], versions.at(-1)], [10, 59], "the oldest went first");
+    assert.equal(readdirSync(dir).filter((d) => existsSync(join(dir, d, "shots.json"))).length, 1, "another file's history is its own");
+  });
+
+  test("two processes saving reviews at once lose neither", async () => {
+    writeFilmJson("f7", "shots.json", { shots: [{ id: "a" }, { id: "b" }] }, { now });
+    const review = new URL("../cli/director/review.mjs", import.meta.url).href;
+    const child = (shot) =>
+      new Promise((resolve, reject) => {
+        const code = `const { saveReview } = await import(${JSON.stringify(review)});
+for (let i = 0; i < 40; i += 1) saveReview("f7", "${shot}", { verdict: "pass", checks: [{ check: "c", ok: true }] }, { take: "${shot}-" + i });`;
+        const p = spawn(process.execPath, ["--input-type=module", "-e", code], { env: { ...process.env, KIE_RUNS_DIR: RUNS }, stdio: ["ignore", "ignore", "pipe"] });
+        let err = "";
+        p.stderr.on("data", (d) => (err += d));
+        p.on("exit", (c) => (c === 0 ? resolve() : reject(new Error(err))));
+      });
+    await Promise.all([child("a"), child("b")]);
+    const saved = readFilmJson("f7", "reviews.json");
+    assert.deepEqual([saved.a?.take, saved.b?.take], ["a-39", "b-39"]);
   });
 
   test("a file that is not JSON is reported, not swallowed", () => {

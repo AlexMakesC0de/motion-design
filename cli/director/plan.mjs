@@ -1,6 +1,6 @@
 import { usage, unknown } from "../lib/errors.mjs";
 import { loadMenu } from "./menu.mjs";
-import { readFilmJson, writeFilmJson } from "./files.mjs";
+import { readFilmJson, withFilmLock, writeFilmJson } from "./files.mjs";
 import { readBrief } from "./brief.mjs";
 import { checkPlan } from "./check.mjs";
 import { suggestModel, suggestStillModel } from "./pick.mjs";
@@ -56,11 +56,13 @@ export function savePlan(catalog, film, plan, { assets = [], menu = loadMenu(), 
   if (check.errors.length) {
     throw usage(`The plan was not saved:\n- ${check.errors.map((e) => e.message).join("\n- ")}`, { errors: check.errors, warnings: check.warnings });
   }
-  // A shots.json that no longer parses is replaced, as its error message promises.
-  const prev = readFilmJson(film, "shots.json", { ifInvalid: null });
-  const saved = { ...filled, version: (prev?.version ?? 0) + 1 };
-  writeFilmJson(film, "shots.json", saved, { now });
-  return { plan: saved, check };
+  return withFilmLock(film, () => {
+    // A shots.json that no longer parses is replaced, as its error message promises.
+    const prev = readFilmJson(film, "shots.json", { ifInvalid: null });
+    const saved = { ...filled, version: (prev?.version ?? 0) + 1 };
+    writeFilmJson(film, "shots.json", saved, { now });
+    return { plan: saved, check };
+  });
 }
 
 /**
@@ -70,6 +72,10 @@ export function savePlan(catalog, film, plan, { assets = [], menu = loadMenu(), 
  * model or still model named by hand drops the picker's reason for the old one.
  */
 export function updateShot(catalog, film, id, changes, opts = {}) {
+  return withFilmLock(film, () => updateShotLocked(catalog, film, id, changes, opts));
+}
+
+function updateShotLocked(catalog, film, id, changes, opts) {
   const plan = readPlan(film);
   if (!plan) throw usage(`runs/${film} has no plan yet. Save one first (kie plan --file, or save_plan).`);
   if (!changes || typeof changes !== "object" || Array.isArray(changes)) throw usage("changes must be an object of shot fields.");
