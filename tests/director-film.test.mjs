@@ -110,6 +110,39 @@ describe("filming one shot", () => {
   });
 });
 
+describe("one take in flight per shot", () => {
+  test("filming a shot again while its take is submitted is refused, naming the job", async () => {
+    const f = film("busy");
+    const c = ctx(f);
+    finished(c, f, "s1", "still", "s1-still.png");
+    const first = await filmShot(catalog, f, "s1", c);
+    await assert.rejects(filmShot(catalog, f, "s1", c), (e) => e.code === EXIT.USAGE && /s1 is already being filmed/.test(e.message) && e.message.includes(first.job.id));
+    assert.equal(c.calls.length, 1);
+  });
+
+  test("two calls at once submit one take; the other is refused", async () => {
+    const f = film("race");
+    const c = ctx(f);
+    finished(c, f, "s1", "still", "s1-still.png");
+    const results = await Promise.allSettled([filmShot(catalog, f, "s1", c), filmShot(catalog, f, "s1", c)]);
+    assert.equal(c.calls.length, 1, "one create call");
+    assert.deepEqual(results.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+    assert.match(results.find((r) => r.status === "rejected").reason.message, /s1 is already being filmed/);
+    assert.equal(c.store.list().filter((j) => j.stage === "take").length, 1, "one take record");
+  });
+
+  test("a take whose submit ended uncertain is never resubmitted; the refusal says how to resolve it", async () => {
+    const f = film("unsure");
+    const c = ctx(f);
+    finished(c, f, "s1", "still", "s1-still.png");
+    const job = c.store.create({ run: f, shot: "s1", stage: "take", capability: "video", model: "seedance-2-5", provider: "kie", estimateUsd: 1 });
+    c.store.transition(job.id, "sending");
+    c.store.transition(job.id, "uncertain", { error: "timed out" });
+    await assert.rejects(filmShot(catalog, f, "s1", c), (e) => e.code === EXIT.USAGE && e.message.includes(job.id) && /Do not resubmit/.test(e.message) && /kie job resolve/.test(e.message));
+    assert.equal(c.calls.length, 0);
+  });
+});
+
 describe("film all", () => {
   test("needs a spending limit and every still first; plans the total", async () => {
     const f = film("all");

@@ -199,8 +199,14 @@ function statSafe(path) {
  * settle abandoned records, check the estimate against what is left of today's
  * cap, and write the `reserved` record. Over the cap, nothing is written and
  * the error says only the user can raise it.
+ *
+ * `claim(store)`, when given, runs under the same lock just before the record
+ * is written and throws to refuse. Every reservation in every process is
+ * written under this lock, so a claim that finds no conflicting record knows
+ * none can appear before its own: the director uses it so a shot never has two
+ * takes in flight.
  */
-export async function reserve(store, fields, { limits = readLimits(), lock = {} } = {}) {
+export async function reserve(store, fields, { limits = readLimits(), lock = {}, claim = null } = {}) {
   if (limits.perJobUsd != null && fields.estimateUsd > limits.perJobUsd) {
     throw budget(
       `Refused, nothing spent. Estimated $${fields.estimateUsd.toFixed(2)} is above the ` +
@@ -210,6 +216,7 @@ export async function reserve(store, fields, { limits = readLimits(), lock = {} 
   }
   return withSpendLock(() => {
     store.sweep();
+    claim?.(store);
     const pos = dailyPosition(store, limits);
     if (fields.estimateUsd > pos.availableUsd) {
       throw budget(

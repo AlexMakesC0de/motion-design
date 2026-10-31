@@ -6,7 +6,7 @@ import { EXIT, budget, usage } from "../lib/errors.mjs";
 import { lastFrame as realLastFrame } from "../lib/frames.mjs";
 import { expandRefs } from "../core/refs.mjs";
 import { submitJob } from "../core/generate.mjs";
-import { UNSETTLED } from "../core/jobs.mjs";
+import { UNSETTLED, uncertainMessage } from "../core/jobs.mjs";
 import { loadMenu } from "./menu.mjs";
 import { shotFit } from "./fit.mjs";
 import { shotWording } from "./wording.mjs";
@@ -22,6 +22,21 @@ const continuesFrom = (plan, id) => {
   return i > 0 && plan.shots[i - 1].cut === "continuous" ? plan.shots[i - 1] : null;
 };
 
+/** The shot's newest take that has not settled (being sent, submitted, or uncertain), or null. */
+const takeInFlight = (store, film, shotId) =>
+  store.list().filter((j) => j.run === film && j.shot === shotId && j.stage === "take" && UNSETTLED.has(j.state)).at(-1) ?? null;
+
+/**
+ * One take in flight per shot: refuse while one is being filmed, and never
+ * resubmit one whose create ended uncertain (it may exist upstream).
+ */
+function refuseInFlight(store, film, shotId) {
+  const job = takeInFlight(store, film, shotId);
+  if (!job) return;
+  if (job.state === "uncertain") throw usage(`${shotId} is already being filmed as far as anyone can tell: take ${job.id}'s submit ended uncertain.\n${uncertainMessage(job)}`);
+  throw usage(`${shotId} is already being filmed: take ${job.id} is ${job.state}. Wait for it (kie job ${job.id}, or wait_job) before filming ${shotId} again.`);
+}
+
 /**
  * Film one shot: image-to-video from its still (or, on a continuous cut, from
  * the real last frame of the shot before), at the generated length (planned
@@ -32,6 +47,7 @@ const continuesFrom = (plan, id) => {
 export async function filmShot(catalog, film, shotId, ctx) {
   const { store, limits, library, roots = null, upload, deps, via = "cli", onEvent = () => {}, dryRun = false, menu = loadMenu(), lastFrame = realLastFrame } = ctx;
   const { plan, brief, shot, assets } = soundShot(catalog, film, shotId, { library, menu });
+  refuseInFlight(store, film, shot.id);
   const dir = runDir(film);
   const media = shotMedia(store, film, plan, { assets, brief, menu });
 
@@ -64,6 +80,8 @@ export async function filmShot(catalog, film, shotId, ctx) {
       dryRun,
       values: { prompt: wording.prompt, duration: fit.generatedS, aspect_ratio: brief?.aspectRatio, refs: expanded.refs, params: wording.params, _useI2v: true },
       record: { shot: shot.id, stage: "take", plannedS: shot.durationS, generatedS: fit.generatedS, firstFrame: frame, refMapping: expanded.refMapping, via },
+      // Checked again under the spend lock, where the take's record is written: two callers cannot both pass.
+      claim: (s) => refuseInFlight(s, film, shot.id),
     },
     { store, limits, deps, onEvent },
   );

@@ -154,6 +154,19 @@ describe("reservations", () => {
     assert.equal(store.list().length, 1);
   });
 
+  test("a claim runs under the lock, sees the records before it, and can refuse; a refusal writes nothing", async () => {
+    const store = fresh();
+    const limits = { dailyUsd: 10, allowRoots: [] };
+    const claim = (s) => {
+      assert.ok(existsSync(LOCK_PATH), "the spend lock is held");
+      if (s.list().some((j) => j.shot === "s1")) throw new Error("s1 is taken");
+    };
+    await reserve(store, { shot: "s1", estimateUsd: 1 }, { limits, claim });
+    await assert.rejects(reserve(store, { shot: "s1", estimateUsd: 1 }, { limits, claim }), /s1 is taken/);
+    assert.equal(store.list().length, 1);
+    assert.equal(existsSync(LOCK_PATH), false, "released after a refusal");
+  });
+
   test("two processes reserving near the cap at once: exactly one succeeds", async () => {
     const fixture = fileURLToPath(new URL("./fixtures/reserve-once.mjs", import.meta.url));
     const runs = mkdtempSync(join(tmpdir(), "kie-race-"));

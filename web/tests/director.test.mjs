@@ -185,4 +185,13 @@ describe("the storyboard API", { skip: !hasFfmpeg && "needs ffmpeg" }, () => {
     r = await send("PUT", "/api/films/pier/shots/s1/review", { review: { take: "s1-take-2.mp4", verdict: "redo", checks: [{ check: "the pier reads", ok: false }] } });
     assert.equal(r.json.redo, null, "off: the redo waits for Alex");
   });
+
+  test("Film again pressed twice at once (or the page and the chat) submits one take", async () => {
+    const before = calls.create.length;
+    const both = await Promise.all([send("POST", "/api/films/pier/shots/s2/take", {}), send("POST", "/api/films/pier/shots/s2/take", {})]);
+    assert.deepEqual(both.map((r) => r.status).sort(), [200, 400], both.map((r) => r.text).join("\n"));
+    assert.match(both.find((r) => r.status === 400).text, /s2 is already being filmed/);
+    assert.equal(calls.create.length, before + 1);
+    await settle();
+  });
 });
