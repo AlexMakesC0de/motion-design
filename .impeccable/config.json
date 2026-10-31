@@ -29,6 +29,16 @@
         ],
         "createdAt": "2026-10-30T12:47:08.969Z",
         "reason": "Claude: 11px tags inside scaled-down brainstorm mockups, not real UI"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/3173-1793362791/content/visual-direction-2.html",
+          ".superpowers/brainstorm/3173-1793362791/content/visual-direction.html"
+        ],
+        "createdAt": "2026-10-31T01:47:53.446Z",
+        "reason": "Claude: throwaway brainstorm mockups of the visual direction, not shipped UI"
       }
     ]
   }
