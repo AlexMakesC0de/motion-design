@@ -602,6 +602,7 @@ export function createCodex({
       let turnId = null;
       let settled = false;
       let budget = null; // a limit refused a job
+      let uncertain = null; // a tool's outcome is unknown: a job may exist
       let foreign = null; // Codex called another MCP server
       let steps = 0;
       let grace = null;
@@ -629,6 +630,7 @@ export function createCodex({
       /** How the turn ended, from what stopped it. `status` is turn/completed's, if it came. */
       const end = (t = {}) => {
         if (budget) finish(resolve, { budget });
+        else if (uncertain) finish(resolve, { uncertain });
         else if (foreign) finish(reject, new ChatError(`Codex tried to use another MCP server (${foreign}), so the turn was stopped. The studio's chat runs only with the motion-design tools: turn that server off in ~/.codex/config.toml, or use an OpenAI API key.`));
         else if (signal.aborted) finish(reject, new ChatError("Stopped."));
         else if (steps >= MAX_STEPS) finish(reject, new ChatError(`Stopped after ${MAX_STEPS} tool steps without a final answer. Ask again with a narrower request.`));
@@ -659,6 +661,9 @@ export function createCodex({
               const f = sink.toolDone(item.id, name(item), toolResult(item), item.arguments);
               if (f?.code === EXIT.BUDGET && !budget) {
                 budget = f.message; // the chat never asks before spending: a limit's refusal ends the turn
+                interrupt();
+              } else if (f?.code === EXIT.UNCERTAIN && !uncertain) {
+                uncertain = { tool: name(item), message: f.message }; // a job may exist: never let the model try again
                 interrupt();
               } else if (++steps === MAX_STEPS) interrupt();
             }

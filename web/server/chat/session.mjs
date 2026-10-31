@@ -10,7 +10,7 @@ import { redact } from "../../../cli/lib/redact.mjs";
 import { HttpError } from "../http.mjs";
 import { readConnection } from "./config.mjs";
 import { systemPrompt } from "./prompt.mjs";
-import { ChatError, appendChat, budgetSentence, createTurnLog, historyMessages, readChat, userEntry } from "./transcript.mjs";
+import { ChatError, appendChat, budgetSentence, createTurnLog, historyMessages, readChat, uncertainSentence, userEntry } from "./transcript.mjs";
 
 export const MAX_MESSAGE = 8_000;
 export const NOT_CONNECTED = "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.";
@@ -71,6 +71,7 @@ export function createChat({ backends, tools, publish = () => {} }) {
             signal: turn.ctrl.signal,
           });
           if (out?.budget) turn.log.say(budgetSentence(out.budget));
+          else if (out?.uncertain) turn.log.say(uncertainSentence(out.uncertain));
         } catch (err) {
           if (turn.ctrl.signal.aborted) turn.log.notice("Stopped.", "info");
           else turn.log.notice(sentence(err));

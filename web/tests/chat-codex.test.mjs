@@ -341,6 +341,32 @@ describe("a Codex turn", () => {
     assert.match(lines("cx-version")[1], /^notice: Codex 0\.160\.0 .*npm install -g @openai\/codex@0\.154/);
   });
 
+  test("an uncertain result (code 5) interrupts the turn and the assistant says what is uncertain", async () => {
+    const args = { run: "cx-unsure", prompt: "A paper fox.", model: "seedance-2-5" };
+    const text = "Error 5: socket hang up\nj-20261031-0a0b0c is uncertain.\nNext: do not resubmit";
+    const { backend, sent } = fakeCodex({
+      turn: [
+        toolCall("t5", "generate_video", args),
+        toolDone("t5", "generate_video", args, "completed", { content: [{ type: "text", text }], structuredContent: null, _meta: null }),
+        { waitFor: "turn/interrupt" },
+        completed("interrupted"),
+      ],
+    });
+    const chat = chatWith(backend);
+    await chat.send("cx-unsure", "Make it.");
+    await chat.idle("cx-unsure");
+    assert.equal(sent("turn/interrupt").length, 1);
+    const entries = readChat("cx-unsure").entries;
+    assert.deepEqual(entries[1].jobs, ["j-20261031-0a0b0c"]);
+    assert.equal(entries[2].kind, "assistant");
+    assert.match(entries[2].text, /^I can't tell whether generate_video went through \(socket hang up\).*Check the feed/);
+  });
+
+  test("a new thread's recap keeps the tool steps, so a job started earlier is not forgotten", () => {
+    const entries = [{ id: "u", kind: "user", text: "Make it." }, { id: "t", kind: "tool", name: "generate_video", args: "seedance-2-5", state: "failed", result: "uncertain: still checking, do not resubmit", jobs: ["j-20261031-0a0b0c"] }];
+    assert.match(codex.recap(entries), /You: \[tool step\] generate_video seedance-2-5 → failed: .*\(job j-20261031-0a0b0c\)/);
+  });
+
   test("another MCP server live in the thread stops the turn before it starts", async () => {
     const { backend, sent } = fakeCodex({ mcpServers: [OURS, { name: "context7", runtimeStatus: "connected" }] });
     const chat = chatWith(backend);

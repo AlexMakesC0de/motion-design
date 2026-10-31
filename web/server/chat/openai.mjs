@@ -81,8 +81,9 @@ const BAD_ARGS = { isError: true, content: [{ type: "text", text: "Error 1: the 
 
 /**
  * One chat turn. `sink` receives the transcript (text deltas, tool steps);
- * `tools` is createTools(). Resolves {} when the model answered, or
- * { budget: message } when a limit refused a job: the turn stops there.
+ * `tools` is createTools(). Resolves {} when the model answered,
+ * { budget: message } when a limit refused a job, or { uncertain: { tool,
+ * message } } when a tool's outcome is unknown (code 5): the turn stops there.
  */
 export async function runTurn({ key, model, instructions, history, text, tools, sink, signal, fetch }) {
   const functions = await tools.functions();
@@ -123,6 +124,7 @@ export async function runTurn({ key, model, instructions, history, text, tools, 
       const failed = sink.toolDone(call.call_id, call.name, result);
       input.push({ type: "function_call_output", call_id: call.call_id, output: toolOutput(result) });
       if (failed?.code === EXIT.BUDGET) return { budget: failed.message };
+      if (failed?.code === EXIT.UNCERTAIN) return { uncertain: { tool: call.name, message: failed.message } };
       if (signal?.aborted) throw stopped();
     }
   }

@@ -168,7 +168,7 @@ describe("a chat turn", () => {
     await app.chat.idle("chat-one");
     assert.deepEqual(
       fake.requests[0].body.input.map((m) => m.content),
-      ["What would 4s cost?", "About $0.56.", "And 8s?"],
+      ["What would 4s cost?", "[tool step] estimate seedance-2-5 4s 480p → done: $0.56", "About $0.56.", "And 8s?"],
     );
     assert.match(fake.requests[0].body.instructions, /working in the film "chat-one"/);
   });
@@ -192,6 +192,34 @@ describe("a chat turn", () => {
     assert.equal(step.result, `${job.data.id} submitted`);
     const listed = (await call("/api/jobs?run=chat-job")).json;
     assert.equal(listed[0].id, job.data.id);
+  });
+
+  test("a submit whose outcome is unknown ends the turn with a line saying so; the next message still knows the job", async () => {
+    const create = stubs.generate.createTask;
+    stubs.generate.createTask = async () => {
+      throw new Error("socket hang up");
+    };
+    try {
+      fake = fakeOpenAI({
+        replies: [callReply("generate_video", { run: "chat-unsure", prompt: "A paper fox.", model: "seedance-2-5", duration_s: 4, resolution: "480p", provider: "kie" }), textReply("Trying again.")],
+      });
+      await call("/api/chat/chat-unsure", { method: "POST", body: { text: "Make it." } });
+      await app.chat.idle("chat-unsure");
+    } finally {
+      stubs.generate.createTask = create;
+    }
+    assert.equal(fake.requests.length, 1, "the model was not asked again");
+    const entries = (await call("/api/chat/chat-unsure")).json.entries;
+    const step = entries.find((e) => e.kind === "tool");
+    assert.equal(step.result, "uncertain: still checking, do not resubmit");
+    assert.match(step.jobs[0], /^j-\d{8}-[0-9a-f]{6}$/);
+    assert.match(entries.at(-1).text, /^I can't tell whether generate_video went through \(socket hang up\).*Check the feed/);
+
+    fake = fakeOpenAI({ replies: [textReply("It's still being checked.")] });
+    await call("/api/chat/chat-unsure", { method: "POST", body: { text: "continue" } });
+    await app.chat.idle("chat-unsure");
+    const history = fake.requests[0].body.input.map((m) => m.content);
+    assert.ok(history.some((c) => c.startsWith("[tool step] generate_video") && c.includes(step.jobs[0])), history.join("\n"));
   });
 
   test("one turn per film at a time; Stop ends it with a notice", async () => {

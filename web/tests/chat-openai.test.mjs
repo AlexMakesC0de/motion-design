@@ -84,6 +84,18 @@ describe("runTurn", () => {
     }
   });
 
+  test("an uncertain result (code 5) ends the turn: the model is not asked again", async () => {
+    const fake = fakeOpenAI({ replies: [callReply("generate_video", { run: "chat-unsure", prompt: "A fox.", model: "seedance-2-5" }), textReply("Let me try again.")] });
+    const unsure = {
+      functions: () => tools.functions(),
+      call: async () => ({ isError: true, content: [{ type: "text", text: "Error 5: socket hang up\nNext: do not resubmit" }], _meta: { error: { code: 5, localJobId: "j-20261031-0a0b0c" } } }),
+    };
+    const { log, done } = turn(fake, { tools: unsure });
+    assert.deepEqual(await done, { uncertain: { tool: "generate_video", message: "socket hang up" } });
+    assert.equal(fake.requests.length, 1, "no second request: the model never got the chance to resubmit");
+    assert.deepEqual(log.entries.map((e) => [e.name, e.state, e.jobs]), [["generate_video", "failed", ["j-20261031-0a0b0c"]]]);
+  });
+
   test("arguments that are not JSON become a failed step the model reads, not a crash", async () => {
     const bad = callReply("estimate", {});
     for (const e of bad) if (e.item) e.item.arguments = "{oops";

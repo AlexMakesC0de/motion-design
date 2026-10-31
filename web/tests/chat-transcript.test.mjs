@@ -110,11 +110,19 @@ describe("chat.jsonl", () => {
     assert.equal(existsSync(join(tmp, "missing-dir")), false);
   });
 
-  test("history for a model is the user and assistant text only", () => {
-    const entries = [t.userEntry("one"), { ...t.toolEntry("status", {}), state: "done" }, t.assistantEntry("two", false), t.noticeEntry("Stopped.")];
+  test("history for a model is the user and assistant text, plus one short line per tool step with its job ids", () => {
+    const entries = [
+      t.userEntry("one"),
+      { ...t.toolEntry("status", {}), state: "done", result: "no unsettled jobs" },
+      t.assistantEntry("two", false),
+      t.noticeEntry("Stopped."),
+      { ...t.toolEntry("generate_video", { model: "seedance-2-5", duration_s: 4 }), state: "failed", result: "uncertain: still checking, do not resubmit", jobs: ["j-20261031-abcdef"] },
+    ];
     assert.deepEqual(t.historyMessages(entries), [
       { role: "user", content: "one" },
+      { role: "assistant", content: "[tool step] status → done: no unsettled jobs" },
       { role: "assistant", content: "two" },
+      { role: "assistant", content: "[tool step] generate_video seedance-2-5 4s → failed: uncertain: still checking, do not resubmit (job j-20261031-abcdef)" },
     ]);
   });
 });
@@ -145,6 +153,30 @@ describe("createTurnLog", () => {
     log.settle();
     assert.equal(log.entries[1].streaming, false);
     assert.deepEqual([log.entries[2].state, log.entries[2].result], ["failed", "stopped before it finished"]);
+  });
+
+  test("a tool step keeps the job ids its result names: structured, in the error's _meta, or only in the text", () => {
+    const log = t.createTurnLog(() => {});
+    const jobs = (name, result) => {
+      log.toolStart(name, name, {});
+      log.toolDone(name, name, result);
+      return log.entries.at(-1).jobs;
+    };
+    assert.deepEqual(jobs("generate_video", ok({ localJobId: "j-20261031-aaaaaa", state: "submitted" })), ["j-20261031-aaaaaa"]);
+    assert.deepEqual(jobs("film_all", ok({ submitted: [{ shot: "s1", jobId: "j-20261031-bbbbbb" }, { shot: "s2", jobId: "j-20261031-cccccc" }] })), ["j-20261031-bbbbbb", "j-20261031-cccccc"]);
+    const lost = { ...err(5, "socket hang up"), _meta: { error: { code: 5, localJobId: "j-20261031-dddddd" } } };
+    assert.deepEqual(jobs("make_still", lost), ["j-20261031-dddddd"]);
+    assert.deepEqual(jobs("wait_job", { isError: true, content: [{ type: "text", text: "Error 5: j-20261031-eeeeee may exist at kie." }] }), ["j-20261031-eeeeee"]);
+    assert.equal(jobs("status", ok({}, "no unsettled jobs")), undefined);
+  });
+
+  test("an uncertain result becomes the assistant's last line: what is uncertain, and to check the feed", () => {
+    const line = t.uncertainSentence({ tool: "generate_video", message: "generate_video did not answer (MCP error -32001: Request timed out); it may have been submitted; check the feed / call status before doing anything else." });
+    assert.equal(
+      line,
+      "I can't tell whether generate_video went through (generate_video did not answer (MCP error -32001: Request timed out)), so I've stopped here rather than try again: it may have been submitted. Check the feed before asking for it again.",
+    );
+    assert.match(t.uncertainSentence({ tool: "film_shot", message: "socket hang up\nj-1 is uncertain" }), /^I can't tell whether film_shot went through \(socket hang up\)/);
   });
 
   test("say() and notice() add finished lines", () => {

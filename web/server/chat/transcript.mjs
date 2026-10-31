@@ -1,7 +1,7 @@
 // One transcript shape for the chat, whichever backend answers. Entries:
 //   { id, kind: "user", at, text }
 //   { id, kind: "assistant", at, text, streaming }
-//   { id, kind: "tool", at, name, args, result, state: "running" | "done" | "failed" }
+//   { id, kind: "tool", at, name, args, result, state: "running" | "done" | "failed", jobs? }
 //   { id, kind: "notice", at, text, tone: "error" | "info" }
 // A tool step's args and result are short lines for people, such as
 // "minimax-h3 4s 480p" and "$0.16". History lives in runs/<film>/chat.jsonl,
@@ -87,12 +87,20 @@ export function appendChat(film, records) {
   }
 }
 
-/** The saved user and assistant lines as model input, newest 40. Tool steps and notices stay on the page. */
-export function historyMessages(entries, max = 40) {
+/** A tool step as the model reads it in history: name, arguments, how it ended, and the jobs it named. */
+const toolHistoryLine = (e) =>
+  `[tool step] ${e.name}${e.args ? ` ${e.args}` : ""} → ${e.state}: ${e.result ?? "no result"}${e.jobs?.length ? ` (job ${e.jobs.join(", ")})` : ""}`;
+
+/**
+ * The saved user and assistant lines as model input, newest 60, with a short
+ * line for each tool step, so a later "continue" still knows which jobs exist.
+ * Notices stay on the page.
+ */
+export function historyMessages(entries, max = 60) {
   return entries
-    .filter((e) => (e.kind === "user" || e.kind === "assistant") && e.text)
+    .filter((e) => ((e.kind === "user" || e.kind === "assistant") && e.text) || (e.kind === "tool" && e.name))
     .slice(-max)
-    .map((e) => ({ role: e.kind, content: e.text }));
+    .map((e) => (e.kind === "tool" ? { role: "assistant", content: toolHistoryLine(e) } : { role: e.kind, content: e.text }));
 }
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -169,6 +177,30 @@ export function budgetSentence(message) {
   return `${reason} I've stopped here: raise the limit in Settings, or ask me for something cheaper.`;
 }
 
+const JOB_ID = /\bj-\d{8}-[0-9a-f]{6}\b/g;
+
+/** The local job ids a tool result names: its structured data, its error's _meta, or (Codex may drop both) its text. */
+export function jobIds(result) {
+  const sc = result?.structuredContent ?? {};
+  const ids = [
+    sc.localJobId,
+    sc.redo?.jobId,
+    ...(Array.isArray(sc.submitted) ? sc.submitted.map((s) => s?.jobId) : []),
+    result?._meta?.error?.localJobId,
+    ...(resultText(result).match(JOB_ID) ?? []),
+  ];
+  return [...new Set(ids.filter((id) => typeof id === "string" && id))];
+}
+
+/**
+ * What the assistant says when a tool's outcome is unknown (code 5): a job
+ * may exist, so the turn ends rather than let the model try again.
+ */
+export function uncertainSentence({ tool, message }) {
+  const reason = clip(firstLine(message).split(";")[0].trim().replace(/[.!?]+$/, ""), 160);
+  return `I can't tell whether ${tool} went through${reason ? ` (${reason})` : ""}, so I've stopped here rather than try again: it may have been submitted. Check the feed before asking for it again.`;
+}
+
 /**
  * The sink a backend writes one turn into. Backends name things by their own
  * keys (an OpenAI item id, a Codex item id, a call id); the sink turns them
@@ -206,6 +238,8 @@ export function createTurnLog(onEntry) {
       const f = failure(result);
       e.state = f ? "failed" : "done";
       e.result = resultLine(name, result);
+      const jobs = jobIds(result);
+      if (jobs.length) e.jobs = jobs;
       onEntry(e);
       return f;
     },
