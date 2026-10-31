@@ -6,10 +6,6 @@ import { ToolStep } from "./ToolStep";
 import { useChat } from "./useChat";
 import "./chat.css";
 
-/** Below this width the chat stacks under the feed (chat.css) and starts folded. */
-const NARROW = "(max-width: 760px)";
-const narrow = () => typeof window !== "undefined" && window.matchMedia?.(NARROW).matches === true;
-
 export const NOT_CONNECTED = "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.";
 
 function Entry({ entry }: { entry: ChatEntry }) {
@@ -38,8 +34,8 @@ function Entry({ entry }: { entry: ChatEntry }) {
 }
 
 /**
- * The Studio's chat, tied to the film being worked in. Each film keeps its own
- * conversation (runs/<film>/chat.jsonl). The chat works through the same
+ * The Studio's chat in the chat drawer, tied to the film being worked in.
+ * Each film keeps its own conversation (runs/<film>/chat.jsonl). The chat works through the same
  * tools as the CLI and the MCP server, so jobs it starts show up in the feed
  * like any other. With nothing connected it shows the two ways to connect.
  */
@@ -51,11 +47,10 @@ export function ChatPanel({
 }: {
   film: string | null;
   outbox?: { id: number; text: string } | null;
-  onClose?: () => void;
+  onClose: () => void;
   /** Called once the outbox message is sent or left in the box, so it is not handed over again. */
   onTaken?: () => void;
 }) {
-  const [open, setOpen] = useState(() => Boolean(onClose) || !narrow());
   const [settings, setSettings] = useState<ChatSettingsView | null>(null);
   // Whether /api/chat-settings has answered (or failed): until then we can't tell if a handed message can be sent.
   const [checked, setChecked] = useState(false);
@@ -84,7 +79,6 @@ export function ChatPanel({
     if (!outbox || !checked || handed.current === outbox.id) return;
     handed.current = outbox.id;
     onTaken?.();
-    setOpen(true);
     if (connected && !chat.busy) chat.send(outbox.text).then((sent) => !sent && setText(outbox.text));
     else setText(outbox.text);
   }, [outbox, checked, connected, chat, onTaken]);
@@ -98,30 +92,14 @@ export function ChatPanel({
     if (await chat.send(message)) setText("");
   }
 
-  if (!open) {
-    return (
-      <aside className="chat chat--closed" aria-label="Chat">
-        <button type="button" className="chat__toggle" aria-expanded="false" onClick={() => setOpen(true)}>
-          Show chat
-        </button>
-      </aside>
-    );
-  }
-
   return (
     <aside className="chat" aria-label="Chat">
       <header className="chat__head">
         <h2 className="chat__title">Chat</h2>
         {film && <span className="chat__film mono">{film}</span>}
-        {onClose ? (
-          <button type="button" className="button button--quiet chat__hide" onClick={onClose}>
-            Close chat
-          </button>
-        ) : (
-          <button type="button" className="button button--quiet chat__hide" aria-expanded="true" onClick={() => setOpen(false)}>
-            Hide chat
-          </button>
-        )}
+        <button type="button" className="button button--quiet chat__hide" onClick={onClose}>
+          Close chat
+        </button>
         {via && !picker && <span className="chat__via">{via}</span>}
       </header>
 

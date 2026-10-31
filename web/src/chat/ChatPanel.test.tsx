@@ -13,7 +13,7 @@ function setup(table: Record<string, (init?: RequestInit) => unknown> = {}, film
     }),
   );
   vi.stubGlobal("fetch", fetch);
-  render(<ChatPanel film={film} />);
+  render(<ChatPanel film={film} onClose={() => {}} />);
   return fetch;
 }
 
@@ -101,18 +101,61 @@ describe("ChatPanel: a conversation", () => {
     expect(await screen.findByText("API key · gpt-test-1")).toHaveClass("chat__via");
   });
 
-  test("in a narrow window the chat starts folded under the feed, and Show chat opens it", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query === "(max-width: 760px)", media: query, addEventListener() {}, removeEventListener() {} }));
-    setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Show chat" }));
-    expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
+  test("Close chat hands the close to the drawer", async () => {
+    const onClose = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/chat-settings": () => chatSettings(), "/api/chat/zed": () => ({ film: "zed", busy: false, entries: [] }) })));
+    render(<ChatPanel film="zed" onClose={onClose} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Close chat" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /Show chat|Hide chat/ })).toBeNull();
+  });
+});
+
+describe("ChatPanel: changing film", () => {
+  test("a transcript that answers after the film changed does not fill the new film's chat", async () => {
+    let answerA: ((r: Response) => void) | null = null;
+    const answer = routes({
+      "/api/chat-settings": () => chatSettings({ backend: "openai", model: "gpt-test-1" }),
+      "/api/chat/b": () => ({ film: "b", busy: false, entries: [userLine("Hello b", "b1")] }),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/chat/a" ? new Promise<Response>((resolve) => (answerA = resolve)) : answer(input, init),
+      ),
+    );
+    const { rerender } = render(<ChatPanel film="a" onClose={() => {}} />);
+    await waitFor(() => expect(answerA).not.toBeNull());
+    rerender(<ChatPanel film="b" onClose={() => {}} />);
+    const log = screen.getByRole("list", { name: "Messages" });
+    await waitFor(() => expect(within(log).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Hello b"]));
+    await act(async () => answerA!(new Response(JSON.stringify({ film: "a", busy: true, entries: [userLine("Hello a", "a1")] }))));
+    expect(within(log).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Hello b"]);
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
   });
 
-  test("Hide chat folds the panel to a rail", async () => {
-    setup();
-    fireEvent.click(await screen.findByRole("button", { name: "Hide chat" }));
-    expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Show chat" }));
-    expect(screen.getByRole("textbox", { name: "Message" })).toBeInTheDocument();
+  test("a message sent for one film that lands after the film changed is not added to the new film's chat", async () => {
+    let answerSend: ((r: Response) => void) | null = null;
+    const answer = routes({
+      "/api/chat-settings": () => chatSettings({ backend: "openai", model: "gpt-test-1", openai: { ...chatSettings().openai, keySaved: true, keySource: "file" } }),
+      "/api/chat/a": () => ({ film: "a", busy: false, entries: [] }),
+      "/api/chat/b": () => ({ film: "b", busy: false, entries: [] }),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/chat/a" && init?.method === "POST" ? new Promise<Response>((resolve) => (answerSend = resolve)) : answer(input, init),
+      ),
+    );
+    const { rerender } = render(<ChatPanel film="a" onClose={() => {}} />);
+    const box = await screen.findByRole("textbox", { name: "Message" });
+    fireEvent.change(box, { target: { value: "For a" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Send" }));
+    await waitFor(() => expect(answerSend).not.toBeNull());
+    rerender(<ChatPanel film="b" onClose={() => {}} />);
+    await act(async () => answerSend!(new Response(JSON.stringify({ entry: userLine("For a", "a1") }))));
+    const log = screen.getByRole("list", { name: "Messages" });
+    expect(within(log).queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 });

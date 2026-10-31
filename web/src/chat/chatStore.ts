@@ -20,6 +20,8 @@ interface ChatState {
 let state: ChatState = { open: readOpen(), outbox: null };
 /** The element that opened the drawer, so closing gives focus back. */
 let opener: HTMLElement | null = null;
+/** True once the drawer is opened on this page; a drawer restored open from the last visit is not, and leaves focus alone. */
+let openedHere = false;
 /** Outbox ids only grow, so a cleared outbox never makes a new message look already handed over. */
 let lastOutbox = 0;
 const listeners = new Set<() => void>();
@@ -37,14 +39,23 @@ function set(next: Partial<ChatState>) {
 export const getChat = () => state;
 
 export function openChat() {
-  if (!state.open) opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (!state.open) {
+    opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+    openedHere = true;
+  }
   set({ open: true });
 }
 
+/** Whether the open drawer was opened by the user on this page (so it may move focus into itself). */
+export const openedByUser = () => openedHere;
+
+/** Closing gives focus back to what opened the drawer; with no opener (restored after a reload, or it has gone), to the rail Chat button. */
 export function closeChat() {
   set({ open: false });
-  opener?.focus();
+  const back = opener?.isConnected ? opener : document.querySelector<HTMLElement>("[data-chat-button]");
+  back?.focus();
   opener = null;
+  openedHere = false;
 }
 
 export const toggleChat = () => (state.open ? closeChat() : openChat());
@@ -72,5 +83,6 @@ export function useChatDrawer(): ChatState {
 export function resetChatForTests() {
   state = { open: readOpen(), outbox: null };
   opener = null;
+  openedHere = false;
   lastOutbox = 0;
 }

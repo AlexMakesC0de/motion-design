@@ -23,9 +23,14 @@ export function TakeViewer({ job, kinds, now, onClose }: { job: JobView; kinds: 
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture phase: the viewer is on top, so it takes Escape before the chat drawer (which skips a handled one).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
 
   const run = async <T,>(what: "frames" | "check", fn: () => Promise<T>) => {

@@ -1,9 +1,11 @@
 // The chat as a drawer over the right edge of any page. It talks about the
 // film you are in (or the film Create saves into). Escape closes it and gives
-// focus back to whatever opened it.
+// focus back to whatever opened it, unless something over it (the take
+// viewer) already took that Escape. A drawer restored open after a reload
+// leaves focus where the page put it.
 import { useEffect, useRef } from "react";
 import { ChatPanel } from "./ChatPanel";
-import { clearOutbox, closeChat, useChatDrawer } from "./chatStore";
+import { clearOutbox, closeChat, openedByUser, useChatDrawer } from "./chatStore";
 
 export function ChatDrawer({ film }: { film: string | null }) {
   const { open, outbox } = useChatDrawer();
@@ -11,8 +13,12 @@ export function ChatDrawer({ film }: { film: string | null }) {
 
   useEffect(() => {
     if (!open) return;
-    box.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeChat();
+    if (openedByUser()) box.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      closeChat();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);

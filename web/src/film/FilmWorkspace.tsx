@@ -2,7 +2,7 @@
 // One film's home: its step bar and the step you are on. Stage 1 mounts the
 // existing screens: the storyboard for Brief and Shots, the film page for
 // Finish. References arrives with the references-first work.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { FilmProgress, FilmStep } from "../api/types";
 import { filmHref, replaceHash } from "../app/route";
@@ -10,7 +10,7 @@ import { onStudioEvent } from "../app/useStudio";
 import { Storyboard } from "../storyboard/Storyboard";
 import { useBoard } from "../storyboard/useBoard";
 import { FilmPage } from "../films/FilmPage";
-import { setRun } from "../studio/promptStore";
+import { getRun, setRun } from "../studio/promptStore";
 import { sendToChat } from "../chat/chatStore";
 import { StepBar } from "./StepBar";
 import "./film.css";
@@ -38,26 +38,41 @@ function ReferencesStep({ slug }: { slug: string }) {
 export function FilmWorkspace({ slug, step }: { slug: string; step: FilmStep | null }) {
   const [progress, setProgress] = useState<FilmProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Each read gets a number; only the newest one may land, so a slow older answer never replaces a newer one.
+  const seq = useRef(0);
+
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    api<FilmProgress>(`/api/films/${encodeURIComponent(slug)}/progress`)
+      .then((p) => {
+        if (mine !== seq.current) return;
+        setProgress(p);
+        setError(null);
+        if (getRun() !== slug) setRun(slug); // Create follows the film only once it is known to exist
+      })
+      .catch((e) => mine === seq.current && setError(e instanceof ApiError ? e.message : String(e)));
+  }, [slug]);
 
   useEffect(() => {
-    setRun(slug);
     setProgress(null);
     setError(null);
-    let alive = true;
-    const load = () =>
-      api<FilmProgress>(`/api/films/${encodeURIComponent(slug)}/progress`)
-        .then((p) => alive && setProgress(p))
-        .catch((e) => alive && setError(e instanceof ApiError ? e.message : String(e)));
     load();
-    // A job settling can move the film on a step.
-    const off = onStudioEvent((e) => {
-      if (e.event === "job") load();
-    });
     return () => {
-      alive = false;
-      off();
+      seq.current++; // an answer for the film being left is dropped
     };
-  }, [slug]);
+  }, [load]);
+
+  // The same events that redraw the storyboard (useBoard) can move the film on a step.
+  useEffect(
+    () =>
+      onStudioEvent((e) => {
+        if (e.event === "hello") load();
+        else if (e.event === "job" && e.data.run === slug) load();
+        else if (e.event === "task" && e.data.run === slug && e.data.state !== "running") load();
+        else if (e.event === "chat" && e.data.film === slug && e.data.entry?.kind === "tool" && e.data.entry.state !== "running") load();
+      }),
+    [slug, load],
+  );
 
   useEffect(() => {
     if (progress && !step) replaceHash(filmHref(slug, progress.step));

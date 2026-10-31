@@ -25,7 +25,7 @@ export function Rail({ current }: { current: RailId }) {
         <Item key={r.id} {...r} current={current} />
       ))}
       <span className="rail__gap" />
-      <button type="button" className="rail__item" aria-expanded={open} onClick={toggleChat}>
+      <button type="button" className="rail__item" aria-expanded={open} onClick={toggleChat} data-chat-button>
         <Icon name="chat" />
         <span>Chat</span>
       </button>

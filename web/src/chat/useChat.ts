@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { ChatEntry, ChatView } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
@@ -23,15 +23,23 @@ export function useChat(film: string | null) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connect, setConnect] = useState(false);
+  // The film the panel shows now, and a number per transcript read: an answer
+  // for another film, or one older than the newest read, is dropped.
+  const current = useRef(film);
+  current.current = film;
+  const seq = useRef(0);
 
   const load = useCallback(() => {
     if (!film) return Promise.resolve();
+    const mine = ++seq.current;
+    const fresh = () => mine === seq.current && current.current === film;
     return api<ChatView>(`/api/chat/${encodeURIComponent(film)}`)
       .then((v) => {
+        if (!fresh()) return;
         setEntries(v.entries);
         setBusy(v.busy);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
+      .catch((e) => fresh() && setError(e instanceof ApiError ? e.message : String(e)));
   }, [film]);
 
   useEffect(() => {
@@ -56,14 +64,17 @@ export function useChat(film: string | null) {
 
   async function send(text: string): Promise<boolean> {
     if (!film) return false;
+    const sentFor = film;
     setError(null);
     try {
       const r = await api<{ entry: ChatEntry }>(`/api/chat/${encodeURIComponent(film)}`, { method: "POST", body: { text } });
+      if (current.current !== sentFor) return true; // sent to the film that was open; the chat now shows another
       setConnect(false);
       setBusy(true);
       setEntries((list) => upsert(list, r.entry));
       return true;
     } catch (e) {
+      if (current.current !== sentFor) return false;
       if (e instanceof ApiError && e.detail.connect) setConnect(true);
       setError(e instanceof ApiError ? e.message : String(e));
       return false;
