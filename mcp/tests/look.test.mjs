@@ -16,13 +16,17 @@ const TOOLS = [
   "generate_image", "generate_video", "wait_job",
   "frames", "probe", "assemble", "variants", "caption", "render",
   "get_menu", "get_brief", "save_brief", "get_plan", "save_plan", "update_shot", "check_plan", "suggest_model", "shot_wording",
-  "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film", "set_auto_redo",
+  "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
 ];
 
 describe("the tool list", () => {
-  test("all 37 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 36 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
+    assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");
+    const filmAll = tools.find((t) => t.name === "film_all");
+    assert.match(filmAll.description, /the total the user stated/);
+    assert.match(filmAll.inputSchema.properties.max_usd.description, /never one you worked out/);
     for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all"]) {
       const t = tools.find((x) => x.name === name);
       assert.match(t.description, /^Spends kie credits\./);

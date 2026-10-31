@@ -9,7 +9,7 @@ import { filmShot, filmReady } from "../cli/director/film.mjs";
 import { reviewShot, saveReview } from "../cli/director/review.mjs";
 import { cutFilm } from "../cli/director/cut.mjs";
 import { board, boardLines } from "../cli/director/board.mjs";
-import { MAX_REDOS, afterReview, saveProduction } from "../cli/director/redo.mjs";
+import { MAX_REDOS, afterReview } from "../cli/director/redo.mjs";
 import { imagePreview } from "./preview.mjs";
 import { ok } from "./results.mjs";
 import { stoppable } from "./stop.mjs";
@@ -158,9 +158,14 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
     {
       title: "Film all",
       description:
-        "Spends kie credits. Submit every shot that is ready, in order, and return at once; call again after wait_job settles takes, for the shots that continue from them. " +
-        "Only after the user has seen the storyboard and agreed the total: pass it as max_usd; a remaining cost above it is refused. Never refilms a failed take; it reports it.",
-      inputSchema: { run, max_usd: z.number().min(0).describe("The total the user agreed to spend on filming."), dry_run: dryRun },
+        "Spends kie credits. Submit every shot that is ready, in order, and return at once; call again with the same max_usd after wait_job settles takes, for the shots that continue from them. " +
+        "Only when the user asked to film, after they have seen the storyboard and stated a total: max_usd must be the total the user stated in this conversation. " +
+        "It films only the shots left when that total was agreed, each at no more than its price then; a shot added since, or one whose price rose, stops it, and the user must agree a new total. Never refilms a failed take; it reports it.",
+      inputSchema: {
+        run,
+        max_usd: z.number().min(0).describe("The total the user stated for filming, in dollars: their figure, never one you worked out or carried over."),
+        dry_run: dryRun,
+      },
       outputSchema: {
         submitted: z.array(Data),
         filming: z.array(z.string()),
@@ -169,6 +174,7 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
         failed: z.array(Data),
         stopped: Data.nullable(),
         remainingUsd: z.number(),
+        agreement: Data,
         dryRun: z.boolean(),
       },
       annotations: SPEND,
@@ -236,23 +242,6 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       if (redo?.submitted) lines.push(`auto-redo: refilming ${a.shot} (redo ${redo.redo} of ${MAX_REDOS}) as ${redo.jobId} on ${redo.model}, about $${redo.estimateUsd.toFixed(2)}. Call wait_job with job_id "${redo.jobId}", then review it.`);
       else if (redo) lines.push(`auto-redo held back: ${redo.reason}`);
       return ok(lines.join("\n"), { ...saved, redo });
-    },
-  );
-
-  tool(
-    "set_auto_redo",
-    {
-      title: "Auto-redo",
-      description:
-        "Switch auto-redo on or off for a film. On: a take judged redo (save_review) is refilmed at once, at most twice a shot, while the film's takes stay within max_usd in all (first takes and redos together). " +
-        "Only when the user asked for it and named the total. Free itself.",
-      inputSchema: { run, on: z.boolean(), max_usd: z.number().positive().optional().describe("The most this film's takes may cost in all, redos included. Required to switch on.") },
-      outputSchema: { autoRedo: z.boolean(), maxUsd: z.number().nullable() },
-      annotations: LOCAL_WRITE,
-    },
-    async (a) => {
-      const p = saveProduction(a.run, { autoRedo: a.on, maxUsd: a.max_usd });
-      return ok(p.autoRedo ? `auto-redo on for ${a.run}: up to ${MAX_REDOS} redos a shot, takes within $${p.maxUsd.toFixed(2)} in all` : `auto-redo off for ${a.run}`, p);
     },
   );
 

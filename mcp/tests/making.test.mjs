@@ -23,6 +23,7 @@ deps.generate.download = async (url, path) => {
   return path;
 };
 const client = await connect(deps);
+const { saveProduction } = await import("../../cli/director/redo.mjs");
 
 const brief = { takeaway: "Mornings by the sea are calm", durationS: 3, aspectRatio: "16:9", filmType: "live-action" };
 const look = { palette: "teal and amber", grade: "soft contrast", filmLook: "35mm film grain", lensFamily: "anamorphic", keyLightSide: "left" };
@@ -93,9 +94,8 @@ describe("making a film through the tools", { skip: !hasFfmpeg && "needs ffmpeg"
   });
 
   test("with auto-redo on, a redo verdict refilms the shot; the take that lands replaces it", async () => {
-    const off = await call(client, "set_auto_redo", { run: "pier", on: true });
-    assert.equal(errorOf(off).code, 1);
-    ok(await call(client, "set_auto_redo", { run: "pier", on: true, max_usd: 100 }));
+    // Only the user switches auto-redo on (studio or kie auto-redo); the chat has no tool for it.
+    saveProduction("pier", { autoRedo: true, maxUsd: 100 });
     const before = calls.create.length;
     const r = await call(client, "save_review", { run: "pier", shot: "s2", take: "s2-take.mp4", verdict: "redo", checks: [{ check: "the pier reads", ok: false, note: "the pier melts" }] });
     ok(r);
