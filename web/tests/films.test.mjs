@@ -24,9 +24,10 @@ store.transition(j.id, "sending");
 store.transition(j.id, "submitted", { upstreamTaskId: "task-1" });
 store.transition(j.id, "succeeded", { artifacts: [join(film, "out.mp4")], actualUsd: 0.5, costSource: "task-record" });
 
+const revealed = [];
 let app, port;
 before(async () => {
-  app = createApp({ key: KEY, deps, distDir: join(tmp, "nodist"), pollMs: 60_000 });
+  app = createApp({ key: KEY, deps: { ...deps, reveal: (dir) => revealed.push(dir) }, distDir: join(tmp, "nodist"), pollMs: 60_000 });
   await new Promise((r) => app.listen(0, "127.0.0.1", r));
   port = app.address().port;
 });
@@ -139,5 +140,48 @@ describe("POST /api/films/:slug/srt", () => {
     assert.equal(r.status, 400);
     assert.equal(r.json.error.field, "text");
     assert.match(r.json.error.message, /No readable cues/);
+  });
+});
+
+describe("film progress", () => {
+  test("GET /api/films gives each card its progress; a folder made before the studio is takes only", async () => {
+    const r = await req(port, "/api/films");
+    const demo = r.json.find((f) => f.run === "film-demo");
+    assert.equal(demo.progress.legacy, true);
+    assert.equal(demo.progress.step, "finish");
+    assert.equal(demo.progress.steps.finish, "done", "film.mp4 is in the folder");
+    assert.equal(demo.progress.spentUsd, 0.5);
+    assert.equal(r.json.find((f) => f.run === "Old Stuff").progress, null);
+  });
+
+  test("a film with a brief and no plan is on Brief, with the next action in words", async () => {
+    mkdirSync(join(RUNS, "fresh"), { recursive: true });
+    writeFileSync(join(RUNS, "fresh", "brief.json"), JSON.stringify({ takeaway: "A boat", durationS: 8, aspectRatio: "16:9", filmType: "live-action" }));
+    const r = await req(port, "/api/films/fresh/progress");
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.step, "brief");
+    assert.deepEqual(r.json.next, { text: "Plan the shots", step: "brief" });
+    assert.equal(typeof r.json.updatedAt, "string");
+  });
+
+  test("progress for an unknown film is refused with core's code 3, like the film's own route", async () => {
+    const r = await req(port, "/api/films/no-such-film/progress");
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.code, 3);
+    assert.match(r.json.error.message, /No run "no-such-film"/);
+  });
+
+  test("reveal opens the film's folder through the injected opener", async () => {
+    const r = await req(port, "/api/films/film-demo/reveal", { method: "POST", body: {} });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(revealed, [join(RUNS, "film-demo")]);
+  });
+
+  test("reveal for an unknown film is refused and opens nothing", async () => {
+    const before = revealed.length;
+    const r = await req(port, "/api/films/no-such-film/reveal", { method: "POST", body: {} });
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.code, 3);
+    assert.equal(revealed.length, before);
   });
 });

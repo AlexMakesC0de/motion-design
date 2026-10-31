@@ -3,18 +3,23 @@
 // raw body, and captions pasted as SRT text. The finishing tools are in
 // finish.mjs. Core's getRun checks the slug, refuses an unknown run (code 3)
 // and lists the folder's files.
-import { mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import { basename, extname, join } from "node:path";
 import { listRuns, getRun } from "../../../cli/core/views.mjs";
 import { checkLocalFile } from "../../../cli/core/inputs.mjs";
 import { RUNS_DIR, runDir, claimArtifact, landArtifact } from "../../../cli/lib/run.mjs";
 import { parseSrt } from "../../../cli/lib/caption.mjs";
+import { board } from "../../../cli/director/board.mjs";
+import { loadMenu } from "../../../cli/director/menu.mjs";
+import { countedUsd } from "../../../cli/core/jobs.mjs";
 import { RATIOS } from "../../../cli/lib/ffmpeg.mjs";
 import { TEMPLATES } from "../../../cli/lib/render.mjs";
 import { context, jobView } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
+import { progressOf } from "../progress.mjs";
 import { HttpError } from "../http.mjs";
 import { label, saveBody } from "./library.mjs";
 import { filmDir } from "./finish.mjs";
@@ -99,6 +104,39 @@ export function filmDetail(slug, following) {
   return { run: run.run, prompt: run.prompt, files, order: lastOrder(dir, videos) };
 }
 
+const r2 = (n) => Math.round(n * 100) / 100;
+const OUTPUTS = new Set(["film", "captioned", "variant", "card"]);
+
+/** Where a film is (progress.mjs), from its board, its folder and what its jobs cost. Throws core's code 3 for an unknown run. */
+export function filmProgress(slug, { menu = loadMenu() } = {}) {
+  const { store, library } = context();
+  const dir = runDir(slug, { create: false });
+  if (!existsSync(dir)) getRun(slug, { store }); // throws the "No run" error with the recent list
+  const b = board(store, slug, { assets: library.list(), menu });
+  const files = visible(dir);
+  const outputs = files.filter((f) => OUTPUTS.has(fileOrigin(f.name, f.kind))).length;
+  const hasFilm = files.some((f) => fileOrigin(f.name, f.kind) === "film");
+  const legacy = !b.brief && !b.plan && files.length > 0;
+  const spentUsd = r2(store.list().filter((j) => j.run === slug).reduce((t, j) => t + countedUsd(j), 0));
+  return {
+    ...progressOf(b, { outputs, hasFilm, spentUsd, legacy }),
+    updatedAt: statSync(dir).mtime.toISOString(),
+    cover: cover(slug),
+  };
+}
+
+/** Progress for the films list: null for a folder the tools cannot name as a run. */
+function progressOrNull(slug, menu) {
+  try {
+    return filmProgress(slug, { menu });
+  } catch {
+    return null;
+  }
+}
+
+const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
+const revealDir = (dir) => spawn(opener, [dir], { detached: true, stdio: "ignore" }).unref();
+
 /** "My Song (final).mp3" -> "my-song-final": a plain file stem, or `fallback`. */
 export function plainStem(name, fallback) {
   const stem = basename(name, extname(name))
@@ -110,8 +148,16 @@ export function plainStem(name, fallback) {
   return stem || fallback;
 }
 
-export function registerFilms(router, { following, maxAudioBytes = MAX_AUDIO_UPLOAD } = {}) {
-  router.get("/api/films", () => listRuns().map((r) => ({ ...r, cover: cover(r.run) })));
+export function registerFilms(router, { following, maxAudioBytes = MAX_AUDIO_UPLOAD, deps = {} } = {}) {
+  const menu = loadMenu();
+  router.get("/api/films", () => listRuns().map((r) => ({ ...r, cover: cover(r.run), progress: progressOrNull(r.run, menu) })));
+  router.get("/api/films/:slug/progress", ({ params }) => filmProgress(params.slug, { menu }));
+  router.post("/api/films/:slug/reveal", ({ params }) => {
+    const dir = runDir(params.slug, { create: false });
+    if (!existsSync(dir)) getRun(params.slug, { store: context().store });
+    (deps.reveal ?? revealDir)(dir);
+    return { revealed: params.slug };
+  });
   router.get("/api/films/:slug", ({ params }) => filmDetail(params.slug, following));
 
   /**

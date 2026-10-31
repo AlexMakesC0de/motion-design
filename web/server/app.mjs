@@ -68,7 +68,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerFrames(router);
   registerLibrary(router, { catalog, following });
   registerPresets(router, { catalog });
-  registerFilms(router, { following });
+  registerFilms(router, { following, deps });
   registerFinish(router, { tasks, ...finish });
   director = registerDirector(router, { catalog, deps, follower, tasks });
   registerSettings(router, { catalog, deps });
