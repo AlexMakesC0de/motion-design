@@ -30,6 +30,16 @@ export function amount(body, field) {
   return v;
 }
 
+/** A length in seconds: above 0, or 0 or more with `zero` (a 0s crossfade is a straight cut). */
+export function seconds(body, field, { zero = false } = {}) {
+  const v = body?.[field];
+  if (v == null) return undefined;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || (v === 0 && !zero)) {
+    throw invalid(field, `${field} must be a number of seconds${zero ? ", 0 or more" : " above 0"}.`);
+  }
+  return v;
+}
+
 export function flag(body, field) {
   const v = body?.[field];
   if (v == null) return false;

@@ -117,7 +117,7 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
       music: music ? mediaFile(dir, "music", music, ["audio"]) : null,
       vo: vo ? mediaFile(dir, "vo", vo, ["audio"]) : null,
       transition: oneOf(body, "transition", TRANSITIONS, "fade"),
-      transitionS: f.amount(body, "transition_s") ?? 0,
+      transitionS: f.seconds(body, "transition_s", { zero: true }) ?? 0,
       ratio: oneOf(body, "aspect_ratio", Object.keys(RATIOS), "16:9"),
       shotAudio: oneOf(body, "shot_audio", SHOT_AUDIO, "auto"),
     };
@@ -196,7 +196,7 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
       throw f.invalid("props", err.message);
     }
     const ratio = oneOf(body, "aspect_ratio", Object.keys(RATIOS), "16:9");
-    const durationS = f.amount(body, "duration_s");
+    const durationS = f.seconds(body, "duration_s");
     if (durationS > MAX_CARD_S) throw f.invalid("duration_s", `A text card runs ${MAX_CARD_S} seconds at most.`);
     need(check, "render");
     const task = tasks.start(params.slug, "card", `Text card (${template})`, async ({ progress, signal }) => {

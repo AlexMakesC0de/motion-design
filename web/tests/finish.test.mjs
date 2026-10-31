@@ -274,6 +274,18 @@ describe("POST /api/films/:slug/assemble", () => {
     await slowApp.tasks.idle();
   });
 
+  test("transition_s 0 (the form's default) means straight cuts; a negative one is refused in seconds", async () => {
+    const zero = await post(port, "/api/films/finish-demo/assemble", { shots: ["a.mp4"], transition_s: 0 });
+    assert.equal(zero.status, 200, zero.text);
+    await app.tasks.idle();
+    const negative = await post(port, "/api/films/finish-demo/assemble", { shots: ["a.mp4"], transition_s: -1 });
+    assert.equal(negative.status, 400);
+    assert.equal(negative.json.error.field, "transition_s");
+    assert.equal(negative.json.error.message, "transition_s must be a number of seconds, 0 or more.");
+    const card = await post(port, "/api/films/finish-demo/card", { template: "lower-third", props: { name: "Zed" }, duration_s: 0 });
+    assert.equal(card.json.error.message, "duration_s must be a number of seconds above 0.");
+  });
+
   test("a shot outside the allowed folders, or in a hidden folder, is refused on its field before any task starts", async () => {
     const before = slowApp.tasks.list().length;
     const outside = await post(slowPort, "/api/films/finish-gated/assemble", { shots: [join(tmp, "outside.mp4")] });
