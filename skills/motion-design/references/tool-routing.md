@@ -79,6 +79,10 @@ costs, and an explicit user choice always wins.
 | Video edit | | `seedance-2-5`, `wan-3-0` |
 | Animation | | `seedance-2-5`, Kling 4.0 Flash |
 
+The same ratings live in `models.json` as `goodFor`, where the director's model
+picker reads them (`kie plan --suggest`); a test fails if the two disagree, so
+change both together.
+
 When the user has not chosen a model, start from the S-tier entry for the job
 and say why; drop to an A-tier entry when it is the cheaper or the only one
 that fits the duration, ratio or references (read the price from

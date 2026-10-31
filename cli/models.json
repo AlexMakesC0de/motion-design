@@ -95,6 +95,8 @@
   "models": {
     "minimax-h3": {
       "capability": "video",
+      "goodFor": {"motion-graphics": "S"},
+      "promptProfile": {"family": "hailuo", "maxChars": 2000, "audioOff": null},
       "durationsS": [
         3,
         4,
@@ -276,6 +278,7 @@
     },
     "minimax-h3-max": {
       "capability": "video",
+      "promptProfile": {"family": "hailuo", "maxChars": 2000, "audioOff": null},
       "durationsS": [
         6,
         10
@@ -306,6 +309,7 @@
     },
     "seedance-2": {
       "capability": "video",
+      "promptProfile": {"family": "seedance", "maxChars": 6000, "audioOff": null},
       "durationsS": [
         4,
         5,
@@ -419,6 +423,7 @@
     },
     "seedance-2-fast": {
       "capability": "video",
+      "promptProfile": {"family": "seedance", "maxChars": 6000, "audioOff": null},
       "durationsS": [
         4,
         5,
@@ -514,6 +519,8 @@
     },
     "seedance-2-5": {
       "capability": "video",
+      "goodFor": {"cinematic": "S", "reference-images": "S", "lip-sync": "S", "text-to-video": "A", "video-edit": "A", "animation": "A"},
+      "promptProfile": {"family": "seedance", "maxChars": 6000, "audioOff": {"param": "generate_audio", "value": false}},
       "durationsS": [
         4,
         5,
@@ -707,6 +714,7 @@
     },
     "kling-3-0": {
       "capability": "video",
+      "promptProfile": {"family": "kling", "maxChars": 2500, "audioOff": null},
       "durationsS": [
         5,
         10
@@ -746,6 +754,7 @@
     },
     "wan-2-6": {
       "capability": "video",
+      "promptProfile": {"family": "wan", "maxChars": 1500, "audioOff": null},
       "durationsS": [
         5,
         10,
@@ -808,6 +817,8 @@
     },
     "wan-3-0": {
       "capability": "video",
+      "goodFor": {"reference-images": "A", "ugc": "S", "lip-sync": "A", "video-edit": "A"},
+      "promptProfile": {"family": "wan", "maxChars": 20000, "audioOff": null},
       "durationsS": [
         5,
         10
@@ -847,6 +858,7 @@
     },
     "veo-3-1": {
       "capability": "video",
+      "promptProfile": {"family": "veo", "maxChars": null, "audioOff": null},
       "durationsS": [
         8
       ],
