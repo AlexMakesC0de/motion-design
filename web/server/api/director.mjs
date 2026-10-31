@@ -22,6 +22,7 @@ import { cutFilm } from "../../../cli/director/cut.mjs";
 import { board } from "../../../cli/director/board.mjs";
 import { context, jobView } from "../state.mjs";
 import { mediaUrl } from "../media.mjs";
+import { HttpError } from "../http.mjs";
 import { filmDir, mediaFile } from "./finish.mjs";
 import * as f from "./fields.mjs";
 
@@ -159,6 +160,16 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
   router.get("/api/films/:slug/brief", ({ params }) => ({ brief: readBrief(params.slug) }));
   router.put("/api/films/:slug/brief", ({ params, body = {} }) => {
     if (!body.brief || typeof body.brief !== "object") throw f.invalid("brief", "Send { brief }.");
+    if (body.create === true) {
+      // Home starts a film: refused (409, exists) when runs/<slug> is already there, so it never overwrites one.
+      try {
+        saveBrief(params.slug, body.brief, { menu, create: true });
+      } catch (err) {
+        if (err?.exists) throw new HttpError(409, err.message, { exists: true });
+        throw err;
+      }
+      return view(params.slug);
+    }
     runDir(params.slug); // a new film's folder appears with its brief
     saveBrief(params.slug, body.brief, { menu });
     return view(params.slug);

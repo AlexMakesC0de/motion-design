@@ -3,14 +3,15 @@
 // raw body, and captions pasted as SRT text. The finishing tools are in
 // finish.mjs. Core's getRun checks the slug, refuses an unknown run (code 3)
 // and lists the folder's files.
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { basename, extname, join } from "node:path";
 import { listRuns, getRun } from "../../../cli/core/views.mjs";
 import { checkLocalFile } from "../../../cli/core/inputs.mjs";
-import { RUNS_DIR, runDir, claimArtifact, landArtifact } from "../../../cli/lib/run.mjs";
+import { RUNS_DIR, isInside, runDir, claimArtifact, landArtifact } from "../../../cli/lib/run.mjs";
+import { unknown } from "../../../cli/lib/errors.mjs";
 import { parseSrt } from "../../../cli/lib/caption.mjs";
 import { board } from "../../../cli/director/board.mjs";
 import { loadMenu } from "../../../cli/director/menu.mjs";
@@ -59,7 +60,14 @@ const visible = (dir) =>
     .filter((d) => d.isFile() && !d.name.startsWith(".") && fileKind(d.name))
     .map((d) => ({ name: d.name, kind: fileKind(d.name), modified: statSync(join(dir, d.name)).mtime.toISOString() }));
 
-/** The newest video in the folder, else the newest image, for the film's card. Null for a folder core cannot name as a run. */
+/** The newest video in the folder, else the newest image, for the film's card. `files` is visible(dir). */
+function pickCover(dir, files) {
+  const sorted = [...files].sort((a, b) => b.modified.localeCompare(a.modified));
+  const pick = sorted.find((f) => f.kind === "video") ?? sorted.find((f) => f.kind === "image");
+  return pick ? { kind: pick.kind, url: mediaUrl(join(dir, pick.name)) } : null;
+}
+
+/** The film's cover on its own. Null for a folder core cannot name as a run. */
 function cover(slug) {
   let dir;
   try {
@@ -67,9 +75,7 @@ function cover(slug) {
   } catch {
     return null; // "Old Stuff/" is listed, but is not a run slug the tools accept
   }
-  const files = visible(dir).sort((a, b) => b.modified.localeCompare(a.modified));
-  const pick = files.find((f) => f.kind === "video") ?? files.find((f) => f.kind === "image");
-  return pick ? { kind: pick.kind, url: mediaUrl(join(dir, pick.name)) } : null;
+  return pickCover(dir, visible(dir));
 }
 
 /** The shot order of the film's last assembly (core's assembly.json), for the shots still in the folder. */
@@ -107,35 +113,73 @@ export function filmDetail(slug, following) {
 const r2 = (n) => Math.round(n * 100) / 100;
 const OUTPUTS = new Set(["film", "captioned", "variant", "card"]);
 
-/** Where a film is (progress.mjs), from its board, its folder and what its jobs cost. Throws core's code 3 for an unknown run. */
-export function filmProgress(slug, { menu = loadMenu() } = {}) {
-  const { store, library } = context();
+/**
+ * Where a film is (progress.mjs), from its board, its folder and what its jobs
+ * cost. Throws core's code 3 for an unknown run. The films list passes what it
+ * read once for every film: `jobs` (this run's jobs) and `assets` (the library).
+ */
+export function filmProgress(slug, { menu = loadMenu(), jobs, assets } = {}) {
   const dir = runDir(slug, { create: false });
-  if (!existsSync(dir)) getRun(slug, { store }); // throws the "No run" error with the recent list
-  const b = board(store, slug, { assets: library.list(), menu });
+  if (!jobs || !assets || !existsSync(dir)) {
+    const { store, library } = context();
+    if (!existsSync(dir)) getRun(slug, { store }); // throws the "No run" error with the recent list
+    jobs ??= store.list().filter((j) => j.run === slug);
+    assets ??= library.list();
+  }
+  // board() reads jobs only through store.list(), so this run's jobs stand in for the store.
+  const b = board({ list: () => jobs }, slug, { assets, menu });
   const files = visible(dir);
   const outputs = files.filter((f) => OUTPUTS.has(fileOrigin(f.name, f.kind))).length;
   const hasFilm = files.some((f) => fileOrigin(f.name, f.kind) === "film");
   const legacy = !b.brief && !b.plan && files.length > 0;
-  const spentUsd = r2(store.list().filter((j) => j.run === slug).reduce((t, j) => t + countedUsd(j), 0));
+  const spentUsd = r2(jobs.reduce((t, j) => t + countedUsd(j), 0));
   return {
     ...progressOf(b, { outputs, hasFilm, spentUsd, legacy }),
     updatedAt: statSync(dir).mtime.toISOString(),
-    cover: cover(slug),
+    cover: pickCover(dir, files),
   };
 }
 
-/** Progress for the films list: null for a folder the tools cannot name as a run. */
-function progressOrNull(slug, menu) {
-  try {
-    return filmProgress(slug, { menu });
-  } catch {
-    return null;
+/** The films list: the job store and the library are read once for every card. */
+function filmsList(menu) {
+  const { store, library } = context();
+  const assets = library.list();
+  const byRun = new Map();
+  for (const j of store.list()) {
+    if (!byRun.has(j.run)) byRun.set(j.run, []);
+    byRun.get(j.run).push(j);
   }
+  return listRuns().map((r) => {
+    let progress = null;
+    try {
+      progress = filmProgress(r.run, { menu, jobs: byRun.get(r.run) ?? [], assets });
+    } catch {
+      // a folder the tools cannot name as a run, or one whose files do not read
+    }
+    return { ...r, cover: progress ? progress.cover : cover(r.run), progress };
+  });
 }
 
 const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
-const revealDir = (dir) => spawn(opener, [dir], { detached: true, stdio: "ignore" }).unref();
+const revealDir = (dir) => {
+  const child = spawn(opener, [dir], { detached: true, stdio: "ignore" });
+  child.on("error", () => {}); // no opener on this machine: nothing to show, and the server stays up
+  child.unref();
+};
+
+/**
+ * runs/<slug> for Finder: a real folder inside runs/, never a link or a file
+ * (refused like the director refuses a linked film, code 3). Unknown is core's "No run".
+ */
+function revealable(slug) {
+  const dir = runDir(slug, { create: false });
+  const st = lstatSync(dir, { throwIfNoEntry: false });
+  if (!st) getRun(slug, { store: context().store });
+  if (st.isSymbolicLink()) throw unknown(`runs/${slug} is a link; the studio only opens a real film folder inside runs/.`);
+  if (!st.isDirectory()) throw unknown(`runs/${slug} is not a folder; the studio only opens a real film folder inside runs/.`);
+  if (!isInside(realpathSync(dir), realpathSync(RUNS_DIR))) throw unknown(`runs/${slug} is a link; the studio only opens a real film folder inside runs/.`);
+  return dir;
+}
 
 /** "My Song (final).mp3" -> "my-song-final": a plain file stem, or `fallback`. */
 export function plainStem(name, fallback) {
@@ -150,12 +194,10 @@ export function plainStem(name, fallback) {
 
 export function registerFilms(router, { following, maxAudioBytes = MAX_AUDIO_UPLOAD, deps = {} } = {}) {
   const menu = loadMenu();
-  router.get("/api/films", () => listRuns().map((r) => ({ ...r, cover: cover(r.run), progress: progressOrNull(r.run, menu) })));
+  router.get("/api/films", () => filmsList(menu));
   router.get("/api/films/:slug/progress", ({ params }) => filmProgress(params.slug, { menu }));
   router.post("/api/films/:slug/reveal", ({ params }) => {
-    const dir = runDir(params.slug, { create: false });
-    if (!existsSync(dir)) getRun(params.slug, { store: context().store });
-    (deps.reveal ?? revealDir)(dir);
+    (deps.reveal ?? revealDir)(revealable(params.slug));
     return { revealed: params.slug };
   });
   router.get("/api/films/:slug", ({ params }) => filmDetail(params.slug, following));

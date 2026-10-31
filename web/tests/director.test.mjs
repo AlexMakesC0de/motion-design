@@ -301,3 +301,28 @@ describe("the storyboard API", { skip: !hasFfmpeg && "needs ffmpeg" }, () => {
     }
   });
 });
+
+describe("starting a film from Home", () => {
+  test("a brief sent with create: true makes a new film, and is refused with 409 when runs/<slug> already exists", async () => {
+    let r = await send("PUT", "/api/films/harbour/brief", { brief, create: true });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.brief.takeaway, brief.takeaway);
+    r = await send("PUT", "/api/films/harbour/brief", { brief: { ...brief, takeaway: "Another film" }, create: true });
+    assert.equal(r.status, 409, r.text);
+    assert.equal(r.json.error.exists, true);
+    assert.match(r.json.error.message, /runs\/harbour already exists/);
+    assert.equal((await get("/api/films/harbour/brief")).json.brief.takeaway, brief.takeaway, "the first film's brief is untouched");
+  });
+
+  test("without create, saving a brief over an existing film still works", async () => {
+    const r = await send("PUT", "/api/films/harbour/brief", { brief: { ...brief, takeaway: "Edited" } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.brief.takeaway, "Edited");
+  });
+
+  test("a bad brief with create: true is refused and leaves no folder behind", async () => {
+    const r = await send("PUT", "/api/films/never-made/brief", { brief: { takeaway: "" }, create: true });
+    assert.equal(r.status, 400);
+    assert.equal(existsSync(join(RUNS, "never-made")), false);
+  });
+});

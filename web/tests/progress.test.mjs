@@ -62,4 +62,15 @@ describe("progressOf", () => {
     assert.deepEqual(p.next, { text: "Made before the studio: takes only", step: "finish" });
     assert.deepEqual(p.steps, { brief: "todo", references: "todo", shots: "todo", finish: "current" });
   });
+  test("a saved plan with no shots keeps Brief current and asks for a shot", () => {
+    const p = progressOf({ brief, plan: { shots: [] }, shots: [] }, facts());
+    assert.equal(p.step, "brief");
+    assert.deepEqual(p.steps, { brief: "current", references: "locked", shots: "locked", finish: "locked" });
+    assert.deepEqual(p.next, { text: "Add a shot", step: "brief" });
+  });
+
+  test("a shot with a take but no still is not counted as needing a still", () => {
+    const b = { brief, plan: { shots: [{}, {}] }, shots: [shot("s1", { take: "s1-take.mp4" }), shot("s2", { still: "b" })] };
+    assert.deepEqual(progressOf(b, facts()).next, { text: "Film s2", step: "shots" });
+  });
 });

@@ -31,9 +31,11 @@ export function progressOf(b, { outputs = 0, hasFilm = false, spentUsd = 0, lega
     };
   }
 
+  // A saved plan with no shots in it is not a plan to film yet.
+  const planned = Boolean(b.brief && b.plan && shots.length > 0);
   const done = {
-    brief: Boolean(b.brief && b.plan),
-    references: Boolean(b.brief && b.plan),
+    brief: planned,
+    references: planned,
     shots: shots.length > 0 && shots.every((s) => s.take),
     finish: hasFilm,
   };
@@ -44,9 +46,9 @@ export function progressOf(b, { outputs = 0, hasFilm = false, spentUsd = 0, lega
 }
 
 function nextAction(b, step, hasFilm) {
-  if (step === "brief") return { text: b.brief ? "Plan the shots" : "Write the brief", step };
+  if (step === "brief") return { text: !b.brief ? "Write the brief" : b.plan ? "Add a shot" : "Plan the shots", step };
   if (step === "shots") {
-    const needStill = b.shots.filter((s) => !s.continuesFrom && !s.still);
+    const needStill = b.shots.filter((s) => !s.continuesFrom && !s.still && !s.take);
     if (needStill.length) return { text: `Make ${plural(needStill.length, "still")}`, step };
     const filming = b.shots.filter((s) => !s.take && s.filming.length);
     if (filming.length) return { text: `Filming ${plural(filming.length, "shot")}`, step };

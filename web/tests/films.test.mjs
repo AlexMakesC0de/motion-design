@@ -1,7 +1,7 @@
 import { RUNS, KEY, deps, req, tmp } from "./helpers.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const { createApp } = await import("../server/app.mjs");
@@ -183,5 +183,35 @@ describe("film progress", () => {
     assert.equal(r.status, 400);
     assert.equal(r.json.error.code, 3);
     assert.equal(revealed.length, before);
+  });
+
+  test("reveal refuses a runs/<slug> that is a link to a folder elsewhere, and opens nothing", async () => {
+    const outside = join(tmp, "outside-folder");
+    mkdirSync(outside, { recursive: true });
+    symlinkSync(outside, join(RUNS, "linked-film"));
+    const before = revealed.length;
+    const r = await req(port, "/api/films/linked-film/reveal", { method: "POST", body: {} });
+    assert.equal(r.status, 400, r.text);
+    assert.match(r.json.error.message, /runs\/linked-film is a link/);
+    assert.equal(revealed.length, before);
+  });
+
+  test("reveal refuses a plain file at runs/<slug>, and opens nothing", async () => {
+    writeFileSync(join(RUNS, "plain-file"), "not a folder");
+    const before = revealed.length;
+    const r = await req(port, "/api/films/plain-file/reveal", { method: "POST", body: {} });
+    assert.equal(r.status, 400, r.text);
+    assert.match(r.json.error.message, /runs\/plain-file is not a folder/);
+    assert.equal(revealed.length, before);
+  });
+
+  test("each card in the list has the same progress and cover as the film's own progress route", async () => {
+    const list = await req(port, "/api/films");
+    for (const slug of ["film-demo", "fresh"]) {
+      const card = list.json.find((f) => f.run === slug);
+      const own = await req(port, `/api/films/${slug}/progress`);
+      assert.deepEqual(card.progress, own.json, slug);
+      assert.deepEqual(card.cover, own.json.cover, slug);
+    }
   });
 });

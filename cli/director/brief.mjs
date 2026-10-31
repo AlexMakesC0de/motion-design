@@ -1,4 +1,6 @@
+import { mkdirSync, rmdirSync } from "node:fs";
 import { usage } from "../lib/errors.mjs";
+import { RUNS_DIR, runDir } from "../lib/run.mjs";
 import { loadMenu, ids } from "./menu.mjs";
 import { readFilmJson, writeFilmJson } from "./files.mjs";
 
@@ -34,10 +36,36 @@ export function validateBrief(brief, { menu = loadMenu() } = {}) {
 
 export const readBrief = (film) => readFilmJson(film, "brief.json");
 
-/** Save a brief after checking it; a bad brief is refused with every reason (exit 1). */
-export function saveBrief(film, brief, opts = {}) {
+/**
+ * Save a brief after checking it; a bad brief is refused with every reason
+ * (exit 1). With `create`, the brief starts a new film: runs/<film> is made
+ * here and must not exist yet (anything already there, a folder, a file or a
+ * link, is refused with `exists: true`), so a new film never lands on an old one.
+ */
+export function saveBrief(film, brief, { create = false, ...opts } = {}) {
   const problems = validateBrief(brief, opts);
   if (problems.length) throw usage(`The brief was not saved:\n- ${problems.join("\n- ")}`, { problems });
-  writeFilmJson(film, "brief.json", brief, opts);
+  if (!create) {
+    writeFilmJson(film, "brief.json", brief, opts);
+    return brief;
+  }
+  const dir = runDir(film, { create: false });
+  mkdirSync(RUNS_DIR, { recursive: true });
+  try {
+    mkdirSync(dir); // not recursive: fails if anything is already at runs/<film>
+  } catch (err) {
+    if (err.code === "EEXIST") throw usage(`runs/${film} already exists; a new film needs a name of its own.`, { exists: true });
+    throw err;
+  }
+  try {
+    writeFilmJson(film, "brief.json", brief, opts);
+  } catch (err) {
+    try {
+      rmdirSync(dir); // only if still empty: never leave a folder that blocks the next try
+    } catch {
+      // something else was written there; leave it
+    }
+    throw err;
+  }
   return brief;
 }
