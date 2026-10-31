@@ -444,7 +444,7 @@ export interface BoardView {
   shots: BoardShot[];
   check: { errors: Finding[]; warnings: Finding[] };
   cost: {
-    shots: { id: string | null; stillModel: string | null; stillUsd: number | null; model: string | null; generatedS: number | null; takeUsd: number | null }[];
+    shots: { id: string | null; stillModel: string | null; stillUsd: number | null; continuesFrom?: string; model: string | null; generatedS: number | null; takeUsd: number | null }[];
     stillsUsd: number;
     filmUsd: number;
     totalUsd: number;

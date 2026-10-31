@@ -75,6 +75,7 @@ export function registerDirector(tool, { catalog, ctx }) {
         id: z.string().nullable(),
         stillModel: z.string().nullable(),
         stillUsd: z.number().nullable(),
+        continuesFrom: z.string().optional(),
         model: z.string().nullable(),
         generatedS: z.number().nullable(),
         takeUsd: z.number().nullable(),

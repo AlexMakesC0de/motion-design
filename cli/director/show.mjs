@@ -42,7 +42,7 @@ export function planLines({ film, brief, plan, check, cost }) {
     lines.push(`${s.id}  ${s.durationS}s  ${s.size} · ${s.angle} · ${s.lens} · ${s.depth} · ${move} · ${s.light} · cut ${s.cut}`);
     lines.push(`    ${s.action}`);
     lines.push(`    film:  ${s.model ?? "no model"}${c.generatedS ? ` ${c.generatedS}s` : ""} ${usd(c.takeUsd)}${s.modelReason ? `  (${s.modelReason})` : ""}`);
-    lines.push(`    still: ${s.stillModel ?? "no model"} ${usd(c.stillUsd)}`);
+    lines.push(c.continuesFrom ? `    still: none, starts on ${c.continuesFrom}'s last frame` : `    still: ${s.stillModel ?? "no model"} ${usd(c.stillUsd)}`);
   }
   lines.push("", ...findingLines(check), "");
   lines.push(`cost: stills ${usd(cost.stillsUsd)} + film ${usd(cost.filmUsd)} = ${usd(cost.totalUsd)}${cost.complete ? "" : " (some shots have no price)"}`);
