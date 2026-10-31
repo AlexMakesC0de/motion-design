@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Studio v2 — low-fidelity layout</title>
+<style>
+  :root { --ink:#222; --mid:#5f5f5f; --line:#bbb; --fill:#e9e9e9; --fill2:#d6d6d6; --note:#d2452f; --bg:#f7f6f3; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 "IBM Plex Sans", system-ui, sans-serif; }
+  header.doc { max-width:1320px; margin:32px auto 8px; padding:0 20px; }
+  header.doc h1 { font-size:26px; margin:0 0 6px; }
+  header.doc p { margin:4px 0; color:#555; max-width:860px; }
+  nav.toc { max-width:1320px; margin:0 auto 24px; padding:0 20px; display:flex; gap:8px; flex-wrap:wrap; }
+  nav.toc a { color:var(--ink); background:#fff; border:1px solid var(--line); border-radius:999px; padding:4px 12px; text-decoration:none; font-size:13px; }
+  section.screen { max-width:1320px; margin:0 auto 56px; padding:0 20px; }
+  section.screen h2 { font-size:19px; margin:0 0 4px; }
+  section.screen > p { margin:0 0 12px; color:#555; max-width:900px; }
+  .frame { position:relative; width:1280px; height:780px; background:#fff; border:2px solid var(--ink); border-radius:10px; overflow:hidden; display:flex; }
+  .notes { margin:12px 0 0; padding:0; list-style:none; columns:2; column-gap:32px; max-width:1280px; }
+  .notes li { break-inside:avoid; margin:0 0 8px; padding-left:28px; position:relative; color:#333; }
+  .notes li b.n { position:absolute; left:0; top:0; }
+  .src { color:var(--mid); font-size:12px; }
+  /* building blocks */
+  .rail { width:76px; border-right:1.5px solid var(--ink); display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:10px; flex:none; }
+  .rail .ico { width:58px; height:40px; border:1.5px solid var(--ink); border-radius:10px; display:grid; place-items:center; font-size:12px; text-align:center; line-height:1.1; padding:4px; }
+  .rail .ico.on { background:var(--ink); color:#fff; }
+  .rail .grow { flex:1; }
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .top { height:52px; border-bottom:1.5px solid var(--ink); display:flex; align-items:center; padding:0 16px; gap:12px; flex:none; }
+  .crumb { font-weight:600; }
+  .steps { display:flex; gap:0; margin-left:12px; border:1.5px solid var(--ink); border-radius:999px; overflow:hidden; }
+  .steps span { padding:6px 16px; font-size:13px; border-right:1.5px solid var(--ink); }
+  .steps span:last-child { border-right:0; }
+  .steps span.on { background:var(--ink); color:#fff; }
+  .steps span.done::before { content:"✓ "; }
+  .spacer { flex:1; }
+  .pill { display:inline-flex; align-items:center; gap:4px; border:1.5px solid var(--ink); border-radius:999px; padding:5px 12px; font-size:12px; background:#fff; white-space:nowrap; }
+  .pill.ghost { border-style:dashed; color:var(--mid); }
+  .pill.dark { background:var(--ink); color:#fff; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--ink); border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; background:#fff; white-space:nowrap; }
+  .btn.primary { background:var(--ink); color:#fff; }
+  .btn.big { padding:12px 18px; font-size:15px; }
+  .img { background:var(--fill); border:1.5px solid var(--ink); border-radius:8px; position:relative; display:grid; place-items:center; color:var(--mid); font-size:12px; overflow:hidden; }
+  .img::after { content:""; position:absolute; inset:0; background:linear-gradient(to top right, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px)); pointer-events:none; }
+  .img > * { position:relative; z-index:1; }
+  .tag { position:absolute; top:6px; left:6px; z-index:2; background:#fff; border:1.5px solid var(--ink); border-radius:6px; padding:3px 8px; font-size:12px; }
+  .lbl { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mid); margin:0 0 6px; }
+  .box { border:1.5px solid var(--ink); border-radius:12px; padding:12px; background:#fff; }
+  .text { height:8px; background:var(--fill2); border-radius:4px; margin:6px 0; }
+  .muted { color:var(--mid); }
+  .call { position:absolute; z-index:5; width:22px; height:22px; border-radius:50%; background:var(--note); color:#fff; font-size:12px; font-weight:700; display:grid; place-items:center; box-shadow:0 0 0 3px #fff; }
+  .meter { width:120px; height:6px; border:1.5px solid var(--ink); border-radius:4px; position:relative; }
+  .meter::before { content:""; position:absolute; left:0; top:0; bottom:0; width:12%; background:var(--ink); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; gap:10px; }
+  .composer { border:2px solid var(--ink); border-radius:16px; background:#fff; padding:12px; }
+  .chip-in { display:inline-block; border-bottom:2px dashed var(--ink); padding:0 2px; font-weight:600; }
+  .avatar { width:20px; height:20px; border-radius:50%; background:var(--fill2); border:1.5px solid var(--ink); display:inline-block; vertical-align:-5px; }
+</style>
+</head>
+<body>
+
+<header class="doc">
+  <h1>Studio v2: low-fidelity layout</h1>
+  <p>Boxes only, no colour or polish. These frames decide where things go and what you click. Red numbers match the notes under each frame. Each note names the Mobbin screen the idea comes from.</p>
+  <p><b>The big change:</b> each film gets one home with four steps across the top: <b>Brief → References → Shots → Finish</b>. Today the same film is split across Studio, Storyboard, Takes and Films. Quick one-off generations get their own <b>Create</b> page. The chat becomes a drawer you open when you need it.</p>
+</header>
+<nav class="toc">
+  <a href="#home">1 · Home</a><a href="#projects">1b · Projects</a><a href="#refs">2 · Film → References</a><a href="#shots">3 · Film → Shots</a><a href="#finish">4 · Film → Finish</a><a href="#create">5 · Create (quick takes)</a><a href="#library">6 · Library</a><a href="#chat">7 · Chat drawer</a>
+</nav>
+
+<!-- 1 HOME -->
+<section class="screen" id="home">
+  <h2>1 · Home: your films, and one box to start a new one</h2>
+  <p>You land here. Start a film by typing what it's about, or open one you've made.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico on">Home</div><div class="ico">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div>
+      <div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">Home</span><span class="spacer"></span><span class="pill">2 jobs running</span><span class="muted" style="font-size:12px">Today $1.18 / $10</span><span class="meter"></span></div>
+      <div style="padding:40px 64px; overflow:hidden">
+        <div style="text-align:center; font-size:26px; font-weight:700; margin-bottom:16px">What are we making?</div>
+        <div class="composer" style="max-width:720px; margin:0 auto">
+          <div class="muted" style="height:44px">A 15-second film about… (one or two sentences)</div>
+          <div class="row"><span class="pill">16:9 ▾</span><span class="pill">15s ▾</span><span class="pill">Live action ▾</span><span class="pill ghost">+ start from a preset</span><span class="spacer"></span><span class="btn primary">Start film →</span></div>
+        </div>
+        <div class="row" style="margin-top:40px"><div class="lbl" style="margin:0">Recent films</div><span class="spacer"></span><span style="font-size:13px; font-weight:600; text-decoration:underline">See all projects →</span></div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px">
+          <div class="col"><div class="img" style="height:150px"><span class="tag">▶ 0:08</span></div><b>rainy-coffee</b><span class="muted" style="font-size:12px">Finished · 2 shots · $0.64</span></div>
+          <div class="col"><div class="img" style="height:150px"></div><b>boat</b><span class="muted" style="font-size:12px">Shots · 1 of 3 filmed</span></div>
+          <div class="col"><div class="img" style="height:150px"></div><b>ctlt-test</b><span class="muted" style="font-size:12px">References · 1 to approve</span></div>
+          <div class="col"><div class="img" style="height:150px; border-style:dashed; background:#fff">+ New film</div></div>
+        </div>
+      </div>
+    </div>
+    <span class="call" style="left:20px;top:84px">1</span>
+    <span class="call" style="left:520px;top:118px">2</span>
+    <span class="call" style="left:960px;top:62px">3</span>
+    <span class="call" style="left:150px;top:470px">4</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> A left icon rail replaces the six top tabs. Places you go now and then (Spend, Settings) drop to the bottom, and Chat opens a drawer. <span class="src">Runway, Magnific, FLORA</span></li>
+    <li><b class="n">2</b> One centred box to start: type the idea, pick the format, go. This saves the brief and opens the film at References. <span class="src">Krea "Video", Higgsfield "What are we creating today?"</span></li>
+    <li><b class="n">3</b> Jobs in progress and today's spend stay visible in a corner, but small. <span class="src">FLORA "Tasks 0 active"</span></li>
+    <li><b class="n">4</b> Home shows only your last few films, each with its step and what's next ("1 of 3 filmed", "1 to approve"). "See all projects" opens the full list.</li>
+  </ul>
+</section>
+
+<!-- 1b PROJECTS -->
+<section class="screen" id="projects">
+  <h2>1b · Projects: every film you've made, in one place</h2>
+  <p>A project is one film and everything in it. This page lists all of them, so you can find one, see where it's stuck and jump back in.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico on">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">Projects</span><div class="steps"><span class="on">All 6</span><span>In progress 4</span><span>Finished 2</span></div><span class="spacer"></span><span class="pill">Search</span><span class="pill">Last edited ▾</span><span class="pill">Grid / List</span><span class="btn primary">+ New film</span></div>
+      <div style="padding:20px; display:grid; grid-template-columns:repeat(3,1fr); gap:20px; align-content:start">
+        <div class="box col" style="padding:0; overflow:hidden">
+          <div class="img" style="height:170px; border:0; border-radius:0; border-bottom:1.5px solid var(--ink)"><span class="tag">▶ 0:08 · Finished</span></div>
+          <div class="col" style="padding:12px; gap:6px">
+            <div class="row"><b>rainy-coffee</b><span class="spacer"></span><span class="muted">⋯</span></div>
+            <div class="row" style="gap:4px"><span class="pill dark">Brief</span><span class="pill dark">Refs</span><span class="pill dark">Shots</span><span class="pill dark">Finish</span></div>
+            <div class="row muted" style="font-size:12px"><span>2 shots · $0.64 spent</span><span class="spacer"></span><span>today</span></div>
+            <span style="font-size:13px; font-weight:600">Open film →</span>
+          </div>
+        </div>
+        <div class="box col" style="padding:0; overflow:hidden">
+          <div class="img" style="height:170px; border:0; border-radius:0; border-bottom:1.5px solid var(--ink)"><span class="tag">Shots</span></div>
+          <div class="col" style="padding:12px; gap:6px">
+            <div class="row"><b>boat</b><span class="spacer"></span><span class="muted">⋯</span></div>
+            <div class="row" style="gap:4px"><span class="pill dark">Brief</span><span class="pill dark">Refs</span><span class="pill">Shots 1/3</span><span class="pill ghost">Finish</span></div>
+            <div class="row muted" style="font-size:12px"><span>3 shots · $0.42 spent</span><span class="spacer"></span><span>today</span></div>
+            <span style="font-size:13px; font-weight:600">Next: film s2 and s3 →</span>
+          </div>
+        </div>
+        <div class="box col" style="padding:0; overflow:hidden">
+          <div class="img" style="height:170px; border:0; border-radius:0; border-bottom:1.5px solid var(--ink)"><span class="tag">References</span></div>
+          <div class="col" style="padding:12px; gap:6px">
+            <div class="row"><b>ctlt-test</b><span class="spacer"></span><span class="muted">⋯</span></div>
+            <div class="row" style="gap:4px"><span class="pill dark">Brief</span><span class="pill">Refs 2/3</span><span class="pill ghost">Shots</span><span class="pill ghost">Finish</span></div>
+            <div class="row muted" style="font-size:12px"><span>2 stills · $0.12 spent</span><span class="spacer"></span><span>yesterday</span></div>
+            <span style="font-size:13px; font-weight:600">Next: approve 1 reference →</span>
+          </div>
+        </div>
+        <div class="box col" style="padding:0; overflow:hidden">
+          <div class="img" style="height:120px; border:0; border-radius:0; border-bottom:1.5px solid var(--ink)"></div>
+          <div class="col" style="padding:12px; gap:6px"><b>paper-plane</b><span class="muted" style="font-size:12px">Brief only · nothing spent</span></div>
+        </div>
+        <div class="box col" style="padding:0; overflow:hidden">
+          <div class="img" style="height:120px; border:0; border-radius:0; border-bottom:1.5px solid var(--ink)"></div>
+          <div class="col" style="padding:12px; gap:6px"><b>older-film (made before the studio)</b><span class="muted" style="font-size:12px">Imported · takes only</span></div>
+        </div>
+        <div class="box col" style="padding:12px; border-style:dashed; display:grid; place-items:center; min-height:120px">+ New film</div>
+      </div>
+    </div>
+    <span class="call" style="left:62px;top:104px">1</span>
+    <span class="call" style="left:150px;top:14px">2</span>
+    <span class="call" style="left:360px;top:294px">3</span>
+    <span class="call" style="left:150px;top:380px">4</span>
+    <span class="call" style="left:1250px;top:262px">5</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> Projects gets its own place on the left bar. While you're inside a film, Projects stays lit, so you always know where "back" goes. <span class="src">Magnific "Projects" rail item</span></li>
+    <li><b class="n">2</b> Filter by All, In progress or Finished, with a count on each. Search and sort by last edited, name or money spent.</li>
+    <li><b class="n">3</b> Four small step markers on each card show how far the film got: filled means done, outlined means in progress, dashed means not started.</li>
+    <li><b class="n">4</b> Each card names the next thing to do. Clicking it opens the film on that step.</li>
+    <li><b class="n">5</b> The ⋯ menu has Rename, Duplicate (same brief and references, new shots) and Show in Finder. To keep files safe, there's no Delete here.</li>
+  </ul>
+</section>
+
+<!-- 2 REFERENCES -->
+<section class="screen" id="refs">
+  <h2>2 · Film → References: who and what is in the film, from every angle</h2>
+  <p>The references-first step from the spec. One row per character, product or location. You upload images, or ask for them, then approve. Shots stay locked until you do.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico on">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">rainy-coffee</span><div class="steps"><span class="done">Brief</span><span class="on">References</span><span>Shots 🔒</span><span>Finish</span></div><span class="spacer"></span><span class="pill">Chat</span></div>
+      <div style="display:flex; flex:1; min-height:0">
+        <div style="flex:1; padding:20px; overflow:hidden" class="col">
+          <div class="box">
+            <div class="row" style="margin-bottom:10px"><span class="avatar"></span><b>maya</b><span class="muted">character · "a woman in her 30s, short dark hair, green raincoat"</span><span class="spacer"></span><span class="pill">Not approved</span></div>
+            <div class="row" style="gap:12px; align-items:flex-start">
+              <div class="col" style="width:150px"><div class="img" style="height:170px"><span class="tag">front</span></div><span class="muted" style="font-size:12px">Uploaded · Redo</span></div>
+              <div class="col" style="width:150px"><div class="img" style="height:170px"><span class="tag">¾</span></div><span class="muted" style="font-size:12px">Made · Redo</span></div>
+              <div class="col" style="width:150px"><div class="img" style="height:170px; border-style:dashed; background:#fff">missing<br>side</div></div>
+              <div class="col" style="width:150px"><div class="img" style="height:170px; border-style:dashed; background:#fff">missing<br>back</div></div>
+              <div class="col" style="margin-left:8px"><span class="btn">Upload</span><span class="btn">Make 2 missing · $0.12</span></div>
+            </div>
+          </div>
+          <div class="box">
+            <div class="row" style="margin-bottom:10px"><span class="avatar"></span><b>cup</b><span class="muted">product</span><span class="spacer"></span><span class="pill">Changed since approved</span></div>
+            <div class="row" style="gap:12px"><div class="img" style="width:110px;height:80px"><span class="tag">front</span></div><div class="img" style="width:110px;height:80px"><span class="tag">¾</span></div><div class="img" style="width:110px;height:80px"><span class="tag">side</span></div><div class="img" style="width:110px;height:80px"><span class="tag">back</span></div></div>
+          </div>
+          <div class="box">
+            <div class="row" style="margin-bottom:10px"><span class="avatar"></span><b>window-room</b><span class="muted">location</span><span class="spacer"></span><span class="pill dark">✓ Approved</span></div>
+            <div class="row" style="gap:12px"><div class="img" style="width:150px;height:80px"><span class="tag">wide</span></div><div class="img" style="width:150px;height:80px"><span class="tag">reverse</span></div><div class="img" style="width:150px;height:80px"><span class="tag">detail</span></div></div>
+          </div>
+        </div>
+        <div style="width:320px; border-left:1.5px solid var(--ink); padding:20px" class="col">
+          <div class="lbl">Feel of the film</div>
+          <div class="box col">
+            <div><div class="lbl">Mood</div><div class="pill" style="width:100%">quiet, cosy, a little lonely</div></div>
+            <div><div class="lbl">Colour temperature</div><div class="row"><span class="pill">Warm</span><span class="pill">Neutral</span><span class="pill dark">Cool</span></div></div>
+            <div><div class="lbl">Capture style</div><div class="pill" style="width:100%">Documentary 35mm ▾</div></div>
+            <div><div class="lbl">Palette</div><div class="row"><span class="pill">blue-grey</span><span class="pill">amber accent</span></div></div>
+          </div>
+          <div class="spacer"></div>
+          <div class="muted" style="font-size:12px">2 of 3 approved. Shots unlock when all 3 are.</div>
+          <span class="btn primary big">Approve references →</span>
+        </div>
+      </div>
+    </div>
+    <span class="call" style="left:340px;top:14px">1</span>
+    <span class="call" style="left:96px;top:120px">2</span>
+    <span class="call" style="left:820px;top:130px">3</span>
+    <span class="call" style="left:930px;top:100px">4</span>
+    <span class="call" style="left:930px;top:690px">5</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> The film's four steps sit in a bar across the top. Finished steps get a ✓, and a lock shows what's blocked and why. <span class="src">Google Ads "Create video" stepper</span></li>
+    <li><b class="n">2</b> One row per item, with a named slot for each angle. A missing angle is an empty dashed box, so you can see the gap. <span class="src">Higgsfield Elements cards, Magnific Style/Character slots</span></li>
+    <li><b class="n">3</b> Upload or Make, with the price on the button. Nothing happens until you click.</li>
+    <li><b class="n">4</b> "Feel of the film": mood, warm/neutral/cool and capture style as choices you click, not prompt words. <span class="src">Leonardo Styles panel (Vibe, Lighting, Color)</span></li>
+    <li><b class="n">5</b> One big, obvious next step at the bottom right on every film page.</li>
+  </ul>
+</section>
+
+<!-- 3 SHOTS -->
+<section class="screen" id="shots">
+  <h2>3 · Film → Shots: one shot at a time, a big preview, the shot strip below</h2>
+  <p>This replaces the storyboard, the 14-dropdown inspector and the separate Takes page.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico on">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">rainy-coffee</span><div class="steps"><span class="done">Brief</span><span class="done">References</span><span class="on">Shots</span><span>Finish</span></div><span class="spacer"></span><span class="muted" style="font-size:12px">2 stills · 1 take · est. $0.46 left</span><span class="btn">Film all · $0.40</span></div>
+      <div style="display:flex; flex:1; min-height:0">
+        <!-- left: shot composer -->
+        <div style="width:380px; border-right:1.5px solid var(--ink); padding:16px; display:flex; flex-direction:column; gap:12px">
+          <div class="row"><b>s2 · Close-up · 4s</b><span class="spacer"></span><span class="pill">Framing</span><span class="pill dark">Directing</span></div>
+          <div class="box" style="min-height:150px; line-height:1.9">
+            <span class="chip-in">Close-up</span> at <span class="chip-in">eye level</span>, <span class="chip-in">85mm</span>, <span class="chip-in">shallow focus</span>.
+            <span class="avatar"></span> <b>maya</b> wraps both hands round <span class="avatar"></span> <b>cup</b>; steam rises as rain blurs the window behind.
+            <span class="chip-in">Slow push in</span>, <span class="chip-in">window light</span> from the <span class="chip-in">left</span>.
+          </div>
+          <div class="muted" style="font-size:12px">Underlined words are choices: click one to swap it (e.g. 85mm → 50mm). Type the action as plain text. Type @ to add a reference.</div>
+          <div class="lbl">Cast in this shot</div>
+          <div class="row"><span class="pill"><span class="avatar"></span>maya</span><span class="pill"><span class="avatar"></span>cup</span><span class="pill ghost">+ @</span></div>
+          <div class="spacer"></div>
+          <div class="row"><span class="pill">nano-banana-2 ▾</span><span class="pill">minimax-h3 ▾</span><span class="pill">4s</span></div>
+          <div class="row"><span class="btn" style="flex:1">Make still · $0.06</span><span class="btn primary" style="flex:1">Film shot · $0.20</span></div>
+        </div>
+        <!-- center preview -->
+        <div style="flex:1; display:flex; flex-direction:column; padding:16px; gap:12px; min-width:0">
+          <div class="row"><span class="pill dark">Still</span><span class="pill">Take 1</span><span class="pill">Take 2</span><span class="spacer"></span><span class="pill">Prompt sent</span><span class="pill">Download</span></div>
+          <div class="img" style="flex:1"><span class="tag">s2 · still</span><span>preview of the selected still or take</span></div>
+          <div class="row"><span class="pill">✓ Steam visible</span><span class="pill">✓ Rain on glass</span><span class="pill ghost">Mark keep / redo</span></div>
+        </div>
+      </div>
+      <!-- bottom strip -->
+      <div style="height:132px; border-top:1.5px solid var(--ink); display:flex; gap:12px; padding:12px 16px; align-items:stretch">
+        <div class="col" style="width:150px; gap:4px"><div class="img" style="flex:1"><span class="tag">s1 · Wide</span></div><span style="font-size:12px">✓ take ready · 4s</span></div>
+        <div class="col" style="width:150px; gap:4px"><div class="img" style="flex:1; outline:3px solid var(--ink); outline-offset:2px"><span class="tag">s2 · Close</span></div><span style="font-size:12px">still ready · not filmed</span></div>
+        <div class="col" style="width:150px; gap:4px"><div class="img" style="flex:1; border-style:dashed; background:#fff">s3 · no still</div><span style="font-size:12px">needs its still first</span></div>
+        <div class="col" style="width:110px; gap:4px"><div class="img" style="flex:1; border-style:dashed; background:#fff">+ New shot</div></div>
+        <div class="spacer"></div>
+        <div class="col" style="justify-content:center; text-align:right; font-size:12px"><span>8s of 15s</span><span class="muted">drag to reorder</span></div>
+      </div>
+    </div>
+    <span class="call" style="left:340px;top:76px">1</span>
+    <span class="call" style="left:420px;top:150px">2</span>
+    <span class="call" style="left:94px;top:690px">3</span>
+    <span class="call" style="left:790px;top:120px">4</span>
+    <span class="call" style="left:370px;top:556px">5</span>
+    <span class="call" style="left:1100px;top:14px">6</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> Framing / Directing tabs split the 14 settings into two short groups: Framing (size, angle, lens, depth) and Directing (move, speed, light, cut). <span class="src">Artlist Studio "Framing › Directing"</span></li>
+    <li><b class="n">2</b> The shot reads as a sentence. Camera choices are underlined words you click to swap, and the people and products in it show as avatar chips. <span class="src">Luma clickable prompt tokens, Artlist inline cast chips</span></li>
+    <li><b class="n">3</b> The shot strip along the bottom shows every shot with its status in plain words. "+ New shot" sits at the end. <span class="src">Artlist "Shot 1 / + New Shot", Synthesia scene list</span></li>
+    <li><b class="n">4</b> A big preview of the selected shot. You switch between its still and each take with tabs, so there's no separate Takes page. <span class="src">Runway, Artlist start/end frame</span></li>
+    <li><b class="n">5</b> One main button and one second button, both showing the price. The main one changes with the shot's state: Make still → Film shot → Redo. <span class="src">Higgsfield "Generate ✦32"</span></li>
+    <li><b class="n">6</b> "Film all" with the total cost, top right. If it's locked, the reason shows when you hover.</li>
+  </ul>
+</section>
+
+<!-- 4 FINISH -->
+<section class="screen" id="finish">
+  <h2>4 · Film → Finish: a timeline, a player, and add-ons as cards</h2>
+  <p>This replaces the long Finish form. Takes sit on a timeline in order, and music, captions and size variants are cards you open one at a time.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico on">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">rainy-coffee</span><div class="steps"><span class="done">Brief</span><span class="done">References</span><span class="done">Shots</span><span class="on">Finish</span></div><span class="spacer"></span><span class="btn primary">Export film.mp4</span></div>
+      <div style="display:flex; flex:1; min-height:0">
+        <div style="flex:1; padding:16px; display:flex; flex-direction:column; gap:12px">
+          <div class="img" style="flex:1"><span>player · film.mp4 · 0:08</span></div>
+          <div class="row"><span class="pill">◀◀</span><span class="pill dark">▶</span><span class="pill">▶▶</span><span class="muted" style="font-size:12px">0:03 / 0:08</span></div>
+        </div>
+        <div style="width:320px; border-left:1.5px solid var(--ink); padding:16px" class="col">
+          <div class="lbl">Add to the film</div>
+          <div class="box row"><b>Music</b><span class="spacer"></span><span class="muted">None</span><span class="pill">Add</span></div>
+          <div class="box row"><b>Voice-over</b><span class="spacer"></span><span class="muted">None</span><span class="pill">Add</span></div>
+          <div class="box row"><b>Captions</b><span class="spacer"></span><span class="pill">Write</span><span class="pill">Load .srt</span></div>
+          <div class="box row"><b>Title card</b><span class="spacer"></span><span class="pill">Add</span></div>
+          <div class="box row"><b>Other sizes</b><span class="spacer"></span><span class="pill">9:16</span><span class="pill">1:1</span></div>
+          <div class="spacer"></div>
+          <div class="lbl">Outputs</div>
+          <div class="row"><div class="img" style="width:86px;height:50px"></div><div class="img" style="width:86px;height:50px"></div><span class="muted" style="font-size:12px">film.mp4 · 9:16</span></div>
+        </div>
+      </div>
+      <div style="height:150px; border-top:1.5px solid var(--ink); padding:12px 16px" class="col">
+        <div class="row" style="font-size:12px; color:var(--mid)"><span style="width:70px">Video</span><span>0s ··········· 2s ··········· 4s ··········· 6s ··········· 8s</span></div>
+        <div class="row" style="gap:0"><span style="width:70px"></span><div class="img" style="width:360px;height:46px"><span class="tag">s1 · 4s</span></div><div style="width:24px;text-align:center">⨯</div><div class="img" style="width:360px;height:46px"><span class="tag">s2 · 4s</span></div></div>
+        <div class="row" style="gap:0"><span style="width:70px; font-size:12px; color:var(--mid)">Audio</span><div style="width:744px;height:24px;border:1.5px dashed var(--line);border-radius:6px"></div></div>
+      </div>
+    </div>
+    <span class="call" style="left:96px;top:640px">1</span>
+    <span class="call" style="left:540px;top:640px">2</span>
+    <span class="call" style="left:960px;top:100px">3</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> Takes in film order on a timeline. Drag to reorder, and click to swap a take. <span class="src">Krea video timeline, VEED</span></li>
+    <li><b class="n">2</b> The ⨯ between clips is the transition: click it for a straight cut or a fade, and how long.</li>
+    <li><b class="n">3</b> Each add-on is a closed card until you open it, so you only see the form you're using. <span class="src">Synthesia scene panel toggles</span></li>
+  </ul>
+</section>
+
+<!-- 5 CREATE -->
+<section class="screen" id="create">
+  <h2>5 · Create: quick takes outside a film</h2>
+  <p>Today's Studio prompt bar becomes its own page for one-off images and videos. Settings and references sit on the left, and your results on the right, grouped by prompt.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico">Projects</div><div class="ico on">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">Create</span><div class="steps"><span class="on">Video</span><span>Image</span></div><span class="spacer"></span><span class="pill">Save into film: none ▾</span></div>
+      <div style="display:flex; flex:1; min-height:0">
+        <div style="width:340px; border-right:1.5px solid var(--ink); padding:16px; display:flex; flex-direction:column; gap:12px">
+          <div class="lbl">Model</div><div class="pill" style="width:100%">MiniMax Hailuo 3 · good for people ▾</div>
+          <div class="lbl">References</div>
+          <div class="row"><div class="img" style="width:90px;height:70px"><span class="tag">start</span></div><div class="img" style="width:90px;height:70px;border-style:dashed;background:#fff">end frame</div><div class="img" style="width:90px;height:70px;border-style:dashed;background:#fff">+ @ ref</div></div>
+          <div class="lbl">Prompt</div>
+          <div class="box" style="flex:1"><div class="muted">Describe the shot… type @ to add maya, cup…</div></div>
+          <div class="row"><span class="pill">16:9</span><span class="pill">5s</span><span class="pill">768P</span><span class="pill">Sound off</span></div>
+          <span class="btn primary big">Generate · $0.20</span>
+        </div>
+        <div style="flex:1; padding:16px; display:flex; flex-direction:column; gap:14px; overflow:hidden">
+          <div class="row"><span class="pill dark">All</span><span class="pill">Videos</span><span class="pill">Images</span><span class="spacer"></span><span class="pill">Grid / List</span></div>
+          <div class="row" style="font-size:12px"><span class="muted">"Steam curls up from a cup on a rainy sill…"</span><span class="pill">minimax-h3</span><span class="pill">5s</span><span class="pill">16:9</span><span class="pill">$0.20</span><span class="spacer"></span><span class="muted">2 min ago</span></div>
+          <div class="row"><div class="img" style="width:300px;height:170px"><span>generating · 1:40 left</span></div><div class="img" style="width:300px;height:170px"></div></div>
+          <div class="row" style="font-size:12px"><span class="muted">"A ceramic cup on a wooden window sill…"</span><span class="pill">nano-banana-2</span><span class="pill">2K</span><span class="pill">$0.06</span></div>
+          <div class="row"><div class="img" style="width:300px;height:170px"></div><div class="img" style="width:300px;height:170px"></div></div>
+        </div>
+      </div>
+    </div>
+    <span class="call" style="left:96px;top:150px">1</span>
+    <span class="call" style="left:96px;top:600px">2</span>
+    <span class="call" style="left:440px;top:130px">3</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> A panel on the left in reading order: model, references (start/end frame slots), prompt, settings, Generate. <span class="src">Magnific Video Generator, Higgsfield Create Video</span></li>
+    <li><b class="n">2</b> Settings are small pills, and the Generate button is the one solid thing on the page, with the price on it. <span class="src">Artlist, Higgsfield</span></li>
+    <li><b class="n">3</b> Results are grouped under the prompt that made them, with model, length, ratio and price as tags. Click one to reuse its settings. <span class="src">Magnific Creations feed, Higgsfield history</span></li>
+  </ul>
+</section>
+
+<!-- 6 LIBRARY -->
+<section class="screen" id="library">
+  <h2>6 · Library: cards, with "New character" as the first card</h2>
+  <p>The empty dashed drop strip becomes a grid of people, products, places and styles. Each card shows its angles.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico">Projects</div><div class="ico">Create</div><div class="ico on">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main">
+      <div class="top"><span class="crumb">Library</span><div class="steps"><span class="on">All</span><span>Characters</span><span>Products</span><span>Locations</span><span>Styles</span></div><span class="spacer"></span><span class="pill">Search</span></div>
+      <div style="padding:20px; display:grid; grid-template-columns:repeat(5,1fr); gap:16px; align-content:start">
+        <div class="col"><div class="img" style="height:190px; border-style:dashed; background:#fff">+ New<br>drop images or click</div></div>
+        <div class="col"><div class="img" style="height:190px"><span class="tag">4 angles</span></div><b>@maya</b><span class="muted" style="font-size:12px">character · used in 2 films</span></div>
+        <div class="col"><div class="img" style="height:190px"><span class="tag">4 angles</span></div><b>@cup</b><span class="muted" style="font-size:12px">product</span></div>
+        <div class="col"><div class="img" style="height:190px"><span class="tag">3 angles</span></div><b>@window-room</b><span class="muted" style="font-size:12px">location</span></div>
+        <div class="col"><div class="img" style="height:190px"><span class="tag">1 image</span></div><b>@grainy-35mm</b><span class="muted" style="font-size:12px">style</span></div>
+      </div>
+    </div>
+    <span class="call" style="left:96px;top:90px">1</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> "+ New" is the first card in the grid, and each card shows its kind, how many angles it has and where it's used. <span class="src">Higgsfield Elements, FLORA Styles</span></li>
+  </ul>
+</section>
+
+<!-- 7 CHAT -->
+<section class="screen" id="chat">
+  <h2>7 · Chat drawer: there when you call it</h2>
+  <p>Chat slides over from the right on any page and knows which film and shot you're on. Closed, it gives the page back its full width.</p>
+  <div class="frame">
+    <div class="rail">
+      <div class="ico" style="border:0;font-weight:800">MD</div>
+      <div class="ico">Home</div><div class="ico on">Projects</div><div class="ico">Create</div><div class="ico">Library</div><div class="ico">Presets</div>
+      <div class="grow"></div><div class="ico on">Chat</div><div class="ico">Spend</div><div class="ico">⚙︎</div>
+    </div>
+    <div class="main" style="position:relative">
+      <div class="top"><span class="crumb">rainy-coffee</span><div class="steps"><span class="done">Brief</span><span class="done">References</span><span class="on">Shots</span><span>Finish</span></div></div>
+      <div style="flex:1; background:repeating-linear-gradient(45deg,#fafafa 0 10px,#f0f0f0 10px 20px)"></div>
+      <div style="position:absolute; right:0; top:0; bottom:0; width:420px; background:#fff; border-left:2px solid var(--ink); display:flex; flex-direction:column; padding:16px; gap:10px">
+        <div class="row"><b>Chat</b><span class="pill">rainy-coffee · s2</span><span class="spacer"></span><span>×</span></div>
+        <div class="box" style="align-self:flex-end; max-width:80%">Make s2 warmer and closer on her hands</div>
+        <div class="box" style="max-width:90%"><div class="muted" style="font-size:12px">⚙︎ update_shot s2 · size → extreme close-up</div><div class="text" style="width:80%"></div><div class="text" style="width:60%"></div></div>
+        <div class="spacer"></div>
+        <div class="row"><span class="pill ghost">What will this cost?</span><span class="pill ghost">Why is Film all locked?</span></div>
+        <div class="composer"><div class="muted" style="height:40px">Ask about this film…</div><div class="row"><span class="spacer"></span><span class="btn primary">Send</span></div></div>
+      </div>
+    </div>
+    <span class="call" style="left:20px;top:640px">1</span>
+    <span class="call" style="left:880px;top:80px">2</span>
+    <span class="call" style="left:880px;top:610px">3</span>
+  </div>
+  <ul class="notes">
+    <li><b class="n">1</b> The Chat button on the rail opens and closes the drawer, so it no longer takes space for good. <span class="src">Runway "Chat" rail item</span></li>
+    <li><b class="n">2</b> The drawer shows what it's looking at (film · shot), so "make it warmer" goes to the right shot.</li>
+    <li><b class="n">3</b> Starter questions for when you don't know what to ask. Each tool step shows inline, as it does now.</li>
+  </ul>
+</section>
+
+</body>
+</html>
