@@ -169,6 +169,21 @@ export interface FramesResult {
 
 export interface FilmSummary extends RunSummary {
   cover: { kind: "video" | "image"; url: string } | null;
+  progress: FilmProgress | null;
+}
+
+export type FilmStep = "brief" | "references" | "shots" | "finish";
+export type StepState = "done" | "current" | "todo" | "locked";
+
+export interface FilmProgress {
+  step: FilmStep;
+  steps: Record<FilmStep, StepState>;
+  next: { text: string; step: FilmStep };
+  counts: { shots: number; stills: number; takes: number; outputs: number };
+  spentUsd: number;
+  legacy: boolean;
+  updatedAt?: string;
+  cover?: { kind: "video" | "image"; url: string } | null;
 }
 
 export type FileKind = "video" | "image" | "audio" | "srt";
