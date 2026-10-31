@@ -1,0 +1,20 @@
+/* web/src/home/home.css: the start box and recent films. Tokens only. */
+.home { display: flex; flex-direction: column; gap: var(--space-6); max-width: 1100px; margin: 0 auto; padding-top: var(--space-6); }
+.home__start { display: flex; flex-direction: column; gap: var(--space-3); width: min(720px, 100%); margin: 0 auto; }
+.home__title { margin: 0 0 var(--space-2); text-align: center; font-size: 28px; font-weight: 600; }
+.home__text {
+  background: var(--surface-1); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: var(--space-4); font: inherit; font-size: var(--text-lg); resize: vertical;
+}
+.home__text:focus-visible { outline: 2px solid var(--text-2); outline-offset: 2px; }
+.home__chips { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.home__chips select {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px var(--space-3); font: inherit; font-size: var(--text-sm);
+}
+.home__preset { color: var(--text-2); font-size: var(--text-sm); }
+.home__go { margin-left: auto; }
+.home__error { margin: 0; color: var(--bad-ink); }
+.home__recent-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3); }
+.home__recent-head h2 { margin: 0; font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); font-weight: 500; }
+.home__recent-head a { color: var(--text); font-size: var(--text-sm); }

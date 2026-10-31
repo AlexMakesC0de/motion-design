@@ -1,0 +1,71 @@
+// web/src/home/HomeScreen.test.tsx
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { HomeScreen } from "./HomeScreen";
+import { routes } from "../test-fixtures";
+import type { FilmSummary } from "../api/types";
+
+const film = (run: string, modified: string): FilmSummary => ({ run, modified, files: 1, takes: 1, cover: null, progress: null });
+
+// As /api/films returns them: newest first.
+const films = [
+  film("film-e", "2026-10-31T10:00:00.000Z"),
+  film("film-d", "2026-10-30T10:00:00.000Z"),
+  film("film-c", "2026-10-29T10:00:00.000Z"),
+  film("film-b", "2026-10-28T10:00:00.000Z"),
+  film("film-a", "2026-10-27T10:00:00.000Z"),
+];
+
+// The shape of GET /api/director/menu (only the fields Home reads, plus the rest of the real ones).
+const entry = (id: string, label: string) => ({ id, label, chapter: `${id}.md`, when: "" });
+const menu = {
+  menu: {
+    filmTypes: [entry("product-ui", "Product ad with UI"), entry("live-action", "Live-action look"), entry("character", "Character animation"), entry("product-hero", "Product hero")],
+  },
+  groups: ["filmTypes"],
+  aspects: ["16:9", "9:16", "1:1", "21:9"],
+  maxFilmS: 120,
+  videoModels: [],
+  imageModels: [],
+};
+
+beforeEach(() => {
+  window.location.hash = "";
+});
+
+describe("HomeScreen", () => {
+  test("shows the four newest films and a link to all projects", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films, "/api/director/menu": () => menu })));
+    render(<HomeScreen />);
+    const recent = await screen.findByRole("region", { name: "Recent films" });
+    await waitFor(() => expect(within(recent).getAllByRole("article")).toHaveLength(4));
+    expect(within(recent).getAllByRole("article").map((a) => a.getAttribute("aria-label"))).toEqual(["film-e", "film-d", "film-c", "film-b"]);
+    expect(screen.getByRole("link", { name: "See all projects" })).toHaveAttribute("href", "#/projects");
+  });
+
+  test("Start film saves the brief under a slug from its words and opens it on Brief", async () => {
+    // The first four words are "rain on glass a", so that name is taken and the new film gets -2.
+    const put = vi.fn(() => ({}));
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [film("rain-on-glass-a", "2026-10-31T10:00:00.000Z")], "/api/director/menu": () => menu, "/api/films/rain-on-glass-a-2/brief": put })));
+    render(<HomeScreen />);
+    await screen.findByRole("article", { name: "rain-on-glass-a" }); // the film list has loaded
+    fireEvent.change(await screen.findByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass, a cup going cold" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-a-2/brief"));
+    const body = JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body));
+    expect(body).toEqual({ brief: { takeaway: "Rain on glass, a cup going cold", durationS: 8, aspectRatio: "16:9", filmType: "live-action" } });
+  });
+
+  test("film types are the menu's own, by label", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
+    render(<HomeScreen />);
+    expect(await screen.findByRole("option", { name: "Character animation" })).toHaveValue("character");
+  });
+
+  test("Start film waits for words", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
+    render(<HomeScreen />);
+    expect(await screen.findByRole("button", { name: "Start film" })).toBeDisabled();
+  });
+});
