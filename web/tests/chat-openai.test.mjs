@@ -134,6 +134,36 @@ describe("runTurn", () => {
     await assert.rejects(tools.call("list_runs", {}, { signal: AbortSignal.abort() }));
   });
 
+  test("the tool timeout is far above the longest tool wait (wait_job's 120 s, a film_all of many shots)", async () => {
+    const { TOOL_TIMEOUT_MS } = await import("../server/chat/tools.mjs");
+    assert.ok(TOOL_TIMEOUT_MS >= 30 * 60_000, `${TOOL_TIMEOUT_MS} ms`);
+  });
+
+  test("a tool that outlasts the timeout is uncertain (code 5), not a refusal the model would retry; the server still finishes it", async () => {
+    const slow = generateStubs({ estimateUsd: 0.56 });
+    const create = slow.generate.createTask;
+    slow.generate.createTask = async (...a) => {
+      await new Promise((r) => setTimeout(r, 300)); // the provider takes longer than the chat waits
+      return create(...a);
+    };
+    const { createTools: make } = await import("../server/chat/tools.mjs");
+    const short = make({ deps: slow.deps, timeoutMs: 80 });
+    try {
+      const args = { run: "chat-slow", prompt: "A fox.", model: "seedance-2-5", duration_s: 4, resolution: "480p", provider: "kie" };
+      const r = await short.call("generate_video", args);
+      assert.equal(r.isError, true);
+      assert.equal(r._meta.error.code, 5);
+      assert.match(r.content[0].text, /^Error 5: generate_video .*may have been submitted; check the feed \/ call status before doing anything else/);
+      const log = createTurnLog(() => {});
+      log.toolStart("k", "generate_video", args);
+      assert.deepEqual(log.toolDone("k", "generate_video", r)?.code, 5);
+      await new Promise((r) => setTimeout(r, 400));
+      assert.equal(slow.calls.create.length, 1, "the submit the chat stopped waiting for still happened once: hence uncertain, never retried");
+    } finally {
+      await short.close();
+    }
+  });
+
   test("Stop pressed before a tool call starts runs no tool", async () => {
     const fake = fakeOpenAI({ replies: [callReply("estimate", { model: "seedance-2-5" })] });
     const ctrl = new AbortController();

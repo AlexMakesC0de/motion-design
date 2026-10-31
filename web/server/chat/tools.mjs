@@ -12,7 +12,22 @@ export function functionSchema(schema) {
   return Object.fromEntries(Object.entries(schema).filter(([k]) => !DROP.has(k)).map(([k, v]) => [k, functionSchema(v)]));
 }
 
-export function createTools({ deps = {}, catalog } = {}) {
+/**
+ * How long the chat waits for one tool. The MCP SDK's own default is 60 s,
+ * shorter than wait_job alone (up to 120 s) and a film_all that uploads and
+ * submits many shots; a call cut off early keeps running on the server, so
+ * the wait is long and a cut-off call is reported as uncertain.
+ */
+export const TOOL_TIMEOUT_MS = 30 * 60_000;
+
+/** What the model and the page read when a call's answer never came: it may have done its work. */
+export const UNCERTAIN_CALL = "may have been submitted; check the feed / call status before doing anything else";
+
+// McpError codes for a request whose answer was lost: timed out, or the connection closed under it.
+const LOST = new Set([-32001, -32000]);
+const lost = (err) => LOST.has(err?.code) || err?.name === "AbortError";
+
+export function createTools({ deps = {}, catalog, timeoutMs = TOOL_TIMEOUT_MS } = {}) {
   let conn = null;
   const open = () =>
     (conn ??= import("../../../mcp/client.mjs")
@@ -35,14 +50,20 @@ export function createTools({ deps = {}, catalog } = {}) {
     /**
      * A tool's result; a call the SDK itself rejects (an unknown tool, bad
      * arguments) comes back as an error result too. `signal` cancels the
-     * call: it then throws, and the step is left for the turn to settle.
+     * call: it then throws, and the step is left for the turn to settle. A
+     * call whose answer was lost (timed out, cut off) is code 5: the server
+     * may still be running it, so it must not be retried blind.
      */
     async call(name, args, { signal } = {}) {
       const { client } = await open();
       try {
-        return await client.callTool({ name, arguments: args ?? {} }, undefined, { signal });
+        return await client.callTool({ name, arguments: args ?? {} }, undefined, { signal, timeout: timeoutMs });
       } catch (err) {
         if (signal?.aborted) throw err;
+        if (lost(err)) {
+          const text = `Error 5: ${name} did not answer (${err.message}); it ${UNCERTAIN_CALL}.`;
+          return { isError: true, content: [{ type: "text", text }], _meta: { error: { code: 5, retryable: false } } };
+        }
         return { isError: true, content: [{ type: "text", text: `Error 1: ${err.message}` }], _meta: { error: { code: 1 } } };
       }
     },
