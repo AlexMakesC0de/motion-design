@@ -56,9 +56,11 @@ describe("wording rules", () => {
     assert.doesNotMatch(w.prompt, /No on-screen text/);
   });
 
-  test("a lip-sync shot keeps its audio and drops the no-dialogue line", () => {
-    assert.deepEqual(word("seedance-2-5", { job: "lip-sync" }).params, {});
-    assert.doesNotMatch(word("wan-3-0", { job: "lip-sync" }).prompt, /No dialogue/);
+  test("a lip-sync shot keeps its audio, speaks its line after the action and drops the no-dialogue line", () => {
+    const w = word("seedance-2-5", { job: "lip-sync", line: "This is my coast." });
+    assert.deepEqual(w.params, {});
+    assert.match(w.prompt, /^Mara stops and looks out to sea\.\nSpoken line: "This is my coast\."$/m);
+    assert.doesNotMatch(word("wan-3-0", { job: "lip-sync", line: "Hi." }).prompt, /No dialogue/);
   });
 
   test("a shot's own key light side overrides the look's", () => {

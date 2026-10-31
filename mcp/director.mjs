@@ -54,6 +54,7 @@ export function registerDirector(tool, { catalog, ctx }) {
     keyLightSide: pick("keyLightSides").optional(),
     lightReason: z.string().optional(),
     crossesLine: z.string().optional().describe("Why this shot deliberately breaks screen direction."),
+    line: z.string().optional().describe("What a lip-sync shot's subject says, word for word. Only on job lip-sync."),
   });
   const Plan = z.object({
     look: z.looseObject({

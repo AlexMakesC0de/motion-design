@@ -33,23 +33,25 @@ export function shotWording(catalog, plan, shot, { menu = loadMenu(), assets = [
   const light = sentence(pick("lights", shot.light).words);
   const noText = shot.copy?.length ? "No on-screen text." : "";
   const speaks = shot.job === "lip-sync";
+  // The line follows the action in every family, so the mouth moves on it.
+  const said = speaks && shot.line ? `${action}\nSpoken line: "${shot.line.trim()}"` : action;
 
   let lines;
   switch (profile.family) {
     case "hailuo":
-      lines = [lookLine, `${move.hailuo ?? sentence(camera)} ${sentence(framing)}`, subjectLine, action, light, noText];
+      lines = [lookLine, `${move.hailuo ?? sentence(camera)} ${sentence(framing)}`, subjectLine, said, light, noText];
       break;
     case "kling":
-      lines = [subjectLine, lookLine, `Shot: ${framing}; ${camera}.`, action, light, noText];
+      lines = [subjectLine, lookLine, `Shot: ${framing}; ${camera}.`, said, light, noText];
       break;
     case "wan":
-      lines = ["One continuous shot.", `${cap(framing)}; ${camera}.`, subjectLine, action, light, lookLine, noText, speaks ? "" : "No dialogue. No background music."];
+      lines = ["One continuous shot.", `${cap(framing)}; ${camera}.`, subjectLine, said, light, lookLine, noText, speaks ? "" : "No dialogue. No background music."];
       break;
     case "veo":
-      lines = [`${cap(framing)}, ${camera}.`, subjectLine, action, light, lookLine, noText];
+      lines = [`${cap(framing)}, ${camera}.`, subjectLine, said, light, lookLine, noText];
       break;
     default:
-      lines = [subjectLine, lookLine, `Shot 1: ${cap(camera)}, ${framing}.`, action, light, noText, "No subtitles, no logo or watermark."];
+      lines = [subjectLine, lookLine, `Shot 1: ${cap(camera)}, ${framing}.`, said, light, noText, "No subtitles, no logo or watermark."];
   }
   const prompt = lines.filter(Boolean).join("\n");
   const params = profile.audioOff && !speaks ? { [profile.audioOff.param]: profile.audioOff.value } : {};

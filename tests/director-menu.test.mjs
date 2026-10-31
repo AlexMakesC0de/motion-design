@@ -18,12 +18,12 @@ describe("the director's menu", () => {
   });
 
   test("the sizes, angles, lenses, moves, lights and cuts the spec names", () => {
-    assert.equal(menu.sizes.length, 9);
+    assert.equal(menu.sizes.length, 10);
     assert.equal(menu.angles.length, 8);
     assert.deepEqual(ids(menu, "lenses"), ["14mm", "24mm", "35mm", "50mm", "85mm", "135mm", "100mm-macro"]);
-    assert.deepEqual(ids(menu, "speeds"), ["slow", "medium", "fast"]);
-    assert.equal(menu.lights.length, 9);
-    assert.deepEqual(ids(menu, "cuts"), ["hard", "on-action", "match", "whip", "dissolve", "continuous"]);
+    assert.deepEqual(ids(menu, "speeds"), ["creep", "slow", "medium", "fast"]);
+    assert.equal(menu.lights.length, 12);
+    assert.deepEqual(ids(menu, "cuts"), ["hard", "jump", "on-action", "match", "whip", "dissolve", "fade-out", "continuous"]);
     assert.deepEqual(ids(menu, "filmTypes"), ["product-ui", "live-action", "character", "product-hero"]);
   });
 

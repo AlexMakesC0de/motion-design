@@ -56,7 +56,7 @@ Light tells the feeling. Soft high key is friendly and safe. Overcast natural is
 
 ### A character who speaks
 
-Use the lip sync job: one speaker per shot, a Medium close-up, a Static or slow Push in camera, and a short line, about 8 words for 3 seconds. The spoken line itself lives in the brief's `sound.voice`. Quoted words in `action` are rejected. A shot with a speaking face should not also ask for a camera move that fights the mouth.
+Use the lip sync job: one speaker per shot, a Medium close-up, a Static or slow Push in camera, and a short line, about 8 words for 3 seconds. The words go in the shot's `line`; the checker warns when they will not fit the shot at a natural pace. Quoted words in `action` are rejected. A shot with a speaking face should not also ask for a camera move that fights the mouth.
 
 ## Worked example
 

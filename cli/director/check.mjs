@@ -7,11 +7,13 @@ const SHOT_TEXT = ["purpose", "subject", "action", "why"];
 const LOOK_TEXT = ["palette", "grade", "filmLook"];
 const CLOSE = new Set(["medium-close-up", "close-up", "extreme-close-up"]);
 const WIDE_LENS = new Set(["14mm", "24mm"]);
-const WIDE_SIZES = new Set(["extreme-wide", "wide", "full"]);
+const WIDE_SIZES = new Set(["extreme-wide", "wide"]);
 const NOT_FACES = new Set(["motion-graphics", "product-hero"]);
 // Words a model would draw as a picture of text: quoted copy, prices, percentages.
 const QUOTED = /["“”][^"“”]{2,}["“”]/;
 const FIGURE = /[$€£]\s?\d|\d+(?:[.,]\d+)?\s?%/;
+// A natural speaking pace, for judging whether a line fits its shot.
+const WORDS_PER_S = 2.5;
 const OPPOSITE = { "left-to-right": "right-to-left", "right-to-left": "left-to-right" };
 
 const text = (v) => typeof v === "string" && v.trim() !== "";
@@ -78,6 +80,11 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
     if (text(s?.action) && (QUOTED.test(s.action) || FIGURE.test(s.action))) {
       err(id, "text-in-action", `${id}: the action contains quoted text or a figure, which a model would draw wrongly. Move it to copy; the edit renders it in code.`);
     }
+    if (s?.line != null && s?.job !== "lip-sync") {
+      err(id, "spoken-line", `${id}: only a lip-sync shot speaks its line. Set job to lip-sync, or put the words in the brief's sound.voice.`);
+    } else if (s?.job === "lip-sync" && !text(s?.line)) {
+      err(id, "spoken-line", `${id}: a lip-sync shot needs the line it speaks.`);
+    }
     if (!text(s?.model)) {
       err(id, "model-fit", `${id}: no model fits this shot.`);
     } else if (typeof s?.durationS === "number" && s.durationS > 0) {
@@ -100,6 +107,11 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
     if (typeof s?.model === "string" && s.model.startsWith("wan") && String(s?.move?.type).startsWith("orbit")) {
       warn(id, "wan-orbit", `${id}: Wan breaks orbits wider than 45 degrees. Keep the arc small or choose a truck.`);
     }
+    if (s?.job === "lip-sync" && text(s?.line) && typeof s?.durationS === "number") {
+      const words = s.line.trim().split(/\s+/).length;
+      const fit = Math.floor(s.durationS * WORDS_PER_S);
+      if (words > fit) warn(id, "line-too-long", `${id}: the line is ${words} words; about ${fit} fit in ${s.durationS}s at a natural pace. Cut words or lengthen the shot.`);
+    }
     if (s?.keyLightSide != null && s.keyLightSide !== look.keyLightSide && !text(s?.lightReason)) {
       warn(id, "light-side", `${id}: the key light moves from ${look.keyLightSide} to ${s.keyLightSide}. Say why in lightReason, or keep it on one side.`);
     }
@@ -111,7 +123,7 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
     if (same(a?.subject, b?.subject) && OPPOSITE[a?.screenDirection] === b?.screenDirection && !text(b?.crossesLine)) {
       err(b?.id ?? null, "screen-direction", `${b?.id}: ${b.subject} travels ${b.screenDirection.replace(/-/g, " ")} after ${a.screenDirection.replace(/-/g, " ")} in ${a.id}, which crosses the line. Keep the direction, or say why in crossesLine.`);
     }
-    if (same(a?.subject, b?.subject) && a?.size === b?.size && a?.angle === b?.angle && a?.cut !== "continuous") {
+    if (same(a?.subject, b?.subject) && a?.size === b?.size && a?.angle === b?.angle && !["continuous", "jump"].includes(a?.cut)) {
       warn(b?.id ?? null, "jump-cut", `${b?.id}: same subject, size and angle as ${a?.id}, which reads as a jump cut. Change the size or the angle.`);
     }
     if (i >= 2 && shots[i - 2]?.size === a?.size && a?.size === b?.size) {

@@ -28,6 +28,8 @@ Size is how much of the subject the viewer sees, and so how close they feel. One
 
 **Medium** `medium`. Waist up. The neutral, conversational shot: face and gesture without pressure. A film made only of mediums has no rhythm.
 
+**Two-shot** `two-shot`. Two people in one frame, usually knees or waist up. It shows a relationship: who stands close, who turns away. Use it before cutting to singles, and come back to it when the relationship changes. Keep both faces at a similar size and on their own third; a two-shot where one person is cut off reads as an accident.
+
 **Medium close-up** `medium-close-up`. Chest up. A reaction with a little context left. The workhorse for a person thinking, listening or speaking: the face is big enough for identity and expression, and the shoulders and a hint of background stay in frame.
 
 **Close-up** `close-up`. A face or an object fills the frame. Emotion and decisions live here, and so does the object the story turns on. One expression change per close-up. Pair it with a longer lens. Do not hold it past 3 or 4 seconds unless something changes.
@@ -96,7 +98,7 @@ Depth of field is how much of the picture is sharp. It follows from aperture, an
 
 A move earns its place when it reveals something, builds attention, follows someone or changes the viewer's relationship to the subject. If the shot works with a still camera, leave it still. Each shot gets one move and one speed; what the subject does belongs in `action`.
 
-**Speeds.** **Slow** is calm, premium and the most reliable for video models. **Medium** is purposeful and neutral. **Fast** brings energy and urgency but needs room: in a shot of 4 seconds or less it rarely reads, because the viewer has no time to see where it lands. Give a fast move 5 seconds or more and a beat of rest at the end. The edit trims the first half second of every take, so keep the key moment out of it.
+**Speeds.** **Creep** is barely perceptible: the frame seems to breathe. It suits product hero, tension and long holds, and it is the safest speed for a model, but on a short shot it can read as no move at all, so give it 5 seconds or more. **Slow** is calm, premium and the most reliable for video models. **Medium** is purposeful and neutral. **Fast** brings energy and urgency but needs room: in a shot of 4 seconds or less it rarely reads, because the viewer has no time to see where it lands. Give a fast move 5 seconds or more and a beat of rest at the end. The edit trims the first half second of every take, so keep the key moment out of it.
 
 **Static** `static`. The camera holds still. The right choice for a face, a reveal inside the frame, a held payoff and any shot with text coming on top. It still needs a strong frame.
 
@@ -122,7 +124,13 @@ A move earns its place when it reveals something, builds attention, follows some
 
 **Zoom in** `zoom-in` and **Zoom out** `zoom-out`. The picture is magnified or shrunk without the camera moving, so perspective stays flat. A deliberate, graphic emphasis. On a flat screen it looks almost the same as a push in; on a three-dimensional scene a push in gives richer depth, so prefer it there.
 
+**Dolly zoom** `dolly-zoom`. The camera pushes in while the lens zooms out, so the subject holds its size and the background stretches behind it. The classic "the floor drops away" moment of realisation or dread. Once per film at most, on a held subject with depth behind it. Models render it unreliably; if the still and take do not show the stretch, use a slow push in instead.
+
+**Aerial** `aerial`. The camera flies over the scene from high above, like a drone. Geography at scale: a coastline, a city, a route. Open or close a film with it, at slow or creep speed. Faces are invisible at this distance, so never ask an aerial to carry identity.
+
 **Rack focus** `rack-focus`. Focus shifts from the foreground to the background without the camera moving. Use it for a realisation or a link between two things. It needs shallow depth and two clear subjects at different distances. The still sets which plane is sharp, and the video has to change it, which models do unreliably. Keep a plan B: two shots cut together.
+
+**Rack focus to foreground** `rack-focus-near`. The reverse: focus pulls from the background to something close to the lens. A hand reaching in, an object that suddenly matters. The same limits apply: shallow depth, two clear planes, a plan B.
 
 ## Lighting
 
@@ -142,6 +150,8 @@ Light sets mood, time and place, and tells the eye where to look. Two rules hold
 
 **Backlit rim** `backlit-rim`. Light from behind traces the edge of the subject. It separates subject from background, adds a hair light and makes silhouettes. On a face, add a soft fill or the face goes dark. On products and glass it draws the shape.
 
+**Window light** `window-light`. Soft daylight from one side through a window. The usual key for real-looking interiors: it models a face gently and explains itself. The window side is your key side, so keep it there for the whole scene. Avoid it at night unless the window is dark and practicals take over.
+
 **Golden hour** `golden-hour`. Warm, low sun with long shadows. Warmth, nostalgia, hope. The sun is the key, so its direction is your key side and must hold through the scene. Indoors it needs a window to explain it.
 
 **Night with practicals** `night-practicals`. Lamps, signs and screens in frame are the light, and it looks real because every source is visible. A face lit by a laptop is cool and blue; a lamp is warm. Keep the sources the same shot to shot: a lamp in one frame and gone in the next breaks the room.
@@ -150,7 +160,11 @@ Light sets mood, time and place, and tells the eye where to look. Two rules hold
 
 **Neon** `neon`. Saturated coloured light, often two colours from opposite sides. Nightlife, gaming, energy. Avoid it where true colour matters, such as a product whose colour is the point.
 
+**Blue hour** `blue-hour`. Just after sunset: cool blue sky with warm practical lights coming on in windows and streets. Calm, wistful, cinematic, especially for cities and coasts. It lasts minutes in life, so hold it across the scene; a cut from blue hour to daylight breaks continuity.
+
 **Overcast natural** `overcast`. Soft daylight, no hard shadows. Natural and gentle, flattering to faces, the look of documentary. Wides with a blank sky can look dull. Not for drama or glow.
+
+**Hard midday sun** `hard-sun`. High sun, crisp short shadows, strong contrast. Heat, summer, sport and energy, and graphic shadow shapes. It is unkind to faces (squints, dark eye sockets), so keep people in wides or turned into shade for close-ups.
 
 The film's palette and grade sit in `look`. Keep colour temperature consistent between shots, or they read as separate films.
 
@@ -170,7 +184,7 @@ In 9:16 stack the subject high and leave the bottom clear, because platform inte
 
 ## Cuts
 
-The `cut` on a shot is how that shot hands over to the next. The last shot has no next shot, so give it `hard` and let the edit add any end card or fade.
+The `cut` on a shot is how that shot hands over to the next. The last shot has no next shot, so give it `hard`, or `fade-out` to end on black.
 
 **Hard cut** `hard`. The default change of view. Cut when something new needs to be seen, end the shot on a completed beat, and start the next at a different size or angle. Most cuts in a good film are hard cuts.
 
@@ -180,7 +194,11 @@ The `cut` on a shot is how that shot hands over to the next. The last shot has n
 
 **Whip pan** `whip`. A fast blur carries the energy into the next shot. It works between places or ideas where the story speeds up, and the blur should travel the same way at the end of one shot and the start of the next. Once or twice at most. Not for calm films, conversations, or over screens the viewer must read.
 
+**Jump cut** `jump`. A cut within the same framing that skips time. As a mistake it looks like a glitch; as a choice it is the energy of creator and UGC footage, or a way to compress a wait. Choose it on purpose and the checker stops warning about the matching frames.
+
 **Dissolve** `dissolve`. One picture melts into the next over half a second to a second. It tells the viewer time has passed or the mood is shifting softly. Avoid it as a default: a dissolve between two similar frames looks like a glitch, and a film of dissolves feels slow.
+
+**Fade to black** `fade-out`. The picture fades to black. It ends a film or a chapter, or clears the screen before a title. Use it on the last shot, or once before an end card; a fade in the middle of a short film reads as the end.
 
 **Continuous** `continuous`. The next shot starts on this shot's last frame: one unbroken moment. Use it when the picture must carry straight on, such as a push in that ends on a face which then changes expression. The next shot's own still was only a preview, so plan its size, angle, lens, depth and light to match where this one lands. Keep chains short: identity and light drift a little at every join. Avoid it on the last shot, and wherever a hard cut would do.
 

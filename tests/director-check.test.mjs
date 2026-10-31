@@ -54,7 +54,7 @@ describe("errors", () => {
   test("menu: a value not on the menu names the valid ones", () => {
     const p = good();
     p.shots[0].size = "huge";
-    assert.equal(errs(p)[0].message, 's1: size "huge" is not on the menu. Choose one of: extreme-wide, wide, full, medium-wide, medium, medium-close-up, close-up, extreme-close-up, insert.');
+    assert.equal(errs(p)[0].message, 's1: size "huge" is not on the menu. Choose one of: extreme-wide, wide, full, medium-wide, medium, two-shot, medium-close-up, close-up, extreme-close-up, insert.');
   });
 
   test("one-move: a list of moves is refused", () => {
@@ -66,7 +66,7 @@ describe("errors", () => {
   test("a moving camera needs a speed; a static one does not", () => {
     const p = good();
     p.shots[0].move = { type: "push-in" };
-    assert.match(errs(p)[0].message, /move speed must be one of: slow, medium, fast/);
+    assert.match(errs(p)[0].message, /move speed must be one of: creep, slow, medium, fast/);
     p.shots[0].move = { type: "static" };
     assert.deepEqual(errs(p), []);
   });
@@ -145,6 +145,22 @@ describe("errors", () => {
     assert.deepEqual(rules(errs(p)), ["wording-length"]);
   });
 
+  test("spoken-line: only a lip-sync shot speaks, and it needs its line", () => {
+    const p = good();
+    p.shots[0].line = "Morning, Sam.";
+    assert.equal(errs(p)[0].message, "s1: only a lip-sync shot speaks its line. Set job to lip-sync, or put the words in the brief's sound.voice.");
+    p.shots[0].job = "lip-sync";
+    assert.deepEqual(errs(p), []);
+    delete p.shots[0].line;
+    assert.equal(errs(p)[0].message, "s1: a lip-sync shot needs the line it speaks.");
+  });
+
+  test("a spoken line may quote and use figures; the action still may not", () => {
+    const p = good();
+    Object.assign(p.shots[1], { job: "lip-sync", line: 'It is "only" $5, or 50% off.' });
+    assert.deepEqual(errs(p), []);
+  });
+
   test("errors do not stop at the first: every reason is reported", () => {
     const p = good();
     p.shots[0].size = "huge";
@@ -207,6 +223,23 @@ describe("warnings", () => {
     p.shots[1].model = "wan-2-6";
     p.shots[1].move = { type: "orbit-left", speed: "slow" };
     assert.ok(rules(warns(p)).includes("wan-orbit"));
+  });
+
+  test("no-wide: a full shot does not establish the place", () => {
+    const p = good();
+    p.shots[0].size = "full";
+    assert.deepEqual(rules(warns(p)), ["no-wide"]);
+  });
+
+  test("jump-cut: a deliberate jump cut is not a mistake", () => {
+    const p = { look, shots: [shot("a", 4, { cut: "jump" }), shot("b", 6)] };
+    assert.deepEqual(warns(p), []);
+  });
+
+  test("line-too-long: more words than the shot can hold at a natural pace", () => {
+    const p = good();
+    Object.assign(p.shots[0], { job: "lip-sync", line: "I walked down here every single morning for twenty years and never once saw it like this." });
+    assert.deepEqual(warns(p).map((w) => w.message), ["s1: the line is 17 words; about 10 fit in 4s at a natural pace. Cut words or lengthen the shot."]);
   });
 
   test("warnings never block: a plan with warnings has no errors", () => {

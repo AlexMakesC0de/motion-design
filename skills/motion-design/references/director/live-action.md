@@ -6,7 +6,7 @@ Read this when the film should look like it was shot on location: people in a re
 
 Coverage is the set of shots that lets an edit tell a scene. A short film does not need all of it, only the pieces the story needs.
 
-- **Master.** A wide that shows the place and where everyone is. Plan it first. The checker warns when a live-action film has no wide, because the viewer should know where they are before the film goes close.
+- **Master.** A wide that shows the place and where everyone is. Plan it first. The checker warns when a live-action film has no Wide or Extreme wide (a Full shot shows a body, not a place), because the viewer should know where they are before the film goes close.
 - **Singles.** One person at Medium, Medium close-up or Close-up, one shot per person who matters.
 - **Cutaways.** Something in the scene that is not the main action: a clock, a steaming cup, a dog watching. A cutaway gives the film texture and a reason to change view. Motivate it by something a character looks at or something the place would hold.
 - **Inserts.** A detail the story needs to see: a hand on a key, a message on a phone. Keep it short.
@@ -47,7 +47,7 @@ Avoid readable signs and labels in the background. A model invents the letters. 
 
 ### Creator footage and lip sync
 
-Creator-style footage uses the UGC job: Handheld, Medium close-up or Close-up, a 24mm or 35mm lens, Eye level, Overcast natural or Soft high key. Jump cuts are part of the style here. If someone speaks on camera, use the lip sync job with one speaker per shot, a Medium close-up, a Static or slow Push in camera and a short line. The line itself goes in the brief's `sound.voice`. Quoted words in `action` are rejected.
+Creator-style footage uses the UGC job: Handheld, Medium close-up or Close-up, a 24mm or 35mm lens, Eye level, Overcast natural or Soft high key. Jump cuts are part of the style here. If someone speaks on camera, use the lip sync job with one speaker per shot, a Medium close-up, a Static or slow Push in camera and a short line. The words go in the shot's `line`, which the wording places after the action; the checker warns when a line has more words than the shot can hold. Quoted words in `action` are rejected.
 
 ## Worked example
 
