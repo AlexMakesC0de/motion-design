@@ -140,3 +140,18 @@ describe("params pass only where the route's contract declares them", () => {
     assert.ok(!("params" in input) && !("generate_audio" in input));
   });
 });
+
+describe("Nano Banana 2's captured contract", () => {
+  test("every reference image goes into image_input as a list, up to 10", async () => {
+    const { loadCatalog, routesFor } = await import("../cli/lib/models.mjs");
+    const catalog = loadCatalog();
+    const [route] = routesFor(catalog, { ...catalog.models["nano-banana-2"], id: "nano-banana-2" });
+    assert.equal(route.model, "nano-banana-2");
+    const refs = [{ role: "identity", url: "https://x/1.png" }, { role: "style", url: "https://x/2.png" }];
+    const built = buildInput(effectiveRoute(route, true), { prompt: "p", aspect_ratio: "21:9", refs, params: {} });
+    assert.deepEqual(built.problems, []);
+    assert.deepEqual(built.input, { aspect_ratio: "21:9", resolution: "2K", output_format: "png", prompt: "p", image_input: ["https://x/1.png", "https://x/2.png"] });
+    const many = Array.from({ length: 11 }, (_, i) => ({ role: "identity", url: `https://x/${i}.png` }));
+    assert.match(buildInput(route, { prompt: "p", refs: many, params: {} }).problems.join(), /takes at most 10 in image_input; got 11/);
+  });
+});

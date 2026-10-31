@@ -279,7 +279,8 @@ describe("odd input is reported, never thrown", () => {
 
   test("a still model without the film's aspect ratio", () => {
     const p = good();
-    const e = errs(p, { ...brief, aspectRatio: "21:9" });
-    assert.ok(e.some((x) => x.message === "s1: still: nano-banana-2 makes 16:9, 9:16, 1:1, 4:3, not 21:9."), JSON.stringify(e));
+    p.shots[0].stillModel = "seedream-5-pro";
+    const e = errs(p, { ...brief, aspectRatio: "4:5" });
+    assert.ok(e.some((x) => x.message === "s1: still: seedream-5-pro makes 1:1, 4:3, 3:4, 16:9, 9:16, 2:3, 3:2, 21:9, not 4:5."), JSON.stringify(e));
   });
 });

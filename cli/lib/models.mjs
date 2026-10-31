@@ -226,7 +226,8 @@ export function buildInput(route, values = {}) {
     }
   }
 
-  // Reference roles map to per-model field names; array-valued fields collect.
+  // Reference roles map to per-model field names; array-valued fields (named
+  // *_urls, or listed in refLists) collect.
   for (const ref of values.refs ?? []) {
     const field = schema.refFields?.[ref.role];
     if (!field) {
@@ -237,7 +238,7 @@ export function buildInput(route, values = {}) {
       );
       continue;
     }
-    if (field.endsWith("_urls")) (out[field] ??= []).push(ref.url);
+    if (field.endsWith("_urls") || schema.refLists?.includes(field)) (out[field] ??= []).push(ref.url);
     else out[field] = ref.url;
   }
 

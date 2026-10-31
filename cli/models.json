@@ -1052,21 +1052,79 @@
     "nano-banana-2": {
       "capability": "image",
       "aspectRatios": [
-        "16:9",
-        "9:16",
         "1:1",
-        "4:3"
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
       ],
-      "notes": "Strong at text inside the image, which matters for typography presets.",
+      "notes": "Strong at text inside the image, which matters for typography presets. Takes up to 10 reference images in one field.",
       "routes": [
         {
           "provider": "kie",
           "family": "jobs",
-          "model": "google/nanobanana2",
+          "model": "nano-banana-2",
           "priceUsd": 0.06,
           "verified": false,
-          "schemaVerified": false,
-          "priceNote": "kie.ai/nano-banana-2, read 2026-10-30: 8/12/18 credits ($0.04/$0.06/$0.09) at 1K/2K/4K. priceUsd assumes 2K."
+          "schemaVerified": true,
+          "schemaSource": "docs.kie.ai/market/google/nanobanana2, read 2026-10-31. The model id is nano-banana-2; the earlier google/nanobanana2 was a guess.",
+          "priceNote": "kie.ai/nano-banana-2, read 2026-10-30: 8/12/18 credits ($0.04/$0.06/$0.09) at 1K/2K/4K. priceUsd assumes 2K.",
+          "input": {
+            "required": [
+              "prompt"
+            ],
+            "defaults": {
+              "aspect_ratio": "auto",
+              "resolution": "2K",
+              "output_format": "png"
+            },
+            "types": {},
+            "enums": {
+              "aspect_ratio": [
+                "auto",
+                "1:1",
+                "2:3",
+                "3:2",
+                "1:4",
+                "4:1",
+                "3:4",
+                "4:3",
+                "4:5",
+                "5:4",
+                "1:8",
+                "8:1",
+                "9:16",
+                "16:9",
+                "21:9"
+              ],
+              "resolution": [
+                "1K",
+                "2K",
+                "4K"
+              ],
+              "output_format": [
+                "png",
+                "jpg"
+              ]
+            },
+            "refFields": {
+              "identity": "image_input",
+              "style": "image_input"
+            },
+            "refLists": [
+              "image_input"
+            ],
+            "refLimits": {
+              "maxCount": {
+                "image_input": 10
+              }
+            }
+          }
         }
       ]
     },

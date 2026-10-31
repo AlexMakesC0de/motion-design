@@ -105,7 +105,8 @@ describe("fit beyond length and ratio", () => {
 
   test("the still model falls back when the film type's model lacks the ratio", () => {
     const wide = { ...brief, aspectRatio: "21:9" };
-    assert.deepEqual(suggestStillModel(shot("cinematic"), { brief: wide, catalog }), {
+    const cat = withModels({ "nano-banana-2": { aspectRatios: ["16:9", "9:16", "1:1", "4:3"] } });
+    assert.deepEqual(suggestStillModel(shot("cinematic"), { brief: wide, catalog: cat }), {
       model: "gpt-image-2-5",
       reason: "Nano Banana 2 makes no 21:9 stills, so GPT Image 2.5, which does.",
     });
