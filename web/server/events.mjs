@@ -76,23 +76,47 @@ export function createEvents({ pollMs = 2_000, snapshot = takeSnapshot } = {}) {
       const text = formatEvent(e);
       for (const c of clients) c.write(text);
     },
-    /** Attach an HTTP response as a subscriber. */
+    /**
+     * Attach an HTTP response as a subscriber. A page that stops reading
+     * (write returns false) is sent nothing more until it drains; if events
+     * were dropped meanwhile, the stream then ends, and the page reconnects
+     * and reads everything again (its hello reload).
+     */
     subscribe(res) {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
-      res.write(formatEvent({ event: "hello", data: { at: new Date().toISOString() } }));
-      const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
-      const client = { write: (s) => res.write(s) };
-      clients.add(client);
-      res.on("close", () => {
+      let blocked = res.write(formatEvent({ event: "hello", data: { at: new Date().toISOString() } })) === false;
+      let missed = false;
+      const drop = () => {
         clearInterval(ping);
         clients.delete(client);
+      };
+      const client = {
+        drop,
+        write(s) {
+          if (blocked) {
+            missed = true;
+            return;
+          }
+          if (res.write(s) === false) blocked = true;
+        },
+      };
+      const ping = setInterval(() => {
+        if (!blocked && res.write(": ping\n\n") === false) blocked = true; // a skipped ping is no loss
+      }, 15_000);
+      clients.add(client);
+      res.on("drain", () => {
+        blocked = false;
+        if (!missed) return;
+        drop();
+        res.end();
       });
+      res.on("close", drop);
     },
     close() {
       clearInterval(poll);
       clearTimeout(timer);
       for (const w of watchers) w.close();
-      clients.clear();
+      for (const c of [...clients]) c.drop();
     },
   };
 }

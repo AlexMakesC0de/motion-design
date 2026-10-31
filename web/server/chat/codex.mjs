@@ -152,6 +152,7 @@ export function checkVersion(userAgent) {
 }
 
 export const NOT_INSTALLED = "Codex isn't installed. Install it with npm install -g @openai/codex, or use an OpenAI API key.";
+export const STOPPED_EARLY = "Codex stopped right after it started. Send the message again; if it keeps happening, run codex in a terminal to see why, or use an OpenAI API key.";
 export const NOT_LOGGED_IN = "Codex isn't logged in. Run codex login in a terminal, then check again, or use an OpenAI API key.";
 
 export const codexConfigPath = () => join(process.env.CODEX_HOME || join(homedir(), ".codex"), "config.toml");
@@ -357,10 +358,17 @@ function openRpc(child, { onNotification, timeoutMs, onTimeout = () => {} }) {
       if (m.error) p.reject(Object.assign(new Error(m.error.message ?? "Codex error"), { rpc: m.error }));
       else p.resolve(m.result);
     } else if (m.method) {
-      onNotification(m);
+      try {
+        onNotification(m);
+      } catch (err) {
+        // A notification this studio cannot read is skipped; it must never take the server down.
+        process.stderr.write(`studio: skipped a Codex ${String(m.method).slice(0, 60)} event it could not read: ${redact(err?.message ?? String(err))}\n`);
+      }
     }
   });
+  let exited = false;
   child.on("exit", () => {
+    exited = true;
     for (const p of pending.values()) {
       clearTimeout(p.timer);
       p.reject(new ChatError("Codex stopped."));
@@ -369,6 +377,7 @@ function openRpc(child, { onNotification, timeoutMs, onTimeout = () => {} }) {
   });
   return {
     request(method, params) {
+      if (exited) return Promise.reject(new ChatError("Codex stopped."));
       const id = next++;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
@@ -400,7 +409,8 @@ export function recap(entries) {
  * submitted on the server: that is code 5, never a plain failure to retry.
  */
 export function toolResult(item) {
-  let content = item.result?.content ?? (item.error ? [{ type: "text", text: item.error.message }] : []);
+  const raw = item.result?.content;
+  let content = Array.isArray(raw) ? raw : item.error ? [{ type: "text", text: String(item.error.message ?? "the call failed") }] : [];
   const typed = /^Error [1-5]: /.test(content.find((c) => c?.type === "text")?.text ?? "");
   if (item.error && !typed && item.server === MCP_NAME && SPENDING_TOOLS.has(item.tool)) {
     content = [{ type: "text", text: `Error 5: ${item.error.message ?? "Codex lost the call"}; it ${UNCERTAIN_CALL}.` }];
@@ -526,8 +536,8 @@ export function createCodex({
 
   async function status() {
     try {
-      await start();
-      const r = await proc.rpc.request("account/read", { refreshToken: false });
+      const p = await start();
+      const r = await p.rpc.request("account/read", { refreshToken: false });
       const a = r?.account;
       if (!a) {
         stopSoon(); // after codex login, the next check starts a Codex that sees the new login
@@ -586,6 +596,8 @@ export function createCodex({
     const p = await start();
     await vet(p);
     const { rpc, child } = p;
+    // Codex may exit between answering initialize and this turn: say so, rather than wait on a dead process.
+    if (child.exitCode !== null || child.signalCode !== null) throw new ChatError(STOPPED_EARLY);
     const threadParams = { cwd: repo, sandbox: "read-only", approvalPolicy: "never", developerInstructions: instructions };
     let threadId = saved.codexThread;
     let fresh = false;
@@ -647,7 +659,7 @@ export function createCodex({
 
       function handle(m) {
         const p = m.params ?? {};
-        const item = p.item;
+        const item = p.item && typeof p.item === "object" ? p.item : null;
         switch (m.method) {
           case "item/agentMessage/delta":
             sink.text(p.itemId, p.delta);
@@ -687,8 +699,16 @@ export function createCodex({
         if (p.threadId !== threadId) return;
         if (!turnId) return void early.push(m);
         if (p.turnId && p.turnId !== turnId) return;
-        handle(m);
+        handleSafely(m);
       }
+      // The early ones are handled after turn/start answers; one that cannot be read is skipped like any other.
+      const handleSafely = (m) => {
+        try {
+          handle(m);
+        } catch (err) {
+          process.stderr.write(`studio: skipped a Codex ${String(m?.method).slice(0, 60)} event it could not read: ${redact(err?.message ?? String(err))}\n`);
+        }
+      };
 
       listeners.add(onMessage);
       signal.addEventListener("abort", interrupt);
@@ -696,7 +716,7 @@ export function createCodex({
       rpc.request("turn/start", { threadId, input: [{ type: "text", text: input, text_elements: [] }] }).then(
         (r) => {
           turnId = r.turn.id;
-          for (const m of early.splice(0)) if (!m.params?.turnId || m.params.turnId === turnId) handle(m);
+          for (const m of early.splice(0)) if (!m.params?.turnId || m.params.turnId === turnId) handleSafely(m);
           if (signal.aborted) interrupt();
         },
         (err) => finish(reject, err),

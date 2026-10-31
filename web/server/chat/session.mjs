@@ -13,6 +13,8 @@ import { systemPrompt } from "./prompt.mjs";
 import { ChatError, appendChat, budgetSentence, createTurnLog, historyMessages, readChat, uncertainSentence, userEntry } from "./transcript.mjs";
 
 export const MAX_MESSAGE = 8_000;
+/** The most entries GET returns: the newest. The file keeps every one. */
+export const VIEW_ENTRIES = 500;
 export const NOT_CONNECTED = "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.";
 
 /** One sentence for the page, for anything a turn throws. */
@@ -35,7 +37,7 @@ export function createChat({ backends, tools, publish = () => {} }) {
     view(film) {
       const { entries } = readChat(film);
       const turn = live.get(film);
-      return { film, busy: Boolean(turn), entries: turn ? [...entries, ...turn.log.entries] : entries };
+      return { film, busy: Boolean(turn), entries: (turn ? [...entries, ...turn.log.entries] : entries).slice(-VIEW_ENTRIES) };
     },
 
     /** Start a turn and answer at once with the user's entry; the rest arrives as events. */

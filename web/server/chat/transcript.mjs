@@ -7,13 +7,15 @@
 // "minimax-h3 4s 480p" and "$0.16". History lives in runs/<film>/chat.jsonl,
 // one JSON object per line, plus { kind: "codex-thread", threadId } lines the
 // page never sees.
-import { closeSync, constants, existsSync, lstatSync, openSync, readFileSync, realpathSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync, writeSync } from "node:fs";
 import { join, sep } from "node:path";
 import { RUNS_DIR, runDir } from "../../../cli/lib/run.mjs";
 import { EXIT, unknown } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
 
 export const CHAT_FILE = "chat.jsonl";
+/** How often, at most, a streaming assistant entry is resent to the page. */
+export const TEXT_THROTTLE_MS = 100;
 /** The most tool rounds one turn may take, whichever backend runs it. */
 export const MAX_STEPS = 24;
 const KINDS = new Set(["user", "assistant", "tool", "notice"]);
@@ -63,23 +65,66 @@ export function chatPath(film, { create = false } = {}) {
   return file;
 }
 
-/** The saved transcript, oldest first, and the film's Codex thread if it has one. A missing film or file is an empty chat. */
-export function readChat(film) {
-  const file = chatPath(film);
-  const out = { entries: [], codexThread: null };
-  if (!existsSync(file)) return out;
-  for (const line of readFileSync(file, "utf8").split("\n")) {
+/** What has been read of each chat file: up to `offset` (after its last whole line), and what that held. */
+const parsed = new Map(); // file → { dev, ino, offset, mtimeMs, size, entries, codexThread }
+
+/** Whole lines from `buf`, parsed into `into`; returns how many bytes they took. A torn last line waits for the next read. */
+function takeLines(buf, into) {
+  const end = buf.lastIndexOf(0x0a) + 1;
+  for (const line of buf.subarray(0, end).toString("utf8").split("\n")) {
     if (!line.trim()) continue;
     let rec;
     try {
       rec = JSON.parse(line);
     } catch {
-      continue; // a torn last line from a crash; the rest is still good
+      continue; // a line torn by a crash; the rest is still good
     }
-    if (rec?.kind === "codex-thread" && typeof rec.threadId === "string") out.codexThread = rec.threadId;
-    else if (KINDS.has(rec?.kind) && typeof rec.id === "string") out.entries.push(rec);
+    if (rec?.kind === "codex-thread" && typeof rec.threadId === "string") into.codexThread = rec.threadId;
+    else if (KINDS.has(rec?.kind) && typeof rec.id === "string") into.entries.push(rec);
   }
-  return out;
+  return end;
+}
+
+/**
+ * The saved transcript, oldest first, and the film's Codex thread if it has
+ * one. A missing film or file is an empty chat. The file only grows, so a
+ * read after the first parses just the lines appended since; a file that
+ * shrank, or was replaced, is read again from the start.
+ */
+export function readChat(film) {
+  const file = chatPath(film);
+  let fd;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      parsed.delete(file);
+      return { entries: [], codexThread: null };
+    }
+    throw err;
+  }
+  try {
+    const st = fstatSync(fd);
+    let c = parsed.get(file);
+    const same = c && c.dev === st.dev && c.ino === st.ino && st.size >= c.size && (st.size > c.size || st.mtimeMs === c.mtimeMs);
+    if (!same) c = { dev: st.dev, ino: st.ino, offset: 0, entries: [], codexThread: null };
+    if (st.size > c.offset) {
+      const buf = Buffer.alloc(st.size - c.offset);
+      let got = 0;
+      while (got < buf.length) {
+        const n = readSync(fd, buf, got, buf.length - got, c.offset + got);
+        if (!n) break;
+        got += n;
+      }
+      c.offset += takeLines(buf.subarray(0, got), c);
+    }
+    c.size = st.size;
+    c.mtimeMs = st.mtimeMs;
+    parsed.set(file, c);
+    return { entries: [...c.entries], codexThread: c.codexThread };
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** Append records to the film's chat, making the film's folder if this is its first line. */
@@ -215,7 +260,7 @@ export function uncertainSentence({ tool, message }) {
  * text stream in and tool steps go from running to done. `entries` is the
  * turn's entries in the order they began.
  */
-export function createTurnLog(onEntry) {
+export function createTurnLog(onEntry, { throttleMs = TEXT_THROTTLE_MS } = {}) {
   const entries = [];
   const byKey = new Map();
   const add = (key, entry) => {
@@ -223,18 +268,30 @@ export function createTurnLog(onEntry) {
     entries.push(entry);
     return entry;
   };
+  // Streaming text: each change resends the whole entry, so an entry goes out at most once per throttleMs.
+  const sent = new Map(); // entry → when it last went out
+  const held = new Map(); // entry → the timer that sends it
+  const send = (e) => {
+    clearTimeout(held.get(e));
+    held.delete(e);
+    sent.set(e, Date.now());
+    onEntry(e);
+  };
   return {
     entries,
     text(key, delta) {
+      if (typeof delta !== "string") return;
       const e = byKey.get(key) ?? add(key, assistantEntry());
       e.text += delta;
-      onEntry(e);
+      const wait = (sent.get(e) ?? -Infinity) + throttleMs - Date.now();
+      if (wait <= 0) send(e);
+      else if (!held.has(e)) held.set(e, setTimeout(() => send(e), wait));
     },
     textDone(key, text) {
       const e = byKey.get(key) ?? add(key, assistantEntry());
       if (typeof text === "string" && text) e.text = text;
       e.streaming = false;
-      onEntry(e);
+      send(e);
     },
     toolStart(key, name, args) {
       onEntry(add(key, toolEntry(name, args)));
@@ -261,7 +318,7 @@ export function createTurnLog(onEntry) {
       for (const e of entries) {
         if (e.kind === "assistant" && e.streaming) {
           e.streaming = false;
-          onEntry(e);
+          send(e);
         }
         if (e.kind === "tool" && e.state === "running") {
           e.state = "failed";

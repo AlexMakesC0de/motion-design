@@ -374,6 +374,29 @@ describe("a Codex turn", () => {
     assert.match(lines("cx-cut").at(-1), /^assistant: I can't tell whether generate_video went through \(tool call timed out after 300s\)/);
   });
 
+  test("a malformed Codex event is skipped, never thrown: the turn carries on", async () => {
+    const bad = [
+      { notify: "item/completed", params: { ...ids, item: { type: "mcpToolCall", id: "b1", server: "motion-design", tool: "list_runs", status: "completed", arguments: {}, result: { content: "not a list" }, error: null } } },
+      { notify: "item/completed", params: { ...ids, item: { type: "mcpToolCall", id: "b2", server: "motion-design", tool: "list_runs", status: "completed", arguments: {}, result: { content: [null, 7, { type: "text" }] }, error: null } } },
+      { notify: "item/agentMessage/delta", params: { ...ids, itemId: "m-bad", delta: { not: "text" } } },
+      { notify: "item/started", params: { ...ids, item: null } },
+      { notify: "item/completed", params: { ...ids, item: "nonsense" } },
+    ];
+    const { backend } = fakeCodex({ turn: [...bad, message("m12", "Still here."), completed()] });
+    const chat = chatWith(backend);
+    await chat.send("cx-bad", "hi");
+    await chat.idle("cx-bad");
+    assert.equal(lines("cx-bad").at(-1), "assistant: Still here.");
+    assert.deepEqual(codex.toolResult({ result: { content: "x" }, status: "completed" }).content, []);
+  });
+
+  test("Codex exiting right after it starts ends the turn with a clear notice, not a crash or a 30 s wait", { timeout: 5_000 }, async () => {
+    // The turn itself, as when a status check passed just before Codex went away.
+    const { backend } = fakeCodex({ exitAfter: "initialize" });
+    const turn = backend.turn({ film: "cx-gone", text: "hi", saved: { entries: [], codexThread: null }, instructions: "x", sink: createTurnLog(() => {}), signal: new AbortController().signal });
+    await assert.rejects(turn, (e) => e instanceof ChatError && /^Codex stopped/.test(e.message));
+  });
+
   test("a new thread's recap keeps the tool steps, so a job started earlier is not forgotten", () => {
     const entries = [{ id: "u", kind: "user", text: "Make it." }, { id: "t", kind: "tool", name: "generate_video", args: "seedance-2-5", state: "failed", result: "uncertain: still checking, do not resubmit", jobs: ["j-20261031-0a0b0c"] }];
     assert.match(codex.recap(entries), /You: \[tool step\] generate_video seedance-2-5 → failed: .*\(job j-20261031-0a0b0c\)/);

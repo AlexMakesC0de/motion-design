@@ -8,6 +8,7 @@
 //   { "waitFor": method }                   waits until the client sends that method
 //   { "sleep": ms }                         waits that long
 // "noAnswer": [methods] lists requests it never answers (a stuck app-server).
+// "exitAfter": method makes it exit right after answering that method.
 // "mcpPages": [[servers], [servers], ...] answers mcpServerStatus/list a page
 // at a time, by cursor, instead of "mcpServers" in one page.
 // "$thread" and "$turn" anywhere in params become the current ids.
@@ -53,7 +54,10 @@ async function play(steps) {
 }
 
 function answer(m) {
-  const reply = (result) => send({ id: m.id, result });
+  const reply = (result) => {
+    send({ id: m.id, result });
+    if (ex.exitAfter === m.method) process.stdout.write("", () => process.exit(0));
+  };
   const error = (message) => send({ id: m.id, error: { code: -32600, message } });
   if (ex.noAnswer?.includes(m.method)) return;
   switch (m.method) {

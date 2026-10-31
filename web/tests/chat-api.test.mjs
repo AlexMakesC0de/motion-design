@@ -242,6 +242,16 @@ describe("a chat turn", () => {
     assert.deepEqual(after.entries.map((e) => [e.kind, e.text]), [["user", "one"], ["notice", "Stopped."]]);
   });
 
+  test("GET returns the newest 500 entries of a long chat; the file keeps them all", async () => {
+    const { appendChat, userEntry } = await import("../server/chat/transcript.mjs");
+    appendChat("chat-long", Array.from({ length: 620 }, (_, i) => userEntry(`line ${i}`)));
+    const back = (await call("/api/chat/chat-long")).json;
+    assert.equal(back.entries.length, 500);
+    assert.equal(back.entries[0].text, "line 120");
+    assert.equal(back.entries.at(-1).text, "line 619");
+    assert.equal(readFileSync(join(RUNS, "chat-long", "chat.jsonl"), "utf8").trim().split("\n").length, 620);
+  });
+
   test("an empty message and a bad film name are refused", async () => {
     assert.equal((await call("/api/chat/chat-one", { method: "POST", body: { text: "  " } })).status, 400);
     assert.equal((await call("/api/chat/Bad%20Film", { method: "POST", body: { text: "hi" } })).status, 400);

@@ -1,7 +1,7 @@
 import { RUNS, tmp } from "./helpers.mjs";
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const t = await import("../server/chat/transcript.mjs");
@@ -80,6 +80,26 @@ describe("chat.jsonl", () => {
     assert.equal(t.readChat("chat-torn").entries.length, 1);
   });
 
+  test("reads after the first pick up only what was appended, a torn line once it is finished, and a rewritten file whole", () => {
+    const file = join(RUNS, "chat-tail", "chat.jsonl");
+    const [a, b, c] = ["one", "two", "three"].map((x) => t.userEntry(x));
+    t.appendChat("chat-tail", [a]);
+    assert.deepEqual(t.readChat("chat-tail").entries.map((e) => e.text), ["one"]);
+    t.appendChat("chat-tail", [b, { kind: "codex-thread", threadId: "thr-tail" }]);
+    const half = JSON.stringify(c);
+    appendFileSync(file, half.slice(0, 10));
+    let back = t.readChat("chat-tail");
+    assert.deepEqual(back.entries.map((e) => e.text), ["one", "two"]);
+    assert.equal(back.codexThread, "thr-tail");
+    appendFileSync(file, `${half.slice(10)}\n`);
+    assert.deepEqual(t.readChat("chat-tail").entries.map((e) => e.text), ["one", "two", "three"]);
+    back.entries.push({ id: "x", kind: "user", text: "not saved" });
+    assert.equal(t.readChat("chat-tail").entries.length, 3, "a caller's copy is its own");
+    writeFileSync(file, `${JSON.stringify(t.userEntry("fresh"))}\n`);
+    assert.deepEqual(t.readChat("chat-tail").entries.map((e) => e.text), ["fresh"]);
+    assert.equal(t.readChat("chat-tail").codexThread, null);
+  });
+
   test("a bad film name is refused, and a chat.jsonl that links elsewhere is never written through", () => {
     assert.throws(() => t.appendChat("../escape", [t.userEntry("x")]), { code: 1 });
     mkdirSync(join(RUNS, "chat-link"), { recursive: true });
@@ -137,11 +157,31 @@ describe("createTurnLog", () => {
     log.toolStart("call-1", "estimate", { model: "minimax-h3", duration_s: 4 });
     const f = log.toolDone("call-1", "estimate", ok({ estimateUsd: 0.26, allowed: true }));
     assert.equal(f, null);
-    assert.deepEqual(changes, ["assistant:Che", "assistant:Checking.", "assistant:Checking.", "tool:running", "tool:done"]);
+    assert.deepEqual(changes, ["assistant:Che", "assistant:Checking.", "tool:running", "tool:done"], "the second delta, within the throttle, arrives with textDone");
     assert.deepEqual(
       log.entries.map((e) => (e.kind === "tool" ? [e.name, e.args, e.result, e.state] : [e.kind, e.text, e.streaming])),
       [["assistant", "Checking.", false], ["estimate", "minimax-h3 4s", "$0.26", "done"]],
     );
+  });
+
+  test("text deltas reach the page at most about ten times a second per entry, and the latest text always arrives", async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const changes = [];
+    const log = t.createTurnLog((e) => changes.push(e.text));
+    for (let i = 0; i < 50; i++) log.text("m", "x");
+    assert.deepEqual(changes, ["x"], "the first delta at once, the rest held back");
+    await sleep(t.TEXT_THROTTLE_MS + 60);
+    assert.deepEqual(changes, ["x", "x".repeat(50)], "then one update with everything so far");
+    log.text("m", "y");
+    log.textDone("m", `${"x".repeat(50)}y`);
+    const n = changes.length;
+    assert.equal(changes.at(-1), `${"x".repeat(50)}y`);
+    log.text("k", "a");
+    log.text("k", "b");
+    log.settle();
+    assert.equal(changes.at(-1), "ab", "settle sends what was held back");
+    await sleep(t.TEXT_THROTTLE_MS + 60);
+    assert.equal(changes.length, n + 2, "nothing is left pending after textDone and settle");
   });
 
   test("toolDone returns the typed error, and settle() leaves nothing streaming or running", () => {

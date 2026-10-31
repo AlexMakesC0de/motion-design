@@ -78,4 +78,37 @@ describe("createEvents", () => {
       events.close();
     }
   });
+
+  test("a subscriber that stops reading gets nothing more until it drains, then is closed so the page reconnects and reloads", () => {
+    const events = createEvents({ pollMs: 60_000, snapshot: () => snap([]) });
+    const handlers = {};
+    const written = [];
+    let full = false;
+    let ended = 0;
+    const res = { writeHead: () => {}, write: (s) => (written.push(s), !full), on: (ev, fn) => (handlers[ev] = fn), end: () => (ended += 1, handlers.close?.()) };
+    try {
+      events.subscribe(res);
+      full = true;
+      events.publish({ event: "chat", data: { n: 1 } });
+      events.publish({ event: "chat", data: { n: 2 } });
+      events.publish({ event: "chat", data: { n: 3 } });
+      assert.equal(written.filter((w) => w.includes("event: chat")).length, 1, "after write said wait, nothing more is queued");
+      full = false;
+      handlers.drain();
+      assert.equal(ended, 1, "events were dropped, so the stream ends: the page reconnects and reads everything again");
+      assert.equal(events.size(), 0);
+
+      const quiet = { writeHead: () => {}, write: (s) => (written.push(s), !full), on: (ev, fn) => (quiet[ev] = fn), end: () => (ended += 1) };
+      events.subscribe(quiet);
+      full = true;
+      events.publish({ event: "chat", data: { n: 4 } });
+      full = false;
+      quiet.drain();
+      events.publish({ event: "chat", data: { n: 5 } });
+      assert.equal(ended, 1, "a slow client that missed nothing carries on");
+      assert.match(written.at(-1), /"n":5/);
+    } finally {
+      events.close();
+    }
+  });
 });
