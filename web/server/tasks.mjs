@@ -23,7 +23,7 @@ import { HttpError } from "./http.mjs";
 const KEEP = 50;
 
 /** How long a task may run, by kind, before it is stopped. A text card is the shortest job. */
-export const TASK_TIMEOUTS_MS = { assemble: 15 * 60_000, caption: 15 * 60_000, variants: 15 * 60_000, card: 10 * 60_000 };
+export const TASK_TIMEOUTS_MS = { assemble: 15 * 60_000, caption: 15 * 60_000, variants: 15 * 60_000, card: 10 * 60_000, cut: 15 * 60_000 };
 
 const span = (ms) => (ms >= 60_000 ? `${Math.round(ms / 60_000)} minutes` : `${ms / 1000} seconds`);
 const STOPPED = {

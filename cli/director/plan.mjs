@@ -79,6 +79,7 @@ export function updateShot(catalog, film, id, changes, opts = {}) {
   const shots = plan.shots.map((s) => {
     if (s.id !== id) return s;
     const next = { ...s, ...changes };
+    for (const [k, v] of Object.entries(changes)) if (v === null) delete next[k]; // null removes a field, such as a chosen still
     if (repick) {
       delete next.model;
       delete next.modelReason;

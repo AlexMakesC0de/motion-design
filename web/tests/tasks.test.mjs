@@ -111,8 +111,8 @@ const untilAborted = (seen = {}) => ({ signal }) => {
 };
 
 describe("createTasks: stopping a task", () => {
-  test("the limits are 15 minutes for assemble, captions and variants, and 10 for a card", () => {
-    assert.deepEqual(TASK_TIMEOUTS_MS, { assemble: 15 * 60_000, caption: 15 * 60_000, variants: 15 * 60_000, card: 10 * 60_000 });
+  test("the limits are 15 minutes for assemble, captions, variants and the cut, and 10 for a card", () => {
+    assert.deepEqual(TASK_TIMEOUTS_MS, { assemble: 15 * 60_000, caption: 15 * 60_000, variants: 15 * 60_000, card: 10 * 60_000, cut: 15 * 60_000 });
   });
 
   test("a task that runs past its limit is aborted, fails in plain words, and frees the film", async () => {

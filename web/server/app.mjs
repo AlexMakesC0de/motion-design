@@ -16,6 +16,7 @@ import { registerFilms } from "./api/films.mjs";
 import { registerFinish } from "./api/finish.mjs";
 import { registerSettings } from "./api/settings.mjs";
 import { registerChat } from "./api/chat.mjs";
+import { registerDirector } from "./api/director.mjs";
 import { createTools } from "./chat/tools.mjs";
 import { createChat } from "./chat/session.mjs";
 import { openaiBackend } from "./chat/openai.mjs";
@@ -43,7 +44,16 @@ const CHAT_CLOSE_WAIT_MS = 3_000;
 export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = join(WEB_DIR, "dist"), pollMs, resume = false, finish = {}, chat: chatOptions = {} } = {}) {
   const router = createRouter();
   let events = null;
-  const follower = createFollower({ catalog, deps, onChange: () => events?.nudge() });
+  let director = null;
+  // A followed still or take that settles may let its film's queue move on (the rest of the stills, Film all).
+  const follower = createFollower({
+    catalog,
+    deps,
+    onChange: (id) => {
+      events?.nudge();
+      director?.settled(id);
+    },
+  });
   const following = follower.has;
   events = createEvents({ pollMs, snapshot: () => takeSnapshot({ following }) });
   const tasks = createTasks({ onChange: (task) => events.publish({ event: "task", data: task }) });
@@ -60,6 +70,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerPresets(router, { catalog });
   registerFilms(router, { following });
   registerFinish(router, { tasks, ...finish });
+  director = registerDirector(router, { catalog, deps, follower, tasks });
   registerSettings(router, { catalog, deps });
   const tools = createTools({ deps, catalog });
   const openai = openaiBackend({ fetch: chatOptions.fetch ?? globalThis.fetch, tools });
@@ -94,6 +105,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.follower = follower;
   server.tasks = tasks;
   server.chat = chat;
+  server.director = director;
   // Studio jobs a previous run left waiting. Safe beside a CLI or MCP waiter: core settles each job once.
   if (resume) follower.resume();
   return server;
