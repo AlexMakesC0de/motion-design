@@ -51,3 +51,10 @@ export async function extractFrames(videoPath, { outDir } = {}) {
 
   return { dir, sheet, first, last, tiles, times, durationS: info.durationS };
 }
+
+/** The true last frame of a video, full size, for the next shot's first_frame on a continuous cut. */
+export async function lastFrame(videoPath, out) {
+  requireFfmpeg();
+  await ffmpeg(["-sseof", "-0.5", "-i", videoPath, "-update", "1", out]);
+  return out;
+}

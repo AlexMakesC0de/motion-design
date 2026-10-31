@@ -37,6 +37,10 @@ export function shotFit(catalog, modelId, { plannedS, aspectRatio }) {
   return { model: model.id, generatedS, estimateUsd: job.est?.usd ?? null, basis: job.est?.basis ?? null, problems: job.problems };
 }
 
+/** Whether an image model's route maps reference images (identity and style) to an input. */
+export const takesReferences = (catalog, modelId) =>
+  planJob(catalog, { model: modelId, capability: "image", refs: [{ role: "identity" }, { role: "style" }] }).problems.length === 0;
+
 /** The same for the still: an image model at the film's aspect ratio. */
 export function stillFit(catalog, modelId, { aspectRatio }) {
   try {

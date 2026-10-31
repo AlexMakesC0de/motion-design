@@ -1,5 +1,5 @@
 import { loadMenu, entry } from "./menu.mjs";
-import { shotFit, stillFit } from "./fit.mjs";
+import { shotFit, stillFit, takesReferences } from "./fit.mjs";
 import { shotWording } from "./wording.mjs";
 
 const TIER_ORDER = { S: 0, A: 1 };
@@ -64,6 +64,7 @@ export function suggestModel(catalog, shot, { brief = null, plan = null, assets 
 }
 
 const EXACT = ["gpt-image-2-5", "GPT Image 2.5", "keeps screens and products exact."];
+const CAST = ["nano-banana-2", "Nano Banana 2"];
 const STILL_BY_FILM = {
   "product-ui": EXACT,
   "product-hero": EXACT,
@@ -74,13 +75,17 @@ const STILL_BY_FILM = {
 /**
  * The image model for a shot's still: exact screens and products, photoreal, or
  * stylised. Given the catalog, a model that cannot make the film's aspect ratio
- * gives way to GPT Image 2.5, which makes the most.
+ * gives way to GPT Image 2.5, which makes the most, and a shot with a cast
+ * moves to Nano Banana 2 when its model cannot take the cast's reference sheets.
  */
 export function suggestStillModel(shot, { brief = null, catalog = null } = {}) {
   const [model, name, why] = shot.job === "motion-graphics" ? EXACT : STILL_BY_FILM[brief?.filmType] ?? EXACT;
   const ratio = brief?.aspectRatio;
   if (catalog && ratio && model !== EXACT[0] && stillFit(catalog, model, { aspectRatio: ratio }).problems.length) {
     return { model: EXACT[0], reason: `${name} makes no ${ratio} stills, so ${EXACT[1]}, which does.` };
+  }
+  if (catalog && shot.cast?.length && !takesReferences(catalog, model)) {
+    return { model: CAST[0], reason: `${name} takes no reference images, so ${CAST[1]}, which keeps the cast from their sheets.` };
   }
   return { model, reason: `${name} ${why}` };
 }

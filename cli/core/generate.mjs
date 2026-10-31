@@ -69,6 +69,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
   const { _useI2v, ...inputValues } = values;
   const attempts = [];
   let lastError = null;
+  const refusals = []; // each route's own refusal, so the final error names them all
 
   for (const [i, route] of usable.entries()) {
     const callRoute = effectiveRoute(route, _useI2v);
@@ -95,6 +96,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       lastError = unknown(
         `${label} refused before submitting — nothing was spent:\n` + built.problems.map((p) => `  · ${p}`).join("\n"),
       );
+      refusals.push(lastError);
       attempts.push({ provider: route.provider, outcome: "invalid-request" });
       continue;
     }
@@ -182,6 +184,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       });
     }
   }
+  if (refusals.length > 1 && refusals.at(-1) === lastError) throw unknown(refusals.map((e) => e.message).join("\n"));
   throw lastError ?? usage(`No route produced a result for ${model.id}.`);
 }
 

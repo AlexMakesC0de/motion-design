@@ -113,3 +113,14 @@ describe("fit beyond length and ratio", () => {
     assert.equal(suggestStillModel(shot("cinematic"), { brief, catalog }).model, "nano-banana-2");
   });
 });
+
+describe("stills for a cast", () => {
+  test("a stylised film with a cast moves to a model that takes reference sheets", () => {
+    const character = { ...brief, filmType: "character" };
+    assert.equal(suggestStillModel({ ...shot("cinematic"), cast: [] }, { brief: character, catalog }).model, "seedream-5-pro");
+    assert.deepEqual(suggestStillModel({ ...shot("cinematic"), cast: ["zed"] }, { brief: character, catalog }), {
+      model: "nano-banana-2",
+      reason: "Seedream 5 Pro takes no reference images, so Nano Banana 2, which keeps the cast from their sheets.",
+    });
+  });
+});
