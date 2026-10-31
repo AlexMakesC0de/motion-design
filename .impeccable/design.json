@@ -1,0 +1,487 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T12:00:00Z",
+  "title": "Design System: Studio",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Booth Black",
+        "purpose": "Page floor, viewer scrim base, video letterbox.",
+        "canonical": "#0e0d0c",
+        "oklch": "oklch(16.0% 0.003 67.6)",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#252423",
+          "#413f3e",
+          "#5f5d5c",
+          "#7e7d7b",
+          "#9f9e9d",
+          "#c5c4c2",
+          "#f0eeec"
+        ]
+      },
+      "surface-1": {
+        "role": "neutral",
+        "displayName": "Lamp-off Brown",
+        "purpose": "First lift: top bar, cards, prompt bar, viewer panel.",
+        "canonical": "#161412",
+        "oklch": "oklch(19.3% 0.005 67.5)",
+        "tonalRamp": [
+          "#0d0b09",
+          "#262421",
+          "#423f3d",
+          "#605d5b",
+          "#7f7d7a",
+          "#a19e9b",
+          "#c6c3c1",
+          "#f1eeeb"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Seat Brown",
+        "purpose": "Second lift: buttons, chips, inputs, hovered nav.",
+        "canonical": "#1b1917",
+        "oklch": "oklch(21.5% 0.005 67.6)",
+        "tonalRamp": [
+          "#0d0b09",
+          "#262421",
+          "#423f3d",
+          "#605d5b",
+          "#7f7d7a",
+          "#a09e9b",
+          "#c6c3c1",
+          "#f1eeeb"
+        ]
+      },
+      "surface-3": {
+        "role": "neutral",
+        "displayName": "Aisle Brown",
+        "purpose": "Third lift: active tab, pressed filter, hover, disabled Generate, meter track.",
+        "canonical": "#2a2724",
+        "oklch": "oklch(27.5% 0.007 67.5)",
+        "tonalRamp": [
+          "#0d0b08",
+          "#262320",
+          "#423f3c",
+          "#605d59",
+          "#807c79",
+          "#a19e9a",
+          "#c7c3bf",
+          "#f2eeea"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "purpose": "Every 1px border and table rule.",
+        "canonical": "#2c2926",
+        "oklch": "oklch(28.3% 0.007 67.5)",
+        "tonalRamp": [
+          "#0d0b08",
+          "#262320",
+          "#423f3c",
+          "#605d59",
+          "#807c79",
+          "#a19e9a",
+          "#c7c3bf",
+          "#f2eeea"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Screen White",
+        "purpose": "Primary text and values.",
+        "canonical": "#ece7df",
+        "oklch": "oklch(93.0% 0.012 79.8)",
+        "tonalRamp": [
+          "#0e0b06",
+          "#27231e",
+          "#433f39",
+          "#615d56",
+          "#817d75",
+          "#a29e96",
+          "#c8c3bc",
+          "#f3eee6"
+        ]
+      },
+      "text-2": {
+        "role": "neutral",
+        "displayName": "Dim Paper",
+        "purpose": "Secondary text, labels, take specs.",
+        "canonical": "#b9b0a3",
+        "oklch": "oklch(76.1% 0.021 77.3)",
+        "tonalRamp": [
+          "#100a03",
+          "#2a2319",
+          "#463e33",
+          "#645c51",
+          "#847c70",
+          "#a69d90",
+          "#ccc3b5",
+          "#f7eddf"
+        ]
+      },
+      "text-3": {
+        "role": "neutral",
+        "displayName": "Faint Paper",
+        "purpose": "Hints, headers, section labels; >=4.5:1 on every surface.",
+        "canonical": "#988f83",
+        "oklch": "oklch(65.4% 0.020 75.2)",
+        "tonalRamp": [
+          "#100a03",
+          "#2a2319",
+          "#463e34",
+          "#655c51",
+          "#857c70",
+          "#a69d91",
+          "#ccc3b6",
+          "#f7ede0"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Projector Amber",
+        "purpose": "Generate, the spend meter and costs only.",
+        "canonical": "#e8a33d",
+        "oklch": "oklch(76.5% 0.140 72.9)",
+        "tonalRamp": [
+          "#1d0300",
+          "#3d1900",
+          "#5f3400",
+          "#845100",
+          "#ab6f00",
+          "#cb9242",
+          "#edba76",
+          "#ffe6ad"
+        ]
+      },
+      "accent-ink": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "purpose": "Text on an amber fill.",
+        "canonical": "#1a1206",
+        "oklch": "oklch(18.9% 0.026 77.5)",
+        "tonalRamp": [
+          "#110a01",
+          "#2b2216",
+          "#483e30",
+          "#665c4d",
+          "#867c6c",
+          "#a89d8d",
+          "#cec2b2",
+          "#f8eddc"
+        ]
+      },
+      "ok": {
+        "role": "state",
+        "displayName": "Sage",
+        "purpose": "Done tool steps, configured keys, passing checks.",
+        "canonical": "#8fc79a",
+        "oklch": "oklch(77.9% 0.086 150.1)",
+        "tonalRamp": [
+          "#001300",
+          "#002f0a",
+          "#154c26",
+          "#366b43",
+          "#568c62",
+          "#77ae82",
+          "#9cd4a7",
+          "#c6ffd0"
+        ]
+      },
+      "warn": {
+        "role": "state",
+        "displayName": "Signal Orange",
+        "purpose": "Caution and uncertain states; orange to read apart from amber.",
+        "canonical": "#ef8a47",
+        "oklch": "oklch(73.0% 0.147 51.8)",
+        "tonalRamp": [
+          "#210000",
+          "#431200",
+          "#682c00",
+          "#8f4710",
+          "#b8642a",
+          "#d88856",
+          "#fab185",
+          "#ffdfb9"
+        ]
+      },
+      "bad": {
+        "role": "state",
+        "displayName": "Coral",
+        "purpose": "Failed take border, meter over the cap.",
+        "canonical": "#e2725b",
+        "oklch": "oklch(67.7% 0.144 32.9)",
+        "tonalRamp": [
+          "#230000",
+          "#460c03",
+          "#6b2618",
+          "#934130",
+          "#bd5d49",
+          "#de826e",
+          "#ffab99",
+          "#ffdac9"
+        ]
+      },
+      "bad-surface": {
+        "role": "state",
+        "displayName": "Coral Shade",
+        "purpose": "Error banner and failure block fill.",
+        "canonical": "#2b1a14",
+        "oklch": "oklch(23.8% 0.030 40.2)",
+        "tonalRamp": [
+          "#150703",
+          "#311f19",
+          "#4e3b34",
+          "#6d5851",
+          "#8e7870",
+          "#b09991",
+          "#d6beb6",
+          "#ffe8e0"
+        ]
+      },
+      "bad-ink": {
+        "role": "state",
+        "displayName": "Coral Ink",
+        "purpose": "Error and failure text.",
+        "canonical": "#f3c8b8",
+        "oklch": "oklch(86.6% 0.054 41.4)",
+        "tonalRamp": [
+          "#1c0200",
+          "#391a0e",
+          "#583629",
+          "#785446",
+          "#9a7364",
+          "#bc9485",
+          "#e4b9aa",
+          "#ffe3d3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles and film names."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel titles (Finish, asset panel)."
+      },
+      "title-sm": {
+        "displayName": "Title Small",
+        "purpose": "Chat title, Settings section titles, preset names."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text, nav, prompt, Generate."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Buttons, form controls, chat rail, notes, jobs table."
+      },
+      "label": {
+        "displayName": "Section Label",
+        "purpose": "Uppercase 11px heading of a section; never above another heading."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Plex Mono, tabular figures: every number, model id, job id, route, file name, tool step."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default easing for state transitions."
+      },
+      {
+        "name": "dur-fast",
+        "value": "150ms",
+        "purpose": "Hover and colour/border transitions."
+      },
+      {
+        "name": "meter-fill",
+        "value": "transform 250ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Spend meter and Today bar fill (scaleX)."
+      },
+      {
+        "name": "take-wait",
+        "value": "1.6s linear infinite background-position shimmer, surface-2 to surface-3",
+        "purpose": "Running take placeholder."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation and transition durations 0.01ms",
+        "purpose": "Honours prefers-reduced-motion everywhere."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "760px",
+        "purpose": "Top bar wraps, chat folds under feed, viewer and prompt bar stack."
+      },
+      {
+        "name": "spend-stack",
+        "value": "900px",
+        "purpose": "Spend top row stacks."
+      },
+      {
+        "name": "film-stack",
+        "value": "1100px",
+        "purpose": "Finish panel drops below the shots."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default secondary action.",
+      "html": "<button class=\"ds-button\">Reuse</button>",
+      "css": ".ds-button{display:inline-flex;align-items:center;gap:var(--space-2);padding:6px var(--space-3);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font:400 var(--text-sm) var(--font-sans);cursor:pointer;transition:background-color var(--dur-fast) var(--ease-out)}.ds-button:hover{background:var(--surface-3)}.ds-button:focus-visible{outline:2px solid var(--text-2);outline-offset:2px}.ds-button:disabled{color:var(--text-3);cursor:not-allowed}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Secondary text actions: Hide chat, Close, Up, Down.",
+      "html": "<button class=\"ds-button-quiet\">Hide chat</button>",
+      "css": ".ds-button-quiet{display:inline-flex;align-items:center;padding:6px var(--space-3);border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--text-2);font:400 var(--text-sm) var(--font-sans);cursor:pointer;transition:color var(--dur-fast) var(--ease-out)}.ds-button-quiet:hover{color:var(--text)}.ds-button-quiet:focus-visible{outline:2px solid var(--text-2);outline-offset:2px}"
+    },
+    {
+      "name": "Generate",
+      "kind": "button",
+      "refersTo": "button-generate",
+      "description": "The one filled amber primary, price inside.",
+      "html": "<button class=\"ds-generate\">Generate <span class=\"ds-mono\">$0.20</span></button>",
+      "css": ".ds-generate{display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);border:0;border-radius:var(--radius-md);background:var(--accent);color:var(--accent-ink);font:600 var(--text-md) var(--font-sans);cursor:pointer;transition:filter var(--dur-fast) var(--ease-out)}.ds-generate:hover{filter:brightness(1.08)}.ds-generate:focus-visible{outline:2px solid var(--text);outline-offset:2px}.ds-generate:disabled{background:var(--surface-3);color:var(--text-3);cursor:not-allowed;filter:none}.ds-mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Setting Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Prompt setting: label plus inline select.",
+      "html": "<span class=\"ds-chip\"><span class=\"ds-chip-label\">Duration</span><select class=\"ds-chip-select\"><option>5s</option><option>10s</option></select></span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:var(--space-1);padding:3px var(--space-2);border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font:400 var(--text-xs) var(--font-sans)}.ds-chip-label{color:var(--text-3)}.ds-chip-select{background:transparent;color:var(--text);border:0;padding:0;font:400 var(--text-xs) var(--font-mono);cursor:pointer}.ds-chip-select:focus-visible{outline:2px solid var(--text-2);outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Select or input on a card.",
+      "html": "<input class=\"ds-input\" value=\"zethus-launch\">",
+      "css": ".ds-input{background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px var(--space-2);font:400 var(--text-sm) var(--font-sans)}.ds-input:focus-visible{outline:2px solid var(--text-2);outline-offset:2px}"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Text tabs with the spend meter at the right.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Studio</a><a href=\"#\">Library</a><a href=\"#\">Spend</a><span class=\"ds-meter\">Today <span class=\"ds-mono\">$1.40 / $10.00</span><span class=\"ds-meter-bar\"><span style=\"transform:scaleX(.14)\"></span></span></span></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:var(--space-1);padding:var(--space-2) var(--space-4);background:var(--surface-1);border-bottom:1px solid var(--line);font-family:var(--font-sans)}.ds-nav a{color:var(--text-2);text-decoration:none;font-size:var(--text-md);padding:6px var(--space-3);border-radius:var(--radius-sm);transition:color var(--dur-fast) var(--ease-out),background-color var(--dur-fast) var(--ease-out)}.ds-nav a:hover{color:var(--text);background:var(--surface-2)}.ds-nav a[aria-current=page]{color:var(--text);background:var(--surface-3);font-weight:500}.ds-nav a:focus-visible{outline:2px solid var(--text-2);outline-offset:2px}.ds-meter{margin-left:auto;display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);color:var(--text-2)}.ds-meter .ds-mono{color:var(--text);font-family:var(--font-mono);font-variant-numeric:tabular-nums}.ds-meter-bar{width:80px;height:4px;border-radius:2px;background:var(--surface-3);overflow:hidden}.ds-meter-bar span{display:block;height:100%;background:var(--accent);transform-origin:left}"
+    },
+    {
+      "name": "Take Tile",
+      "kind": "card",
+      "refersTo": "take-frame",
+      "description": "Frame at the take's real ratio, Mono spec line with amber cost.",
+      "html": "<article class=\"ds-take\"><div class=\"ds-take-frame\"></div><p class=\"ds-take-spec\">minimax-h3 · 6s · 768P · <span class=\"ds-take-cost\">$0.20</span></p></article>",
+      "css": ".ds-take{display:flex;flex-direction:column;gap:var(--space-2);width:280px}.ds-take-frame{aspect-ratio:16/9;border:1px solid var(--line);border-radius:var(--radius-md);background:linear-gradient(100deg,var(--surface-2) 30%,var(--surface-3) 50%,var(--surface-2) 70%);background-size:200% 100%;cursor:zoom-in}.ds-take-spec{margin:0;font:400 var(--text-xs) var(--font-mono);font-variant-numeric:tabular-nums;color:var(--text-2)}.ds-take-cost{color:var(--accent)}"
+    },
+    {
+      "name": "Viewer Spec List",
+      "kind": "custom",
+      "description": "Mono two-column facts in the take viewer.",
+      "html": "<dl class=\"ds-facts\"><dt>cost</dt><dd><span class=\"ds-cost\">$0.20</span> <span class=\"ds-src\">task-record</span></dd><dt>route</dt><dd>kie · minimax-h3/text-to-video</dd><dt>state</dt><dd>succeeded</dd><dt>job</dt><dd>j-20261031-c2dcc0</dd></dl>",
+      "css": ".ds-facts{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-3);margin:0;font:400 var(--text-xs) var(--font-mono);font-variant-numeric:tabular-nums}.ds-facts dt{color:var(--text-3)}.ds-facts dd{margin:0;color:var(--text)}.ds-cost{color:var(--accent)}.ds-src{color:var(--text-3)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Tonal container with a hairline.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-label\">Today</h2><p class=\"ds-figure\">$1.40</p></section>",
+      "css": ".ds-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-1);color:var(--text);font-family:var(--font-sans)}.ds-label{margin:0;font-size:var(--text-xs);font-weight:500;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}.ds-figure{margin:0;font:500 var(--text-xl) var(--font-mono);font-variant-numeric:tabular-nums}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Projection Room, engine showing.",
+    "overview": "Studio is a warm near-black room where the footage is the brightest thing on screen. Every surface steps up from the floor (`bg`) by a few points of warm lightness, so chrome recedes and takes, stills and the preview player carry the light. Nothing in the chrome glows, floats or blurs; depth comes from tone and a single hairline.\n\nThe machinery stays visible. Each take carries its real model id, duration, resolution and cost under the frame; the viewer lists cost, route, ratio, state and job id in a mono spec list; the chat rail prints every tool step with its arguments and result. This is a tool to Operate: one person, one machine, short AI films. It is familiar and dense where the work is (feed, jobs table, finish tools) and quiet everywhere else.\n\nOne amber voice marks money and the one act that spends it. Everything else is warm neutral, with orange, coral and green kept for state.\n\nThe prompt bar and feed draw on Higgsfield, Artlist, Krea, Leonardo, Magnific and Runway; cost on every result on fal; the library on Frame.io; spend on Gumloop and LangChain. These are references, not things to copy.",
+    "keyCharacteristics": [
+      "Warm near-black, tonal layering, 1px hairlines, no shadows.",
+      "Footage is the brightest element; chrome sits two or three steps below it.",
+      "IBM Plex Sans for interface, IBM Plex Mono with tabular figures for every number, id, file name and tool step.",
+      "One amber accent, only on Generate, the spend meter and costs.",
+      "Justified take rows that keep each take's real aspect ratio.",
+      "Quiet text buttons for secondary actions; one filled primary."
+    ],
+    "rules": [
+      {
+        "name": "The One Amber Rule",
+        "body": "Amber appears only on Generate, the spend meter and costs. Never on decoration, never on an inactive or hover state, never on headings or links. If a screen has no money on it (Settings, chat), it has no amber.",
+        "section": "colors"
+      },
+      {
+        "name": "The Footage Is Brightest Rule",
+        "body": "No chrome surface goes above `surface-3`. Light belongs to the media.",
+        "section": "colors"
+      },
+      {
+        "name": "The State Is Not Amber Rule",
+        "body": "Warnings use `warn` orange, failures use the `bad` family. A state colour that drifts toward amber breaks the money signal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Means Machine Rule",
+        "body": "Every number, model id, job id, route, file name and tool step is set in Plex Mono with tabular figures. Prose is never set in Mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The 11px Floor Rule",
+        "body": "Functional text never goes below 11px (`text-xs`). Body is 14px.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Display Face Rule",
+        "body": "The scale tops out at 20px for page titles. There is no display face and no hero type.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tone Not Shadow Rule",
+        "body": "A surface that needs to sit above another takes the next surface step and a hairline. No shadows, no glass, no backdrop blur.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Borders are 1px `line`. Hover may lighten a card's border to `text-3`; selection lightens it to `text-2`. Borders change state by tone, not by weight.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put amber only on Generate, the spend meter (and spend bars) and cost figures.",
+      "Do show the engine: model id, duration, resolution and cost on every take; route, state and job id in the viewer; every tool step in the chat.",
+      "Do set every number, id, route, file name and tool step in IBM Plex Mono with tabular figures.",
+      "Do build depth from `surface-1`, `surface-2`, `surface-3` and 1px `line` hairlines.",
+      "Do keep each take at its real aspect ratio in justified rows.",
+      "Do make secondary actions quiet text buttons, and keep one filled primary.",
+      "Do use `warn` orange for caution so it reads apart from the amber.",
+      "Do keep text tokens at 4.5:1 or better on every surface."
+    ],
+    "donts": [
+      "Don't use amber anywhere except action, meter and cost: not for decoration, hover, active tabs, headings or links.",
+      "Don't use gradient text.",
+      "Don't use glass or backdrop blur.",
+      "Don't add decorative shadows; depth is tonal.",
+      "Don't introduce a display face or type above the 20px headline.",
+      "Don't let icon glyphs (×, ✓, ✕, arrows) stand in for icons.",
+      "Don't set functional text below 11px.",
+      "Don't hide the engine: model, route and cost must stay visible.",
+      "Don't set an uppercase label above another heading; the label style is only ever a section's own heading."
+    ]
+  }
+}
