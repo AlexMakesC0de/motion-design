@@ -90,6 +90,15 @@ describe("errors", () => {
     assert.match(e[1].message, /^s2: still: Unknown model "paint-3"/);
   });
 
+  test("style-still: look.styleStill is a file inside the film folder, never outside it", () => {
+    const withStyle = (styleStill) => ({ ...good(), look: { ...look, styleStill } });
+    for (const bad of ["../other-film/s1-still.png", "stills/../../x.png", "/etc/hosts", "C:\\x.png", "https://x.test/a.png", ".history/s1.png", "", 7]) {
+      assert.deepEqual(rules(errs(withStyle(bad))), ["style-still"], JSON.stringify(bad));
+    }
+    assert.deepEqual(errs(withStyle("s1-still.png")), []);
+    assert.deepEqual(errs(withStyle("stills/look.png")), []);
+  });
+
   test("last-continuous: the last shot cannot continue into nothing", () => {
     const p = good();
     p.shots[1].cut = "continuous";

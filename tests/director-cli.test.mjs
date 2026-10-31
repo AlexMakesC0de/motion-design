@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -124,6 +124,26 @@ describe("kie shots, film, review and cut", () => {
     r = kie("auto-redo", "off", "--run", "sea");
     assert.equal(r.code, 0, r.err);
     assert.doesNotMatch(kie("shots", "--run", "sea").out, /auto-redo/);
+  });
+
+  test("kie still confines the style still to the allowed folders, links included", async () => {
+    const { png } = await import("./fixtures/images.mjs");
+    writeFileSync(join(tmp, "outside.png"), png(1280, 720));
+    assert.equal(kie("brief", "--run", "styled", "--file", file("sb.json", { takeaway: "Calm", durationS: 4, aspectRatio: "16:9", filmType: "live-action" })).code, 0);
+    const r0 = kie("plan", "--run", "styled", "--file", file("sp.json", { look: { ...look, styleStill: "look.png" }, shots: [shot("s1", 4)] }));
+    assert.equal(r0.code, 0, r0.err);
+    symlinkSync(join(tmp, "outside.png"), join(env.KIE_RUNS_DIR, "styled", "look.png"));
+    // No key anywhere, so nothing could reach a provider even before the refusal.
+    const r = spawnSync(process.execPath, [KIE, "still", "--run", "styled", "--shot", "s1", "--dry-run"], { env: { ...env, HOME: tmp, KIE_API_KEY: "", WAVESPEED_API_KEY: "" }, encoding: "utf8" });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /outside the folders files may be read from/);
+  });
+
+  test("kie still --no-wait makes only the still that sets the look when none exists yet", () => {
+    // No key anywhere: the one submit is refused locally, after the choice is made.
+    const r = spawnSync(process.execPath, [KIE, "still", "--run", "sea", "--no-wait"], { env: { ...env, HOME: tmp, KIE_API_KEY: "", WAVESPEED_API_KEY: "" }, encoding: "utf8" });
+    assert.match(r.stderr, /s1's still sets the look for the rest, so only it is made now\. Once it lands, run kie still --run sea again for s2\./);
+    assert.equal(r.stderr.match(/No usable route/g)?.length, 1);
   });
 
   test("review and cut work on takes already filmed", async () => {

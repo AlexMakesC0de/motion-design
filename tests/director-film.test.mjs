@@ -111,6 +111,17 @@ describe("filming one shot", () => {
   });
 });
 
+describe("a stale still", () => {
+  test("filming a shot whose still was made before the shot changed is refused, alone or in Film all", async () => {
+    const f = film("stale");
+    const c = ctx(f);
+    for (const id of ["s1", "s2"]) finished(c, f, id, "still", `${id}-still.png`, { stillSha: "made-before-a-change" });
+    await assert.rejects(filmShot(catalog, f, "s1", c), (e) => e.code === EXIT.USAGE && /s1.*remake the still first/.test(e.message));
+    await assert.rejects(filmReady(catalog, f, { ...c, maxUsd: 100 }), (e) => e.code === EXIT.USAGE && /s1, s2.*remake the still first/.test(e.message));
+    assert.equal(c.calls.length, 0);
+  });
+});
+
 describe("one take in flight per shot", () => {
   test("filming a shot again while its take is submitted is refused, naming the job", async () => {
     const f = film("busy");

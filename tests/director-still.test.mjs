@@ -18,7 +18,7 @@ const { openJobs } = await import("../cli/core/jobs.mjs");
 const { openLibrary } = await import("../cli/core/assets.mjs");
 const { saveBrief } = await import("../cli/director/brief.mjs");
 const { savePlan, readPlan } = await import("../cli/director/plan.mjs");
-const { stillWording, makeStill, styleStillFor, makeSheet, adoptSheet, sheetWording } = await import("../cli/director/still.mjs");
+const { stillWording, makeStill, styleStillFor, needsStyleFirst, makeSheet, adoptSheet, sheetWording } = await import("../cli/director/still.mjs");
 const { shotMedia } = await import("../cli/director/media.mjs");
 const { stillFit } = await import("../cli/director/fit.mjs");
 
@@ -73,6 +73,13 @@ describe("still wording", () => {
       ].join("\n"),
     );
     assert.match(w.sha, /^[0-9a-f]{12}$/);
+  });
+
+  test("the hash changes with the film's aspect ratio and the shot's still model", () => {
+    const p = plan();
+    const base = stillWording(p, p.shots[0], { assets, brief }).sha;
+    assert.notEqual(stillWording(p, p.shots[0], { assets, brief: { ...brief, aspectRatio: "9:16" } }).sha, base);
+    assert.notEqual(stillWording(p, { ...p.shots[0], stillModel: "gpt-image-2-5" }, { assets, brief }).sha, base);
   });
 
   test("references add one line and leave the hash alone", () => {
@@ -174,6 +181,13 @@ describe("the media view and the style still", () => {
     assert.deepEqual(r.refMapping, ["@Image1 = s1-still.png"]);
     assert.equal(c.calls.at(-1).input.image_input.length, 1);
     assert.match(c.calls.at(-1).input.prompt, /match the style reference's colour/);
+  });
+
+  test("the style still must be made first when no shot has one and the look names none", () => {
+    const p = { look, shots: [{ id: "s1" }, { id: "s2" }] };
+    assert.equal(needsStyleFirst(p, { s1: { still: null }, s2: { still: null } }), true);
+    assert.equal(needsStyleFirst(p, { s1: { still: null }, s2: { still: "s2-still.png" } }), false);
+    assert.equal(needsStyleFirst({ ...p, look: { ...look, styleStill: "x.png" } }, { s1: { still: null }, s2: { still: null } }), false);
   });
 
   test("look.styleStill wins when set", () => {

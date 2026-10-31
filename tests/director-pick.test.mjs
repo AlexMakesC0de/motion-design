@@ -23,6 +23,13 @@ describe("generated length", () => {
     assert.equal(generatedLength({ durationsS: [5, 10] }, 10), null);
   });
 
+  test("the length comes from the image-to-video route that is submitted, not the model's list", () => {
+    // minimax-h3 lists 3s, but its kie image-to-video route takes 4-15s.
+    const f = shotFit(catalog, "minimax-h3", { plannedS: 2, aspectRatio: "16:9" });
+    assert.equal(f.generatedS, 4);
+    assert.deepEqual(f.problems, []);
+  });
+
   test("shotFit prices the generated length from the still", () => {
     const f = shotFit(catalog, "minimax-h3", { plannedS: 14, aspectRatio: "16:9" });
     assert.equal(f.generatedS, 15);

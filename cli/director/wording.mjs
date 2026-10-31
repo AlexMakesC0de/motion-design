@@ -39,6 +39,10 @@ export function shotWording(catalog, plan, shot, { menu = loadMenu(), assets = [
   let lines;
   switch (profile.family) {
     case "hailuo":
+      // The spec turns Hailuo's prompt optimizer off when a bracket command is
+      // used. No MiniMax route in cli/models.json declares that field, and
+      // buildInput refuses undeclared params, so it is not sent: capture it into
+      // the routes' contracts first, then add it to params here.
       lines = [lookLine, `${move.hailuo ?? sentence(camera)} ${sentence(framing)}`, subjectLine, said, light, noText];
       break;
     case "kling":

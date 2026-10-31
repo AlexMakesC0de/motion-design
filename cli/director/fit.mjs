@@ -1,14 +1,31 @@
-import { resolveModel } from "../lib/models.mjs";
+import { effectiveRoute, resolveModel, routesFor } from "../lib/models.mjs";
 import { planJob } from "../core/views.mjs";
 
 /** Seconds generated beyond the planned length, so the edit can drop a sluggish start. */
 export const PAD_S = 1;
 
-/** The shortest length the model makes that covers the shot plus the pad, or null. */
-export function generatedLength(model, plannedS) {
+/** The lengths the model makes that `call` (a route's input contract) accepts: its range and its listed values. */
+function lengths(model, call) {
+  const range = call?.input?.durationRange;
+  const listed = call?.input?.enums?.duration?.map(Number);
+  return (model.durationsS ?? []).filter((d) => (!range || (d >= range[0] && d <= range[1])) && (!listed || listed.includes(d)));
+}
+
+/**
+ * The shortest length the model makes that covers the shot plus the pad, or
+ * null. With `call`, only lengths that route's contract accepts count.
+ */
+export function generatedLength(model, plannedS, call = null) {
   const want = plannedS + PAD_S;
-  const fits = (model.durationsS ?? []).filter((d) => d >= want).sort((a, b) => a - b);
+  const fits = lengths(model, call).filter((d) => d >= want).sort((a, b) => a - b);
   return fits[0] ?? null;
+}
+
+/** The image-to-video call a take is submitted on first: the first usable route, as planJob prices it. */
+function i2vCall(catalog, model) {
+  const routes = routesFor(catalog, model);
+  const route = routes.find((r) => r.usable) ?? routes[0] ?? null;
+  return route ? effectiveRoute(route, true) : null;
 }
 
 /**
@@ -22,9 +39,10 @@ export function shotFit(catalog, modelId, { plannedS, aspectRatio }) {
   } catch (e) {
     return { model: modelId ?? null, generatedS: null, estimateUsd: null, basis: null, problems: [e.message] };
   }
-  const generatedS = generatedLength(model, plannedS);
+  const call = i2vCall(catalog, model);
+  const generatedS = generatedLength(model, plannedS, call);
   if (generatedS == null) {
-    const longest = Math.max(...(model.durationsS ?? [0]));
+    const longest = Math.max(0, ...lengths(model, call));
     return {
       model: model.id,
       generatedS: null,

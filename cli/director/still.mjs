@@ -26,7 +26,8 @@ const lower = (s) => (s ? `${s[0].toLowerCase()}${s.slice(1)}` : s);
  * The still is the shot's first frame, so it is worded as a photograph of the
  * moment the action starts: the look, the framing from the menu, the cast in
  * their Library words, the light. `sha` hashes everything but the references
- * line, so the storyboard can tell a still made before the shot changed.
+ * line, plus the film's aspect ratio and the shot's still model, so the
+ * storyboard can tell a still made before the shot changed.
  */
 export function stillWording(plan, shot, { assets = [], brief = null, menu = loadMenu(), withRefs = false } = {}) {
   const look = plan.look ?? {};
@@ -41,7 +42,9 @@ export function stillWording(plan, shot, { assets = [], brief = null, menu = loa
     `Light: ${lower(trim(pick("lights", shot.light).words))}, key light from the ${shot.keyLightSide ?? look.keyLightSide}.`,
     "No text, captions, logos or watermarks.",
   ].filter(Boolean);
-  const sha = createHash("sha256").update(lines.join("\n")).digest("hex").slice(0, 12);
+  // The ratio and the still model change the frame as surely as the words do.
+  const made = [...lines, `aspect ratio: ${brief?.aspectRatio ?? "none"}`, `still model: ${shot.stillModel ?? "none"}`];
+  const sha = createHash("sha256").update(made.join("\n")).digest("hex").slice(0, 12);
   if (withRefs) lines.splice(lines.length - 1, 0, REFS_LINE);
   return { prompt: lines.join("\n"), sha };
 }
@@ -62,6 +65,13 @@ export function styleStillFor(plan, shotId, media) {
   }
   return null;
 }
+
+/**
+ * Whether the still that sets the look has yet to be made: the look names no
+ * style still and no shot has one. Then the first still must land before the
+ * others are made, or they go without a style reference.
+ */
+export const needsStyleFirst = (plan, media) => typeof plan.look?.styleStill !== "string" && !plan.shots.some((s) => media?.[s.id]?.still);
 
 /** The plan, brief and shot, refused unless the plan passes the checker: no paid step starts from a broken plan. */
 export function soundShot(catalog, film, shotId, { library, menu = loadMenu() }) {

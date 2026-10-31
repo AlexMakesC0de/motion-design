@@ -56,6 +56,13 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
     if (!library.has(c?.asset)) err(null, "unknown-cast", `look.cast names "${c?.asset}", which is not in the Library. Save it first or remove it.`);
   }
 
+  if (look.styleStill != null) {
+    const v = look.styleStill;
+    const parts = typeof v === "string" ? v.split("/") : [];
+    const inside = typeof v === "string" && v.trim() !== "" && !v.includes("\\") && !/^[a-z][a-z0-9+.-]*:/i.test(v) && parts.every((x) => x !== "" && !x.startsWith("."));
+    if (!inside) err(null, "style-still", `look.styleStill must name a file inside the film folder, such as s1-still.png: no "..", no absolute path, no hidden folder, no address.`);
+  }
+
   const lookOk = errors.length === 0;
   const shots = Array.isArray(plan.shots) ? plan.shots : [];
   if (!shots.length) err(null, "shape", "The plan has no shots.");

@@ -27,6 +27,9 @@ const continuesFrom = (plan, id) => {
   return i > 0 && plan.shots[i - 1].cut === "continuous" ? plan.shots[i - 1] : null;
 };
 
+/** Whether the still a shot uses was made from an older version of the shot. */
+const staleStill = (media, id) => Boolean(media[id]?.stills.find((x) => x.file === media[id].still)?.stale);
+
 /** The shot's newest take that has not settled (being sent, submitted, or uncertain), or null. */
 const takeInFlight = (store, film, shotId) =>
   store.list().filter((j) => j.run === film && j.shot === shotId && j.stage === "take" && UNSETTLED.has(j.state)).at(-1) ?? null;
@@ -66,6 +69,7 @@ export async function filmShot(catalog, film, shotId, ctx) {
   } else {
     frame = media[shot.id]?.still;
     if (!frame) throw usage(`${shot.id} has no still yet. Make one first (kie still, or make_still): the still is the shot's first frame.`);
+    if (staleStill(media, shot.id)) throw usage(`${shot.id}'s still ${frame} was made before the shot last changed (its words, the film's aspect ratio or its still model): remake the still first.`);
   }
 
   const fit = shotFit(catalog, shot.model, { plannedS: shot.durationS, aspectRatio: brief?.aspectRatio });
@@ -164,6 +168,8 @@ export async function filmReady(catalog, film, ctx) {
   const todo = rows.filter((r) => r.is === "todo");
   const noStill = todo.filter((r) => !continuesFrom(plan, r.shot.id) && !media[r.shot.id].still).map((r) => r.shot.id);
   if (noStill.length) throw usage(`Every shot needs its still before filming: ${noStill.join(", ")} ${noStill.length === 1 ? "has" : "have"} none. Make them (kie still, or make_still) and look at the storyboard first.`);
+  const stale = todo.filter((r) => !continuesFrom(plan, r.shot.id) && staleStill(media, r.shot.id)).map((r) => r.shot.id);
+  if (stale.length) throw usage(`${stale.join(", ")} changed after ${stale.length === 1 ? "its still was" : "their stills were"} made: remake the still first (kie still, or make_still). Nothing was submitted.`);
 
   const price = new Map(todo.map((r) => [r.shot.id, shotFit(catalog, r.shot.model, { plannedS: r.shot.durationS, aspectRatio: brief?.aspectRatio })]));
   const remainingUsd = r2(todo.reduce((t, r) => t + (price.get(r.shot.id).estimateUsd ?? 0), 0));

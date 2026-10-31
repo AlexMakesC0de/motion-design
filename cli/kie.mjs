@@ -23,7 +23,7 @@ import { readLimits, setDailyLimit, setPerJobLimit, limitsPath, dailyPosition } 
 import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { openLibrary, KINDS } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
-import { checkLocalFile } from "./core/inputs.mjs";
+import { allowedRoots, checkLocalFile } from "./core/inputs.mjs";
 import { doctor } from "./core/views.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
 import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
@@ -40,7 +40,8 @@ import { costPlan } from "./director/cost.mjs";
 import { suggestModel, suggestStillModel } from "./director/pick.mjs";
 import { shotWording } from "./director/wording.mjs";
 import { briefLines, planLines } from "./director/show.mjs";
-import { makeStill, makeSheet, adoptSheet } from "./director/still.mjs";
+import { makeStill, makeSheet, adoptSheet, needsStyleFirst } from "./director/still.mjs";
+import { shotMedia } from "./director/media.mjs";
 import { filmShot, filmReady } from "./director/film.mjs";
 import { reviewShot, saveReview } from "./director/review.mjs";
 import { cutFilm } from "./director/cut.mjs";
@@ -1057,9 +1058,12 @@ function cmdPlan(catalog, args) {
 
 function directorCtx(catalog, args) {
   warnIfStale(catalog);
+  const limits = readLimits();
   return {
     store: openJobs(),
-    limits: readLimits(),
+    limits,
+    // Files the director reads from a plan (style still, first frames) stay inside runs/, library/ and allowRoots.
+    roots: allowedRoots(limits),
     library: openLibrary(),
     upload: (path, opts) => uploadFile(catalog, path, opts),
     via: "cli",
@@ -1117,6 +1121,14 @@ async function cmdStill(catalog, args) {
     if (!ids.length) return say("Every shot has its still. Name one with --shot to make another."), EXIT.OK;
   }
   // One at a time, waiting between: the first still becomes the style reference for the rest.
+  // Not waiting, the rest would be made before it lands, without it: make it alone.
+  if (args["no-wait"] && !args["dry-run"] && ids.length > 1) {
+    const plan = readPlan(args.run);
+    if (needsStyleFirst(plan, shotMedia(c.store, args.run, plan, { assets: c.library.list(), brief: readBrief(args.run) }))) {
+      warn(`! ${ids[0]}'s still sets the look for the rest, so only it is made now. Once it lands, run kie still --run ${args.run} again for ${ids.slice(1).join(", ")}.`);
+      ids = ids.slice(0, 1);
+    }
+  }
   for (const id of ids) {
     const r = await makeStill(catalog, args.run, id, c);
     say(`${r.shot} still on ${r.model}${r.style ? ` · style from ${r.style}` : ""}`);
