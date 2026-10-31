@@ -274,6 +274,11 @@ export function Storyboard({ film, board, error, apply, onPlan }: { film: string
         )}
         <div className="go__actions">
           <AutoRedo film={film} board={board} apply={apply} />
+          {working && (
+            <button type="button" className="button" disabled={busy} onClick={() => act(`${base}/stop`, {})}>
+              Stop
+            </button>
+          )}
           {left.stills.length > 0 && (
             <button type="button" className="button" disabled={busy || blocked || working} onClick={() => act(`${base}/stills`, {})}>
               Make {plural(left.stills.length, "still")} <span className="mono">{usd(left.stillsUsd)}</span>

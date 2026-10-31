@@ -220,7 +220,8 @@ cross-fade (0.5 s and 0.25 s); every other cut is a hard cut; a last shot cut
 last shot with a hard cut; `--music` and `--vo` go through the same mix as
 `kie assemble`. A bare file name is looked for in the run folder first. A shot
 with on-screen copy gets a note: the cut does not draw text, so render it
-with `kie render`. `cut.json` records the segments, joins and notes.
+with `kie render`. A take judged redo, or not yet reviewed, is still cut but
+named in a note. `cut.json` records the segments, joins and notes.
 
 ### MCP server
 

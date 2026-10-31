@@ -121,6 +121,21 @@ describe("Storyboard", () => {
     expect(sent("/api/films/zed/film")[0].body).toEqual({ max_usd: 1.41 });
   });
 
+  test("while the queue is working, Stop halts it", async () => {
+    const apply = vi.fn();
+    const working = board({ queue: { kind: "stills", waiting: ["s2"], maxUsd: null, stopped: null } });
+    stub({ "/api/films/zed/stop": () => ({ board: board() }) });
+    render(<Storyboard film="zed" board={working} error={null} apply={apply} onPlan={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(apply).toHaveBeenCalled());
+    expect(sent("/api/films/zed/stop")).toHaveLength(1);
+  });
+
+  test("with nothing queued there is no Stop", () => {
+    render(<Storyboard film="zed" board={board()} error={null} apply={() => {}} onPlan={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  });
+
   test("a plan with errors cannot spend", () => {
     render(<Storyboard film="zed" board={board({ check: { errors: [{ shot: "s1", rule: "r", message: "s1 crosses the line" }], warnings: [] } })} error={null} apply={() => {}} onPlan={() => {}} />);
     expect(screen.getByRole("button", { name: /^Make 2 stills/ })).toBeDisabled();

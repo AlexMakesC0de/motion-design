@@ -219,6 +219,16 @@ export function registerDirector(router, { catalog, deps = {}, follower, tasks, 
     return { ...r, board: view(params.slug) };
   });
 
+  /** Stop: the queue sends nothing more. Jobs already sent cannot be called back; a new Make stills or Film all starts again. */
+  router.post("/api/films/:slug/stop", ({ params }) =>
+    serial(params.slug, () => {
+      const q = queues.get(params.slug);
+      if (!q || q.stopped) throw usage("Nothing is queued for this film.");
+      queues.set(params.slug, { ...q, stopped: { shot: null, message: "You stopped it. What was already sent keeps going and is paid for." } });
+      return { board: view(params.slug) };
+    }),
+  );
+
   /** One shot filmed again, or for the first time. */
   router.post("/api/films/:slug/shots/:id/take", async ({ params }) => {
     const r = await filmShot(catalog, params.slug, params.id, making());

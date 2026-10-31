@@ -25,7 +25,8 @@ The **Storyboard** button above the feed switches a film from its takes to its s
 - **Auto-redo:** off by default. **Auto-redo off** asks for the most all the takes may cost, redos included; then a take judged redo is filmed again on its own, twice at most per shot, within that total. **Turn off** switches it back.
 - **Make N stills:** makes every missing still. When no still sets the look yet, only the first is made and the rest follow once it lands, so they match it.
 - **Film all N:** disabled until every shot has a still. It shows the price of what is left, then asks "Film N shots for up to $X?". Confirming agrees that total: only those shots are filmed, each at no more than its price then. Shots that continue from another start once its take lands. If a shot is added or gets pricier, or a take is refused, the queue stops and says why; pressing **Film all** again agrees the new total.
-- **Cut the film:** appears once every shot has a take. It trims, joins and fades the takes into `film.mp4` (free) and plays it under the storyboard.
+- **Stop:** shows while stills or takes are queued. The queue sends nothing more; what was already sent keeps going and is paid for. **Make stills** or **Film all** starts again.
+- **Cut the film:** appears once every shot has a take. It trims, joins and fades the takes into `film.mp4` (free) and plays it under the storyboard. It names any take judged redo or not yet reviewed, so a rough cut is not mistaken for the finished film.
 
 The chat (see below) works on the same film: it can save the brief and plan, make stills, film and review, and the page updates as it does. It films only when you ask and uses the total you state; it cannot switch auto-redo on.
 

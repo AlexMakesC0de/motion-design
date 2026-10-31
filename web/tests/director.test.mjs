@@ -237,6 +237,41 @@ describe("the storyboard API", { skip: !hasFfmpeg && "needs ffmpeg" }, () => {
     }
   });
 
+  test("Stop halts the queue: what was sent keeps going, nothing new is sent", async () => {
+    let r = await send("POST", "/api/films/cove/stop", {});
+    assert.equal(r.status, 400);
+    assert.match(r.text, /Nothing is queued/);
+    await send("PUT", "/api/films/cove/brief", { brief });
+    r = await send("PUT", "/api/films/cove/plan", { plan: { look, shots: [shot("s1", 2), shot("s2", 3, { size: "medium" })] } });
+    assert.equal(r.status, 200, r.text);
+
+    const realWait = generate.waitForTask;
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    generate.waitForTask = async (...a) => (await held, realWait(...a));
+    try {
+      const before = calls.create.length;
+      r = await send("POST", "/api/films/cove/stills", {});
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json.board.queue.waiting, ["s2"]);
+      r = await send("POST", "/api/films/cove/stop", {});
+      assert.equal(r.status, 200, r.text);
+      assert.match(r.json.board.queue.stopped.message, /You stopped it\. What was already sent keeps going and is paid for\./);
+      release();
+      await settle("cove");
+      assert.equal(calls.create.length, before + 1, "s2's still was not made");
+      const b = (await get("/api/films/cove/board")).json;
+      assert.deepEqual(b.shots.map((s) => s.still), ["s1-still.png", null]);
+      assert.ok(b.queue.stopped, "the stop stays for the page");
+    } finally {
+      generate.waitForTask = realWait;
+    }
+    r = await send("POST", "/api/films/cove/stills", {});
+    assert.equal(r.status, 200, "a new Make stills starts again");
+    await settle("cove");
+    assert.equal((await get("/api/films/cove/board")).json.shots[1].still, "s2-still.png");
+  });
+
   test("the queue films only what the button agreed: a shot made pricier mid-queue stops it", async () => {
     const chain = { look, shots: [shot("s1", 2), shot("s2", 1.5, { size: "medium", cut: "continuous" }), shot("s3", 1.5, { size: "close-up", lens: "85mm", model: "seedance-2-fast" })] };
     let r = await send("PUT", "/api/films/quay/brief", { brief });
