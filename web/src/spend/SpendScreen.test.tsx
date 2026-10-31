@@ -92,6 +92,17 @@ describe("SpendScreen", () => {
     expect(within(row).getByRole("link", { name: "zed" })).toHaveAttribute("href", "#/films/zed");
   });
 
+  test("each wide table scrolls inside its own focusable box, so the page never scrolls sideways", async () => {
+    setup();
+    await waitFor(() => expect(rows()).toHaveLength(4));
+    const box = screen.getByRole("region", { name: "Jobs table, scrolls sideways" });
+    expect(box).toHaveAttribute("tabindex", "0");
+    expect(within(box).getByRole("table", { name: "Jobs" })).toBeInTheDocument();
+    const days = screen.getByRole("region", { name: "Spend per day table, scrolls sideways" });
+    expect(days).toHaveAttribute("tabindex", "0");
+    expect(within(days).getByRole("table", { name: "Spend per day" })).toBeInTheDocument();
+  });
+
   test("filters the jobs by film, and by day from the filter or a bar", async () => {
     setup();
     await waitFor(() => expect(rows()).toHaveLength(4));

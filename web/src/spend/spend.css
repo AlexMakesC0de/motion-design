@@ -39,6 +39,7 @@
 }
 .spend-chart__tip strong { color: var(--text); font-size: var(--text-sm); }
 .spend-chart__tip span { color: var(--text-2); font-size: var(--text-xs); }
+.table-scroll { max-width: 100%; overflow-x: auto; }
 .spend-chart__table summary { color: var(--text-2); font-size: var(--text-xs); cursor: pointer; }
 .spend-chart__table table { margin-top: var(--space-2); border-collapse: collapse; font-size: var(--text-xs); }
 .spend-chart__table th, .spend-chart__table td { padding: 2px var(--space-3) 2px 0; text-align: left; }
@@ -62,6 +63,9 @@
 .jobs__table a { color: var(--text); }
 .jobs__cost { color: var(--accent); }
 .jobs__source { color: var(--text-2); }
+/* Compact, so the row with a Check again button is no taller than the rest. The ::after keeps a row-high hit area. */
+.jobs__table .jobs__check { position: relative; padding: 0 var(--space-2); border: 0; line-height: inherit; }
+.jobs__table .jobs__check::after { content: ""; position: absolute; inset: calc(-1 * var(--space-1)) 0; }
 .jobs__state { color: var(--text-2); font-size: var(--text-xs); }
 tr[data-state="uncertain"] .jobs__state, tr[data-state="failed-unconfirmed"] .jobs__state { color: var(--warn); }
 tr[data-state="failed-charged"] .jobs__state { color: var(--bad-ink); }
@@ -73,5 +77,4 @@ tr[data-state="failed-charged"] .jobs__state { color: var(--bad-ink); }
 
 @media (max-width: 900px) {
   .spend__top { grid-template-columns: minmax(0, 1fr); }
-  .jobs__table { display: block; overflow-x: auto; }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
 import type { CheckResult, JobView, SpendView } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
@@ -21,6 +21,18 @@ export function resolveCommands(message: string): string[] {
 
 const time = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const CHECKABLE = new Set(["submitted", "uncertain"]);
+
+/**
+ * A table wider than its column scrolls inside this box, so the page itself never scrolls sideways.
+ * Focusable, so a keyboard user can scroll it with the arrow keys.
+ */
+function ScrollTable({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
+      {children}
+    </div>
+  );
+}
 
 function Today({ spend }: { spend: SpendView }) {
   const share = spend.capUsd > 0 ? Math.min(1, spend.spentUsd / spend.capUsd) : 1;
@@ -94,22 +106,24 @@ function DayChart({ days, picked, onPick }: { days: SpendView["days"]; picked: s
       </div>
       <details className="spend-chart__table">
         <summary>Show as a table</summary>
-        <table aria-label="Spend per day">
-          <thead>
-            <tr>
-              <th scope="col">Day</th>
-              <th scope="col">Spent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((d) => (
-              <tr key={d.day}>
-                <td className="mono">{d.day}</td>
-                <td className="mono">{usd(d.usd)}</td>
+        <ScrollTable label="Spend per day table, scrolls sideways">
+          <table aria-label="Spend per day">
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">Spent</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {days.map((d) => (
+                <tr key={d.day}>
+                  <td className="mono">{d.day}</td>
+                  <td className="mono">{usd(d.usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollTable>
       </details>
     </section>
   );
@@ -170,7 +184,7 @@ function JobRow({ job }: { job: JobView }) {
         </td>
         <td>
           {canCheck && (
-            <button type="button" className="button button--quiet" disabled={checking} onClick={check}>
+            <button type="button" className="button button--quiet jobs__check" disabled={checking} onClick={check}>
               Check again
             </button>
           )}
@@ -258,24 +272,26 @@ export function SpendScreen() {
             {error}
           </p>
         )}
-        <table className="jobs__table" aria-label="Jobs">
-          <thead>
-            <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Model</th>
-              <th scope="col">Cost</th>
-              <th scope="col">Cost source</th>
-              <th scope="col">State</th>
-              <th scope="col">Film</th>
-              <th scope="col" aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((j) => (
-              <JobRow key={j.id} job={j} />
-            ))}
-          </tbody>
-        </table>
+        <ScrollTable label="Jobs table, scrolls sideways">
+          <table className="jobs__table" aria-label="Jobs">
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Model</th>
+                <th scope="col">Cost</th>
+                <th scope="col">Cost source</th>
+                <th scope="col">State</th>
+                <th scope="col">Film</th>
+                <th scope="col" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((j) => (
+                <JobRow key={j.id} job={j} />
+              ))}
+            </tbody>
+          </table>
+        </ScrollTable>
         {!shown.length && !error && <p className="jobs__none">No jobs match.</p>}
       </section>
     </div>
