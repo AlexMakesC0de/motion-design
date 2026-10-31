@@ -9,7 +9,7 @@ A brief is a short, saved description of the film. Fill every field you can, and
 - **takeaway.** One sentence: what the viewer should understand, believe or do afterwards.
 - **audience.** Who watches, and where.
 - **durationS.** Whole seconds.
-- **aspectRatio.** `16:9` for web, presentations and video sites. `9:16` for stories, reels and shorts. `1:1` or `4:5` for feeds. `21:9` for a wide cinematic look.
+- **aspectRatio.** `16:9` for web, presentations and video sites. `9:16` for stories, reels and shorts. `1:1` for feeds (no video model makes 4:5 yet). `21:9` for a wide cinematic look.
 - **tone.** A few plain words: calm, playful, urgent, warm.
 - **mustShow.** The things that have to appear on screen.
 - **copy.** The exact on-screen lines, as given. Never invent a claim, price or number. If there is none and the film needs a headline, propose one and mark it as a proposal for Alex to approve.

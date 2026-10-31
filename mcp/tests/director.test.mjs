@@ -75,6 +75,7 @@ describe("director tools", () => {
     const r = await call(client, "check_plan", { run: "sea", plan: { look, shots: [shot("s1", 4), shot("s2", 6, { screenDirection: "right-to-left" })] } });
     assert.equal(r.isError, undefined, JSON.stringify(r));
     assert.ok(r.structuredContent.errors.some((e) => e.rule === "screen-direction"));
+    assert.deepEqual(r.structuredContent.errors.filter((e) => e.rule === "model-fit"), [], "models are picked before checking");
   });
 
   test("suggest_model gives the pick, its reason and the still model", async () => {

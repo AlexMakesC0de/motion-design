@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { loadMenu, ids, GROUPS } from "../cli/director/menu.mjs";
 import { ASPECTS, MAX_FILM_S, readBrief, saveBrief } from "../cli/director/brief.mjs";
-import { readPlan, savePlan, updateShot, findShot } from "../cli/director/plan.mjs";
+import { readPlan, savePlan, updateShot, findShot, fillSuggestions } from "../cli/director/plan.mjs";
 import { checkPlan } from "../cli/director/check.mjs";
 import { costPlan } from "../cli/director/cost.mjs";
 import { suggestModel, suggestStillModel } from "../cli/director/pick.mjs";
@@ -209,9 +209,12 @@ export function registerDirector(tool, { catalog, ctx }) {
     },
     async (a) => {
       const { library } = ctx();
-      const plan = a.plan ?? readPlan(a.run);
+      const brief = readBrief(a.run);
+      const assets = library.list();
+      // An unsaved plan gets the models saving would give it, so a left-out model is not reported as unfit.
+      const plan = a.plan ? fillSuggestions(catalog, a.plan, { brief, assets, menu }) : readPlan(a.run);
       if (!plan) return ok(`runs/${a.run} has no plan yet.`, { errors: [], warnings: [] });
-      const check = checkPlan(plan, { catalog, brief: readBrief(a.run), assets: library.list(), menu });
+      const check = checkPlan(plan, { catalog, brief, assets, menu });
       return ok(findingLines(check).join("\n"), check);
     },
   );
@@ -240,8 +243,8 @@ export function registerDirector(tool, { catalog, ctx }) {
       const plan = readPlan(a.run);
       const shot = findShot(plan, a.shot);
       const brief = readBrief(a.run);
-      const s = suggestModel(catalog, shot, { brief, menu });
-      const still = suggestStillModel(shot, { brief });
+      const s = suggestModel(catalog, shot, { brief, plan, assets: ctx().library.list(), menu });
+      const still = suggestStillModel(shot, { brief, catalog });
       const data = {
         shot: shot.id,
         model: s.model,

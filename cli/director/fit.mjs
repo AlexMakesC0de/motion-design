@@ -41,7 +41,10 @@ export function shotFit(catalog, modelId, { plannedS, aspectRatio }) {
 export function stillFit(catalog, modelId, { aspectRatio }) {
   try {
     const job = planJob(catalog, { model: modelId, capability: "image", aspectRatio });
-    return { model: job.model.id, estimateUsd: job.est?.usd ?? null, problems: job.problems };
+    const ratios = job.model.aspectRatios ?? [];
+    const problems = [...job.problems];
+    if (aspectRatio && ratios.length && !ratios.includes(aspectRatio)) problems.push(`${job.model.id} makes ${ratios.join(", ")}, not ${aspectRatio}.`);
+    return { model: job.model.id, estimateUsd: job.est?.usd ?? null, problems };
   } catch (e) {
     return { model: modelId ?? null, estimateUsd: null, problems: [e.message] };
   }

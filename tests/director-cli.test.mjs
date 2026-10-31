@@ -63,6 +63,13 @@ describe("kie brief and kie plan", () => {
     assert.equal(j.plan.version, 1);
   });
 
+  test("--file with --json keeps stdout pure JSON", () => {
+    const r = kie("plan", "--run", "sea", "--json", "--file", file("p2.json", { look, shots: [shot("s1", 4), shot("s2", 6, { size: "close-up", lens: "85mm", screenDirection: "none" })] }));
+    assert.equal(r.code, 0, r.err);
+    assert.equal(JSON.parse(r.out).plan.version, 2);
+    assert.match(r.err, /saved runs\/sea\/shots\.json \(v2\)/);
+  });
+
   test("--wording prints each shot's prompt and the params to pass", () => {
     const r = kie("plan", "--run", "sea", "--wording", "--shot", "s1");
     assert.equal(r.code, 0, r.err);

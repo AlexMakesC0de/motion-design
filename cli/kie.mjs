@@ -965,7 +965,7 @@ function cmdBrief(args) {
   if (!args.run) throw usage("kie brief --run SLUG [--file BRIEF.json]");
   if (args.file) {
     saveBrief(args.run, readJsonFile(args.file));
-    say(`saved runs/${args.run}/brief.json`);
+    (args.json ? warn : say)(`saved runs/${args.run}/brief.json`);
   }
   const brief = readBrief(args.run);
   if (args.json) return say(JSON.stringify(brief, null, 2));
@@ -988,7 +988,7 @@ function cmdPlan(catalog, args) {
   const assets = openLibrary().list();
   if (args.file) {
     const { plan } = savePlan(catalog, args.run, readJsonFile(args.file), { assets });
-    say(`saved runs/${args.run}/shots.json (v${plan.version})`);
+    (args.json ? warn : say)(`saved runs/${args.run}/shots.json (v${plan.version})`);
   }
   const brief = readBrief(args.run);
   const plan = readPlan(args.run);
@@ -996,7 +996,11 @@ function cmdPlan(catalog, args) {
   const shots = args.shot.length ? args.shot.map((id) => findShot(plan, id)) : plan.shots;
 
   if (args.suggest) {
-    const out = shots.map((s) => ({ shot: s.id, film: suggestModel(catalog, s, { brief }), still: suggestStillModel(s, { brief }) }));
+    const out = shots.map((s) => ({
+      shot: s.id,
+      film: suggestModel(catalog, s, { brief, plan, assets }),
+      still: suggestStillModel(s, { brief, catalog }),
+    }));
     if (args.json) return say(JSON.stringify(out, null, 2));
     for (const { shot, film, still } of out) {
       say(`${shot}  film: ${film.model ?? "none"}${film.estimateUsd != null ? ` $${film.estimateUsd.toFixed(2)}` : ""}  ${film.reason}`);

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -84,6 +84,22 @@ describe("the plan", () => {
     assert.throws(() => updateShot(catalog, "p1", "s1", { id: "x" }), { code: EXIT.USAGE });
     assert.throws(() => updateShot(catalog, "p1", "s1", { durationS: 20 }), { message: /add up to 26s/ });
     assert.throws(() => updateShot(catalog, "p1", "s9", { durationS: 3 }), { code: EXIT.UNKNOWN, message: /No shot "s9". Shots: s1, s2/ });
+  });
+
+  test("a hand-picked model stays when the length changes, and the picker's old reasons go", () => {
+    const s1 = findShot(readPlan("p1"), "s1");
+    assert.equal(s1.modelReason, undefined, "a named model carries no picker reason");
+    const r = updateShot(catalog, "p1", "s1", { durationS: 4, stillModel: "seedream-5-pro" }, { now });
+    const next = findShot(r.plan, "s1");
+    assert.equal(next.model, "seedance-2");
+    assert.equal(next.stillModel, "seedream-5-pro");
+    assert.equal(next.stillReason, undefined);
+  });
+
+  test("a shots.json that is not JSON can be replaced by saving again", () => {
+    saveBrief("p2", brief, { now });
+    writeFileSync(join(RUNS, "p2", "shots.json"), "{ not json");
+    assert.equal(savePlan(catalog, "p2", plan(), { now }).plan.version, 1);
   });
 });
 

@@ -1,5 +1,6 @@
 import { loadMenu, ids } from "./menu.mjs";
 import { shotFit, stillFit } from "./fit.mjs";
+import { suggestModel } from "./pick.mjs";
 import { shotWording } from "./wording.mjs";
 
 const SHOT_ID = /^[a-z0-9][a-z0-9-]{0,19}$/;
@@ -16,6 +17,16 @@ const FIGURE = /[$€£]\s?\d|\d+(?:[.,]\d+)?\s?%/;
 const WORDS_PER_S = 2.5;
 const OPPOSITE = { "left-to-right": "right-to-left", "right-to-left": "left-to-right" };
 
+/** The picker's reasons for ruling out every rated model, as one trailing sentence list. */
+function whyNoModel(catalog, shot, opts) {
+  try {
+    const { ruledOut } = suggestModel(catalog, shot, opts);
+    return ruledOut.map((r) => ` ${r.why.replace(/[.\s]*$/, ".")}`).join("");
+  } catch {
+    return ""; // an unknown job or length is reported on its own
+  }
+}
+
 const text = (v) => typeof v === "string" && v.trim() !== "";
 const same = (a, b) => text(a) && text(b) && a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -27,8 +38,8 @@ const same = (a, b) => text(a) && text(b) && a.trim().toLowerCase() === b.trim()
 export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loadMenu() }) {
   const errors = [];
   const warnings = [];
-  const err = (shot, rule, message) => errors.push({ shot, rule, message });
-  const warn = (shot, rule, message) => warnings.push({ shot, rule, message });
+  const err = (shot, rule, message) => errors.push({ shot: shot ?? null, rule, message });
+  const warn = (shot, rule, message) => warnings.push({ shot: shot ?? null, rule, message });
   const inMenu = (group, v) => ids(menu, group).includes(v);
   const oneOf = (group) => ids(menu, group).join(", ");
   const library = new Set(assets.map((a) => a.name));
@@ -54,7 +65,7 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
   for (const s of shots) {
     const before = errors.length;
     const id = s?.id;
-    if (!SHOT_ID.test(id ?? "")) err(id ?? null, "shape", `Shot id "${id}" must be short lowercase letters, digits and hyphens, like s1.`);
+    if (typeof id !== "string" || !SHOT_ID.test(id)) err(id ?? null, "shape", `Shot id "${id}" must be short lowercase letters, digits and hyphens, like s1.`);
     else if (seen.has(id)) err(id, "shape", `Two shots are called ${id}.`);
     seen.add(id);
     if (!(typeof s?.durationS === "number" && s.durationS > 0)) err(id, "shape", `${id}: durationS must be a number of seconds above 0.`);
@@ -74,6 +85,7 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
       err(id, "shape", `${id}: checks must be 1 to 3 short pass/fail sentences.`);
     }
     if (s?.copy != null && !(Array.isArray(s.copy) && s.copy.every(text))) err(id, "shape", `${id}: copy must be a list of exact text lines.`);
+    if (s?.cast != null && !(Array.isArray(s.cast) && s.cast.every(text))) err(id, "shape", `${id}: cast must be a list of Library names.`);
     for (const name of Array.isArray(s?.cast) ? s.cast : []) {
       if (!library.has(name)) err(id, "unknown-cast", `${id}: cast names "${name}", which is not in the Library. Save it first or remove it.`);
     }
@@ -86,7 +98,7 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
       err(id, "spoken-line", `${id}: a lip-sync shot needs the line it speaks.`);
     }
     if (!text(s?.model)) {
-      err(id, "model-fit", `${id}: no model fits this shot.`);
+      err(id, "model-fit", `${id}: no model fits this shot.${whyNoModel(catalog, s, { brief, plan, assets, menu })}`);
     } else if (typeof s?.durationS === "number" && s.durationS > 0) {
       for (const p of shotFit(catalog, s.model, { plannedS: s.durationS, aspectRatio: brief?.aspectRatio }).problems) err(id, "model-fit", `${id}: ${p}`);
     }
@@ -120,14 +132,14 @@ export function checkPlan(plan, { catalog, brief = null, assets = [], menu = loa
   for (let i = 1; i < shots.length; i += 1) {
     const a = shots[i - 1];
     const b = shots[i];
-    if (same(a?.subject, b?.subject) && OPPOSITE[a?.screenDirection] === b?.screenDirection && !text(b?.crossesLine)) {
+    if (same(a?.subject, b?.subject) && Object.hasOwn(OPPOSITE, a?.screenDirection ?? "") && OPPOSITE[a.screenDirection] === b?.screenDirection && !text(b?.crossesLine)) {
       err(b?.id ?? null, "screen-direction", `${b?.id}: ${b.subject} travels ${b.screenDirection.replace(/-/g, " ")} after ${a.screenDirection.replace(/-/g, " ")} in ${a.id}, which crosses the line. Keep the direction, or say why in crossesLine.`);
     }
     if (same(a?.subject, b?.subject) && a?.size === b?.size && a?.angle === b?.angle && !["continuous", "jump"].includes(a?.cut)) {
       warn(b?.id ?? null, "jump-cut", `${b?.id}: same subject, size and angle as ${a?.id}, which reads as a jump cut. Change the size or the angle.`);
     }
     if (i >= 2 && shots[i - 2]?.size === a?.size && a?.size === b?.size) {
-      warn(b?.id ?? null, "same-size-run", `${b?.id}: three ${b.size} shots in a row. Vary the size to give the cut somewhere to go.`);
+      warn(b?.id ?? null, "same-size-run", `${b?.id}: three ${b?.size} shots in a row. Vary the size to give the cut somewhere to go.`);
     }
   }
   if (shots.length && shots.at(-1)?.cut === "continuous") {

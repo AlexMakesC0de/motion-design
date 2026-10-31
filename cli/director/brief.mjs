@@ -3,7 +3,7 @@ import { loadMenu, ids } from "./menu.mjs";
 import { readFilmJson, writeFilmJson } from "./files.mjs";
 
 /** The frame shapes a film can be cut in. */
-export const ASPECTS = ["16:9", "9:16", "1:1", "4:5", "21:9"];
+export const ASPECTS = ["16:9", "9:16", "1:1", "21:9"];
 export const MAX_FILM_S = 120;
 const KEYS = new Set(["takeaway", "audience", "durationS", "aspectRatio", "tone", "mustShow", "copy", "sound", "filmType"]);
 const SOUND_KEYS = new Set(["music", "voice", "sfx"]);

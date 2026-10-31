@@ -18,22 +18,23 @@ export function findShot(plan, id) {
  * suggested one and its reason; a shot without a still model gets one by film
  * type. A model the director or Alex chose is never replaced.
  */
-export function fillSuggestions(catalog, plan, { brief, menu = loadMenu() }) {
+export function fillSuggestions(catalog, plan, { brief, assets = [], menu = loadMenu() }) {
+  if (!Array.isArray(plan?.shots)) return plan;
   return {
     ...plan,
-    shots: (plan.shots ?? []).map((s) => {
+    shots: plan.shots.map((s) => {
       if (!s || typeof s !== "object") return s;
       const out = { ...s };
       if (!out.model && typeof out.job === "string" && typeof out.durationS === "number") {
         try {
-          const sug = suggestModel(catalog, out, { brief, menu });
+          const sug = suggestModel(catalog, out, { brief, plan, assets, menu });
           if (sug.model) Object.assign(out, { model: sug.model, modelReason: sug.reason });
         } catch {
           // an unknown job is reported by the checker
         }
       }
       if (!out.stillModel) {
-        const st = suggestStillModel(out, { brief });
+        const st = suggestStillModel(out, { brief, catalog });
         Object.assign(out, { stillModel: st.model, stillReason: st.reason });
       }
       return out;
@@ -50,12 +51,13 @@ export function savePlan(catalog, film, plan, { assets = [], menu = loadMenu(), 
   const brief = readBrief(film);
   if (!brief) throw usage(`runs/${film} has no brief yet. Save the brief first (kie brief, or save_brief).`);
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) throw usage("The plan must be an object with look and shots.");
-  const filled = fillSuggestions(catalog, plan, { brief, menu });
+  const filled = fillSuggestions(catalog, plan, { brief, assets, menu });
   const check = checkPlan(filled, { catalog, brief, assets, menu });
   if (check.errors.length) {
     throw usage(`The plan was not saved:\n- ${check.errors.map((e) => e.message).join("\n- ")}`, { errors: check.errors, warnings: check.warnings });
   }
-  const prev = readPlan(film);
+  // A shots.json that no longer parses is replaced, as its error message promises.
+  const prev = readFilmJson(film, "shots.json", { ifInvalid: null });
   const saved = { ...filled, version: (prev?.version ?? 0) + 1 };
   writeFilmJson(film, "shots.json", saved, { now });
   return { plan: saved, check };
@@ -64,7 +66,8 @@ export function savePlan(catalog, film, plan, { assets = [], menu = loadMenu(), 
 /**
  * Change some fields of one shot and save the whole plan through savePlan,
  * so an edit that breaks the plan is refused like any other. Changing the
- * job or the length without naming a model asks the picker again.
+ * job or the length asks the picker again, unless somebody named the model. A
+ * model or still model named by hand drops the picker's reason for the old one.
  */
 export function updateShot(catalog, film, id, changes, opts = {}) {
   const plan = readPlan(film);
@@ -72,7 +75,7 @@ export function updateShot(catalog, film, id, changes, opts = {}) {
   if (!changes || typeof changes !== "object" || Array.isArray(changes)) throw usage("changes must be an object of shot fields.");
   if ("id" in changes && changes.id !== id) throw usage("A shot's id cannot change; delete and add it in a new plan instead.");
   findShot(plan, id);
-  const repick = ("job" in changes || "durationS" in changes) && !("model" in changes);
+  const repick = ("job" in changes || "durationS" in changes) && !("model" in changes) && Boolean(findShot(plan, id).modelReason);
   const shots = plan.shots.map((s) => {
     if (s.id !== id) return s;
     const next = { ...s, ...changes };
@@ -80,6 +83,8 @@ export function updateShot(catalog, film, id, changes, opts = {}) {
       delete next.model;
       delete next.modelReason;
     }
+    if ("model" in changes && !("modelReason" in changes)) delete next.modelReason;
+    if ("stillModel" in changes && !("stillReason" in changes)) delete next.stillReason;
     // A still model the picker chose follows the job; one somebody named stays.
     if ("job" in changes && !("stillModel" in changes) && s.stillReason) {
       delete next.stillModel;

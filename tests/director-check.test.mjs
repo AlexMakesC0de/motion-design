@@ -247,3 +247,39 @@ describe("warnings", () => {
     assert.deepEqual(check(p).errors, []);
   });
 });
+
+describe("odd input is reported, never thrown", () => {
+  const errs = (plan, b) => check(plan, b).errors;
+
+  test("consecutive shots of one subject with no screen direction", () => {
+    const p = good();
+    delete p.shots[0].screenDirection;
+    delete p.shots[1].screenDirection;
+    assert.deepEqual(rules(errs(p)), ["menu", "menu"]);
+  });
+
+  test("a shot id that is not a string", () => {
+    const p = good();
+    p.shots[0].id = 1;
+    assert.match(errs(p)[0].message, /^Shot id "1" must be short lowercase/);
+  });
+
+  test("cast that is not a list", () => {
+    const p = good();
+    p.shots[0].cast = "mara";
+    assert.deepEqual(errs(p).map((x) => x.message), ["s1: cast must be a list of Library names."]);
+  });
+
+  test("a shot with no model says why every rated model was ruled out", () => {
+    const p = { look, shots: [shot("s1", 40, { model: undefined, size: "medium" })] };
+    const e = errs(p, { ...brief, durationS: 40 });
+    assert.deepEqual(rules(e), ["model-fit"]);
+    assert.match(e[0].message, /^s1: no model fits this shot\. seedance-2-5 makes at most \d+s; this shot needs 41s including the 1s trim margin\./);
+  });
+
+  test("a still model without the film's aspect ratio", () => {
+    const p = good();
+    const e = errs(p, { ...brief, aspectRatio: "21:9" });
+    assert.ok(e.some((x) => x.message === "s1: still: nano-banana-2 makes 16:9, 9:16, 1:1, 4:3, not 21:9."), JSON.stringify(e));
+  });
+});

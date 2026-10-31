@@ -66,7 +66,7 @@ describe("the brief", () => {
       'The brief has no field "extra". Fields: takeaway, audience, durationS, aspectRatio, tone, mustShow, copy, sound, filmType.',
       "takeaway is missing: the one thing the viewer should leave with.",
       "durationS must be whole seconds from 1 to 120.",
-      "aspectRatio must be one of: 16:9, 9:16, 1:1, 4:5, 21:9.",
+      "aspectRatio must be one of: 16:9, 9:16, 1:1, 21:9.",
       "filmType must be one of: product-ui, live-action, character, product-hero.",
       "tone must be a sentence, or left out.",
       "mustShow must be a list of short lines.",

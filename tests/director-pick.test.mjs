@@ -89,3 +89,26 @@ describe("suggestStillModel", () => {
     assert.equal(suggestStillModel(shot("cinematic"), {}).model, "gpt-image-2-5");
   });
 });
+
+describe("fit beyond length and ratio", () => {
+  const full = { id: "s1", durationS: 4, purpose: "p", subject: "x", action: "A phone turns", why: "w", size: "close-up", angle: "eye-level",
+    lens: "50mm", depth: "shallow", move: { type: "push-in", speed: "slow" }, light: "soft-high-key", cut: "hard", job: "motion-graphics",
+    screenDirection: "none", checks: ["ok"] };
+  const plan = { look: { palette: "white", grade: "clean", filmLook: "digital", lensFamily: "spherical", keyLightSide: "left" }, shots: [full] };
+
+  test("a model whose prompt limit the wording passes is ruled out", () => {
+    const cat = withModels({ "minimax-h3": { promptProfile: { family: "hailuo", maxChars: 50, audioOff: null } } });
+    const s = suggestModel(cat, full, { brief, plan });
+    assert.notEqual(s.model, "minimax-h3");
+    assert.match(s.ruledOut.find((r) => r.model === "minimax-h3").why, /^The wording is \d+ characters; minimax-h3 follows at most 50/);
+  });
+
+  test("the still model falls back when the film type's model lacks the ratio", () => {
+    const wide = { ...brief, aspectRatio: "21:9" };
+    assert.deepEqual(suggestStillModel(shot("cinematic"), { brief: wide, catalog }), {
+      model: "gpt-image-2-5",
+      reason: "Nano Banana 2 makes no 21:9 stills, so GPT Image 2.5, which does.",
+    });
+    assert.equal(suggestStillModel(shot("cinematic"), { brief, catalog }).model, "nano-banana-2");
+  });
+});

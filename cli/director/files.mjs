@@ -29,12 +29,13 @@ export function filmFile(film, name, { create = false } = {}) {
 }
 
 /** The parsed file, or null when the film or the file does not exist yet. A file that is not JSON is an error. */
-export function readFilmJson(film, name) {
+export function readFilmJson(film, name, { ifInvalid } = {}) {
   const file = filmFile(film, name);
   if (!existsSync(file)) return null;
   try {
     return JSON.parse(readFileSync(file, "utf8"));
   } catch {
+    if (ifInvalid !== undefined) return ifInvalid;
     throw unknown(`runs/${film}/${name} is not valid JSON. Fix it by hand or save it again.`);
   }
 }
