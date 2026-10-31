@@ -32,6 +32,14 @@ import { assemble } from "./lib/assemble.mjs";
 import { burnCaptions } from "./lib/caption.mjs";
 import { makeVariants, captionOrderWarning } from "./lib/variants.mjs";
 import { render, TEMPLATES, BRAND_DIR } from "./lib/render.mjs";
+import { loadMenu, GROUPS } from "./director/menu.mjs";
+import { readBrief, saveBrief } from "./director/brief.mjs";
+import { readPlan, savePlan, findShot } from "./director/plan.mjs";
+import { checkPlan } from "./director/check.mjs";
+import { costPlan } from "./director/cost.mjs";
+import { suggestModel, suggestStillModel } from "./director/pick.mjs";
+import { shotWording } from "./director/wording.mjs";
+import { briefLines, planLines } from "./director/show.mjs";
 
 const HELP = `kie -- motion-design execution layer
 
@@ -55,6 +63,14 @@ const HELP = `kie -- motion-design execution layer
   kie audio      --run SLUG (--music "..." | --tts-file F) [--model M]
                  [--voice V] [--budget U]
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
+
+Director (planning only — free):
+  kie brief      --run SLUG [--file BRIEF.json]          show the brief, or check and save one
+  kie plan       --run SLUG [--json]                     the shot plan, the checker and the cost
+  kie plan       --run SLUG --file PLAN.json             check and save a plan (refused with reasons)
+  kie plan       --run SLUG --suggest [--shot ID]        the model picker's choice and why
+  kie plan       --run SLUG --wording [--shot ID]        each shot's prompt, worded for its model
+  kie plan       --menu [--json]                         every size, angle, lens, move, light and cut
 
   kie job        <local job id>            wait for a job and download it
   kie job resolve <local job id> (--task ID | --not-created)
@@ -140,6 +156,10 @@ const OPTS = {
   task: { type: "string" },
   "not-created": { type: "boolean", default: false },
   "dry-run": { type: "boolean", default: false },
+  file: { type: "string" },
+  menu: { type: "boolean", default: false },
+  suggest: { type: "boolean", default: false },
+  wording: { type: "boolean", default: false },
   help: { type: "boolean", default: false },
 };
 
@@ -924,6 +944,86 @@ async function cmdVariants(args) {
 
 // ----------------------------------------- graphic motion (code-rendered)
 
+// --------------------------------------------------------------- director
+
+function readJsonFile(path) {
+  if (!path) return null;
+  let text;
+  try {
+    text = readFileSync(resolve(path), "utf8");
+  } catch {
+    throw usage(`Cannot read ${path}.`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw usage(`${path} is not valid JSON: ${e.message}`);
+  }
+}
+
+function cmdBrief(args) {
+  if (!args.run) throw usage("kie brief --run SLUG [--file BRIEF.json]");
+  if (args.file) {
+    saveBrief(args.run, readJsonFile(args.file));
+    say(`saved runs/${args.run}/brief.json`);
+  }
+  const brief = readBrief(args.run);
+  if (args.json) return say(JSON.stringify(brief, null, 2));
+  for (const line of briefLines(brief)) say(line);
+  if (!brief) say(`Write one: kie brief --run ${args.run} --file brief.json`);
+}
+
+function cmdMenu(args) {
+  const menu = loadMenu();
+  if (args.json) return say(JSON.stringify(menu, null, 2));
+  for (const group of GROUPS) {
+    say(`\n${group}`);
+    for (const e of menu[group]) say(`  ${e.id.padEnd(18)} ${e.when}`);
+  }
+}
+
+function cmdPlan(catalog, args) {
+  if (args.menu) return cmdMenu(args);
+  if (!args.run) throw usage("kie plan --run SLUG [--file PLAN.json | --suggest | --wording] [--shot ID]   or   kie plan --menu");
+  const assets = openLibrary().list();
+  if (args.file) {
+    const { plan } = savePlan(catalog, args.run, readJsonFile(args.file), { assets });
+    say(`saved runs/${args.run}/shots.json (v${plan.version})`);
+  }
+  const brief = readBrief(args.run);
+  const plan = readPlan(args.run);
+  if (!plan) throw usage(`runs/${args.run} has no plan yet. Save one: kie plan --run ${args.run} --file plan.json`);
+  const shots = args.shot.length ? args.shot.map((id) => findShot(plan, id)) : plan.shots;
+
+  if (args.suggest) {
+    const out = shots.map((s) => ({ shot: s.id, film: suggestModel(catalog, s, { brief }), still: suggestStillModel(s, { brief }) }));
+    if (args.json) return say(JSON.stringify(out, null, 2));
+    for (const { shot, film, still } of out) {
+      say(`${shot}  film: ${film.model ?? "none"}${film.estimateUsd != null ? ` $${film.estimateUsd.toFixed(2)}` : ""}  ${film.reason}`);
+      for (const r of film.ruledOut) say(`      not ${r.model} (${r.tier}): ${r.why}`);
+      say(`      still: ${still.model}  ${still.reason}`);
+    }
+    return;
+  }
+  if (args.wording) {
+    const out = shots.map((s) => shotWording(catalog, plan, s, { assets }));
+    if (args.json) return say(JSON.stringify(out, null, 2));
+    for (const w of out) {
+      say(`\n── ${w.shot} · ${w.model} · ${w.family} · ${w.chars}${w.maxChars ? `/${w.maxChars}` : ""} chars`);
+      say(w.prompt);
+      const params = Object.entries(w.params).map(([k, v]) => `--param ${k}=${v}`);
+      if (params.length) say(`   ${params.join(" ")}`);
+      for (const p of w.problems) warn(`   ! ${p}`);
+    }
+    return;
+  }
+  const check = checkPlan(plan, { catalog, brief, assets });
+  const cost = costPlan(catalog, plan, { brief, store: openJobs(), limits: readLimits() });
+  if (args.json) return say(JSON.stringify({ brief, plan, check, cost }, null, 2));
+  for (const line of planLines({ film: args.run, brief, plan, check, cost })) say(line);
+  return check.errors.length ? EXIT.USAGE : EXIT.OK;
+}
+
 function cmdTemplates() {
   say(`Code-rendered graphic motion. No key, no spend, pixel-exact, re-renderable.\n`);
   for (const [id, desc] of Object.entries(TEMPLATES)) say(`  ${id.padEnd(14)} ${desc}`);
@@ -1051,6 +1151,10 @@ async function main(argv) {
       return cmdCaption(args);
     case "variants":
       return cmdVariants(args);
+    case "brief":
+      return cmdBrief(args) ?? EXIT.OK;
+    case "plan":
+      return cmdPlan(catalog, args) ?? EXIT.OK;
     case "templates":
       return cmdTemplates();
     case "render":

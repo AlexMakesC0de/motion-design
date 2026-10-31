@@ -40,6 +40,14 @@ Corollary: **the CLI refuses an unknown model rather than forwarding it.**
 | `lib/caption.mjs` | SRT parsing/validation, alpha-overlay compositing |
 | `lib/variants.mjs` | Aspect reframing and the caption-order guard |
 | `lib/render.mjs` | Bridge to the Remotion project in `render/` |
+| `director/menu.json` | The director's fixed vocabulary: sizes, angles, lenses, moves, lights, cuts, jobs, film types |
+| `director/files.mjs` | `runs/<film>/brief.json` and `shots.json`: atomic writes, `.history/`, links refused |
+| `director/brief.mjs` | The brief's fields and their checks |
+| `director/check.mjs` | The script supervisor: errors that block, warnings that advise |
+| `director/fit.mjs` | Can a model film a shot from its still, at what generated length and price |
+| `director/pick.mjs` | The model picker, from `goodFor` ratings |
+| `director/wording.mjs` | One shot worded for its model, from `promptProfile` |
+| `director/plan.mjs`, `cost.mjs`, `show.mjs` | Saving and editing the plan, its cost, its text view |
 
 Zero npm dependencies. Two optional binaries, and the CLI says which commands
 need them: **ffmpeg** for finishing, and `render/`'s own `npm install` for
@@ -101,6 +109,25 @@ hours, since kie deletes them after 24. Saving over a name needs
 Every file is checked by its contents before it is sent: PNG, JPEG, WebP,
 MP4, MOV, WAV, MP3, AAC or OGG, under 30 MB (200 MB for video). Results are
 downloaded only from https URLs, only into the run directory.
+
+### Director (planning)
+
+`kie brief --run sea --file brief.json` saves a film's brief (takeaway,
+length, frame, film type, tone, exact copy, sound) to `runs/sea/brief.json`.
+`kie plan --run sea --file plan.json` saves its shot list to `shots.json`.
+Every shot picks its size, angle, lens, depth, one move, light and cut from
+`director/menu.json` (`kie plan --menu`); leave `model` out and the picker
+fills it from the `goodFor` ratings in `models.json`, ruling out models that
+cannot film the shot from its still. A plan the checker finds errors in is
+refused (exit 1) with every reason; warnings are printed and never block.
+
+`kie plan --run sea` shows the plan, the checker and the cost of one still
+and one take per shot, at the length each take is generated (the shot plus a
+one-second trim margin). `--wording` prints each shot's prompt in the shape
+its model reads best (`promptProfile`), with the `--param` flags to pass;
+`--suggest` explains each model choice. All of it is free. Old versions of
+both files move to `runs/sea/.history/`. The craft behind the menu is in
+`skills/motion-design/references/director/`.
 
 ### MCP server
 
@@ -178,7 +205,11 @@ Consequences:
   table is what makes the refusals meaningful.
 
 Adding a model is one entry: `capability`, `family`, provider `model` string,
-the real limits, a price, and a note saying what it is for.
+the real limits, a price, and a note saying what it is for. A video model also
+gets a `promptProfile` (the wording family, its prompt length limit and its
+audio-off param), and a `goodFor` rating only when the table in
+`skills/motion-design/references/tool-routing.md` rates it; a test keeps the
+two in step.
 
 ## Two providers, one interface
 
