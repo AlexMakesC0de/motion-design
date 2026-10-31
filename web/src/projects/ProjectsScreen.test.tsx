@@ -70,7 +70,7 @@ describe("ProjectsScreen", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
-    fireEvent.click(within(boat).getByRole("button", { name: "Show boat in Finder" }));
+    fireEvent.click(within(boat).getByRole("button", { name: "Show in Finder: boat" }));
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/api/films/boat/reveal") && init?.method === "POST")).toBe(true);
   });
 
@@ -79,5 +79,41 @@ describe("ProjectsScreen", () => {
     render(<ProjectsScreen />);
     expect(await screen.findByText(/No films yet/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Start a film" })).toHaveAttribute("href", "#/");
+  });
+
+  test("each step marker tells a screen reader its state", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films })));
+    render(<ProjectsScreen />);
+    const boat = await screen.findByRole("article", { name: "boat" });
+    const steps = within(within(boat).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
+    expect(steps.map((li) => li.textContent)).toEqual(["Brief, done", "References, done", "Shots, current", "Finish, locked"]);
+  });
+
+  test("the Finder button's name starts with its visible text", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films })));
+    render(<ProjectsScreen />);
+    const boat = await screen.findByRole("article", { name: "boat" });
+    const button = within(boat).getByRole("button", { name: "Show in Finder: boat" });
+    expect(button).toHaveTextContent(/^Show in Finder$/);
+  });
+
+  test("a card counts its shots and takes, leaving out what is zero", async () => {
+    const fresh: FilmSummary = { ...films[0], run: "fresh", progress: prog({ counts: { shots: 2, stills: 0, takes: 0, outputs: 0 } }) };
+    const empty: FilmSummary = { ...films[0], run: "empty", progress: prog({ counts: { shots: 0, stills: 0, takes: 0, outputs: 0 } }) };
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [...films, fresh, empty] })));
+    render(<ProjectsScreen />);
+    expect(within(await screen.findByRole("article", { name: "boat" })).getByText("3 shots · 1 take")).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "fresh" })).getByText("2 shots")).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "empty" })).queryByText(/shot|take/)).toBeNull();
+  });
+
+  test("a search that matches nothing says so", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films })));
+    render(<ProjectsScreen />);
+    await screen.findByRole("article", { name: "boat" });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search films" }), { target: { value: "zzz" } });
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
+    expect(screen.getByText("No films match.")).toBeInTheDocument();
+    expect(screen.queryByText(/No films yet/)).toBeNull();
   });
 });

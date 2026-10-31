@@ -41,9 +41,21 @@ export function HomeScreen() {
     if (!takeaway || busy || !films) return;
     setBusy(true);
     setError(null);
-    const slug = filmSlug(takeaway, films.map((f) => f.run));
+    const brief = { takeaway, durationS: length, aspectRatio: aspect, filmType: type };
+    // create: true makes the server refuse (409, exists) rather than write over a film already at that name.
+    const save = (slug: string) => api(`/api/films/${slug}/brief`, { method: "PUT", body: { brief, create: true } }).then(() => slug);
+    const taken = (e: unknown) => e instanceof ApiError && e.status === 409 && e.detail.exists === true;
+    let slug = filmSlug(takeaway, films.map((f) => f.run));
     try {
-      await api(`/api/films/${slug}/brief`, { method: "PUT", body: { brief: { takeaway, durationS: length, aspectRatio: aspect, filmType: type } } });
+      try {
+        await save(slug);
+      } catch (e) {
+        if (!taken(e)) throw e;
+        // The name was taken since the list loaded (another tab, the chat, or something the list does not show): read it again, try once more.
+        const fresh = await api<FilmSummary[]>("/api/films");
+        setFilms(fresh);
+        slug = await save(filmSlug(takeaway, [...fresh.map((f) => f.run), slug]));
+      }
       window.location.hash = filmHref(slug, "brief");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));

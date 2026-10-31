@@ -91,6 +91,7 @@ export function ProjectsScreen() {
           No films yet. <a href="#/">Start a film</a>
         </p>
       )}
+      {films && films.length > 0 && shown.length === 0 && <p className="projects__none">No films match.</p>}
       {shown.length > 0 && (
         <div className="projects__grid" data-layout={layout}>
           {shown.map((f) => (

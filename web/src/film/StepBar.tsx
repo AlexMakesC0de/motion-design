@@ -22,7 +22,7 @@ export function StepBar({ slug, progress, at }: { slug: string; progress: FilmPr
           return (
             <li key={s.id} className="stepbar__step" data-state="locked" title={why} aria-describedby={whyId}>
               {label}
-              <span id={whyId} className="stepbar__why">
+              <span id={whyId} className="sr-only">
                 {why}
               </span>
             </li>

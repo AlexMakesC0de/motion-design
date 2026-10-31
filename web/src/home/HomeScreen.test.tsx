@@ -54,7 +54,7 @@ describe("HomeScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start film" }));
     await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-a-2/brief"));
     const body = JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body));
-    expect(body).toEqual({ brief: { takeaway: "Rain on glass, a cup going cold", durationS: 8, aspectRatio: "16:9", filmType: "live-action" } });
+    expect(body).toEqual({ brief: { takeaway: "Rain on glass, a cup going cold", durationS: 8, aspectRatio: "16:9", filmType: "live-action" }, create: true });
   });
 
   test("film types are the menu's own, by label", async () => {
@@ -83,5 +83,54 @@ describe("HomeScreen", () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
     render(<HomeScreen />);
     expect(await screen.findByRole("button", { name: "Start film" })).toBeDisabled();
+  });
+
+  test("a name taken since the list loaded: reads the list again and starts the film under the next free name", async () => {
+    let lists = 0;
+    const taken = vi.fn(() => errorResponse(409, "runs/rain-on-glass already exists; a new film needs a name of its own.", { exists: true }));
+    const put = vi.fn(() => ({}));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        routes({
+          // Another tab made rain-on-glass after this page read the list.
+          "/api/films": () => (++lists === 1 ? [] : [film("rain-on-glass", "2026-10-31T10:00:00.000Z")]),
+          "/api/director/menu": () => menu,
+          "/api/films/rain-on-glass/brief": taken,
+          "/api/films/rain-on-glass-2/brief": put,
+        }),
+      ),
+    );
+    render(<HomeScreen />);
+    const box = screen.getByRole("textbox", { name: "What is the film about?" });
+    fireEvent.change(box, { target: { value: "Rain on glass" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-2/brief"));
+    expect(taken).toHaveBeenCalledTimes(1);
+    expect(lists).toBe(2);
+    expect(JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body)).create).toBe(true);
+  });
+
+  test("refused twice: says why and stays on Home", async () => {
+    const taken = (slug: string) => () => errorResponse(409, `runs/${slug} already exists; a new film needs a name of its own.`, { exists: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        routes({
+          "/api/films": () => [],
+          "/api/director/menu": () => menu,
+          "/api/films/rain-on-glass/brief": taken("rain-on-glass"),
+          "/api/films/rain-on-glass-2/brief": taken("rain-on-glass-2"),
+        }),
+      ),
+    );
+    render(<HomeScreen />);
+    fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("runs/rain-on-glass-2 already exists");
+    expect(window.location.hash).toBe("");
+    expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled();
   });
 });

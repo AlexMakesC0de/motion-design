@@ -31,3 +31,6 @@
 }
 .generate:hover:not(:disabled) { filter: brightness(1.08); }
 .generate:disabled { background: var(--surface-3); color: var(--text-3); cursor: not-allowed; }
+
+/* Read by screen readers, not shown: state words beside a marker that shows it by colour. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
