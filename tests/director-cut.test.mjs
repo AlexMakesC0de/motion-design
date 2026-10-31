@@ -82,6 +82,15 @@ describe("the cut plan", () => {
     assert.match(c.notes.join(), /s2's take is 2s; the shot is planned at 3s/);
   });
 
+  test("a take judged redo, or not reviewed, is still cut but named", () => {
+    const reviews = { s1: { take: "s1-take.mp4", verdict: "pass" }, s2: { take: "s2-take.mp4", verdict: "redo" }, s3: { take: "s3-take-old.mp4", verdict: "pass" } };
+    const c = cutPlan(p, media, reviews, lengths);
+    assert.equal(c.segments.length, 3);
+    assert.match(c.notes.join("\n"), /^s2's take was judged redo; this cut uses it until it is refilmed\.$/m);
+    assert.match(c.notes.join("\n"), /^s3's take has not been reviewed\.$/m);
+    assert.doesNotMatch(c.notes.join("\n"), /s1/);
+  });
+
   test("shots without a take are named, and nothing is cut", () => {
     assert.throws(() => cutPlan(p, { ...media, s2: { take: null } }, {}, lengths), (e) => e.code === EXIT.USAGE && /s2 has no take yet/.test(e.message));
   });

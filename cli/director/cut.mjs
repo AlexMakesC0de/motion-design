@@ -25,6 +25,8 @@ const r3 = (n) => Math.round(n * 1000) / 1000;
  * back short); how each shot joins the next (dissolve and whip cross-fade,
  * every other cut is a hard cut in the edit); and a fade to black when the
  * last shot's cut is fade-out. `lengths` maps take files to their seconds.
+ * The notes name every take judged redo or not yet reviewed: a rough cut is
+ * free, so it is made, but nobody should mistake it for the finished film.
  */
 export function cutPlan(plan, media, reviews, lengths) {
   const shots = plan.shots;
@@ -35,6 +37,8 @@ export function cutPlan(plan, media, reviews, lengths) {
     const file = media[s.id].take;
     const takeS = lengths[file];
     const review = reviews[s.id]?.take === file ? reviews[s.id] : null;
+    if (!review) notes.push(`${s.id}'s take has not been reviewed.`);
+    else if (review.verdict === "redo") notes.push(`${s.id}'s take was judged redo; this cut uses it until it is refilmed.`);
     let startS = review?.bestWindow?.startS ?? LEAD_S;
     let durationS = s.durationS;
     if (takeS != null && takeS < durationS) {
