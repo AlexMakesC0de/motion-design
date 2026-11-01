@@ -1,0 +1,300 @@
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { SceneScreen } from "./SceneScreen";
+import { errorResponse, routes } from "../test-fixtures";
+import type { Scene, SceneVersion } from "../api/types";
+
+const BASE = "/api/films/create/scenes";
+const blankCards = () => ({ goal: "", scene: "", stages: [], style: "", audio: "" });
+const scene = (over: Partial<Scene> = {}): Scene => ({ id: "s1", title: "Freefall", durationS: 8, ratio: "9:16", refs: [], cards: blankCards(), versions: [], chosen: null, ...over });
+const version = (over: Partial<SceneVersion> = {}): SceneVersion => ({
+  job: "j-1", kind: "draft", resolution: "480p", prompt: "", createdAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+  state: "succeeded", media: "/media/runs/create/s1-draft-1.mp4", estimateUsd: 1.12, actualUsd: 1.12, ...over,
+});
+const prices = { draft: { usd: 1.12, basis: "8s × $0.14/s" }, final720: { usd: 2.4, basis: "8s × $0.30/s" }, final1080: { usd: 6.32, basis: "8s × $0.79/s" } };
+const alexandros = { name: "alexandros", kind: "character", description: "Alex, 22", imageCount: 2, hasSheet: true, updatedAt: "", cover: "/media/library/alexandros/2.png", usedIn: [] };
+
+type Table = Parameters<typeof routes>[0];
+
+/** Scenes, Library and preview stubs; a PUT answers with what was sent, as the server does after checking. */
+function stub({ scenes = [scene()], problems = [] as string[], more = {} as Table } = {}) {
+  const fetchMock = vi.fn(
+    routes({
+      [BASE]: () => ({ idea: null, scenes }),
+      [`${BASE}/s1`]: (init) => JSON.parse(String(init?.body)),
+      "/api/library": () => [alexandros],
+      [`${BASE}/s1/prompt`]: () => ({ prompt: "", refs: [], problems, prices }),
+      ...more,
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+const calls = (fetchMock: ReturnType<typeof stub>, path: string, method = "POST") =>
+  fetchMock.mock.calls.filter((c) => String(c[0]).split("?")[0] === path && (c[1]?.method ?? "GET") === method);
+
+const marks = (state: string) => [...document.querySelectorAll(`mark.mention[data-state="${state}"]`)].map((m) => m.textContent);
+
+beforeEach(() => {
+  vi.useRealTimers();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("SceneScreen", () => {
+  test("a pasted prompt with [@image1] shows a red mention, and choosing a Library item turns it green", async () => {
+    const fetchMock = stub({ problems: ["image 1 is empty. Choose a picture or remove it."] });
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    fireEvent.paste(goal, { clipboardData: { getData: () => "[@image1] jumps", files: [] } });
+    fireEvent.change(goal, { target: { value: "[@image1] jumps" } });
+    expect(await screen.findByText("image 1 · empty")).toBeInTheDocument();
+    expect(marks("missing")).toEqual(["@image1"]);
+    fireEvent.click(screen.getByRole("button", { name: "image 1, no picture yet, choose one" }));
+    fireEvent.click(await screen.findByRole("button", { name: /@library:alexandros/ }));
+    await waitFor(() => expect(document.querySelector('mark.mention[data-state="linked"]')).toHaveTextContent("@image1"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(calls(fetchMock, `${BASE}/s1`, "PUT").length).toBeGreaterThan(0));
+    const sent = JSON.parse(String(calls(fetchMock, `${BASE}/s1`, "PUT").at(-1)?.[1]?.body));
+    expect(sent.refs).toEqual([{ id: "r1", source: "library:alexandros" }]);
+    expect(sent.cards.goal).toBe("@{r1} jumps");
+  });
+
+  test("pasting a whole sectioned prompt fills the cards, with empty slots and red mentions", async () => {
+    stub();
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    const prompt = [
+      "[GOAL]",
+      "[@image1] steps out of the plane door seen in [@image2], grinning.",
+      "",
+      "[SCENE]",
+      "4,000 m over the Alps @library:sky-over-alps, low morning sun.",
+      "",
+      "[STAGE 1 | 0–4 SECONDS | EXIT]",
+      "Camera: behind him",
+      "Action: he drops",
+      "",
+      "[AUDIO]",
+      "<roaring wind>",
+    ].join("\n");
+    fireEvent.paste(goal, { clipboardData: { getData: () => prompt, files: [] } });
+    expect(await screen.findByText("image 1 · empty")).toBeInTheDocument();
+    expect(screen.getByText("image 2 · empty")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue("@image1 steps out of the plane door seen in @image2, grinning.");
+    expect(screen.getByRole("textbox", { name: "Scene" })).toHaveValue("4,000 m over the Alps @library:sky-over-alps, low morning sun.");
+    expect(screen.getByRole("textbox", { name: "Stage 1 camera" })).toHaveValue("behind him");
+    expect(screen.getByRole("textbox", { name: "Audio" })).toHaveValue("<roaring wind>");
+    expect(marks("missing")).toEqual(["@image1", "@image2", "@library:sky-over-alps"]);
+    expect(screen.getByText("0–4s Exit")).toBeInTheDocument();
+  });
+
+  test("pasting a whole prompt over written cards asks first", async () => {
+    stub({ scenes: [scene({ cards: { ...blankCards(), goal: "He waves." } })] });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    fireEvent.paste(goal, { clipboardData: { getData: () => "[GOAL]\nHe jumps.", files: [] } });
+    expect(confirm).toHaveBeenCalledWith("Replace this scene's cards with the pasted prompt?");
+    expect(goal).toHaveValue("He waves.");
+    confirm.mockReturnValue(true);
+    fireEvent.paste(goal, { clipboardData: { getData: () => "[GOAL]\nHe jumps.", files: [] } });
+    expect(goal).toHaveValue("He jumps.");
+  });
+
+  test("choosing a mention with no slot yet adds slots up to it, then opens the chooser", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }], cards: { ...blankCards(), goal: "@{r1} meets @image3" } })] });
+    render(<SceneScreen run="create" />);
+    fireEvent.click(await screen.findByRole("button", { name: "image 3, there is no image 3 in this scene, choose one" }));
+    expect(await screen.findByRole("dialog", { name: "Choose a picture for @image3" })).toBeInTheDocument();
+    expect(screen.getByText("image 2 · empty")).toBeInTheDocument();
+    expect(screen.getByText("image 3 · empty")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /@library:alexandros/ }));
+    await waitFor(() => expect(marks("linked")).toEqual(["@image1", "@image3"]));
+    expect(screen.getByText("image 2 · empty")).toBeInTheDocument();
+  });
+
+  test("Make @library:name opens the sheet maker with the name filled in", async () => {
+    stub({ scenes: [scene({ cards: { ...blankCards(), goal: "over @library:ghost" } })] });
+    render(<SceneScreen run="create" />);
+    fireEvent.click(await screen.findByRole("button", { name: "ghost, not in the Library" }));
+    expect(window.location.hash).toBe("#/library/new/ghost");
+    window.location.hash = "";
+  });
+
+  test("problems disable both buttons and say what to fix", async () => {
+    stub({ problems: ["image 1 is empty. Choose a picture or remove it.", "@library:maya has no sheet yet. Make one in the Library."] });
+    render(<SceneScreen run="create" />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("image 1 is empty. Choose a picture or remove it.");
+    expect(alert).toHaveTextContent("@library:maya has no sheet yet. Make one in the Library.");
+    expect(screen.getByRole("button", { name: /^New draft/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Make final/ })).toBeDisabled();
+  });
+
+  test("prices come from the preview, and the final's resolution changes its price", async () => {
+    stub();
+    render(<SceneScreen run="create" />);
+    const draft = await screen.findByRole("button", { name: /^New draft/ });
+    await waitFor(() => expect(draft).toHaveTextContent("$1.12"));
+    const final = screen.getByRole("button", { name: /^Make final/ });
+    expect(final).toHaveTextContent("$6.32");
+    fireEvent.change(screen.getByRole("combobox", { name: "Final resolution" }), { target: { value: "720p" } });
+    expect(final).toHaveTextContent("$2.40");
+    expect(screen.getByText("The final re-runs this prompt at 720p, so the motion will differ from the draft.")).toBeInTheDocument();
+  });
+
+  test("New draft posts to /draft and the version appears", async () => {
+    const fetchMock = stub({ more: { [`${BASE}/s1/draft`]: () => ({ localJobId: "j-1", scene: scene({ versions: [version({ state: "submitted", media: null })] }) }) } });
+    render(<SceneScreen run="create" />);
+    const draft = await screen.findByRole("button", { name: /^New draft/ });
+    await waitFor(() => expect(draft).toBeEnabled());
+    fireEvent.click(draft);
+    const list = await screen.findByRole("list", { name: "Versions" });
+    expect(await within(list).findByRole("button", { name: /^Draft 1 · 480p/ })).toBeInTheDocument();
+    expect(within(list).getByText(/running/)).toBeInTheDocument();
+    expect(calls(fetchMock, `${BASE}/s1/draft`)).toHaveLength(1);
+    expect(calls(fetchMock, `${BASE}/s1/final`)).toHaveLength(0);
+  });
+
+  test("Make final posts the chosen resolution", async () => {
+    const fetchMock = stub({ more: { [`${BASE}/s1/final`]: () => ({ localJobId: "j-2", scene: scene({ versions: [version({ job: "j-2", kind: "final", resolution: "1080p", state: "submitted", media: null })] }) }) } });
+    render(<SceneScreen run="create" />);
+    const final = await screen.findByRole("button", { name: /^Make final/ });
+    expect(final).toHaveClass("generate");
+    await waitFor(() => expect(final).toBeEnabled());
+    fireEvent.click(final);
+    expect(await screen.findByRole("button", { name: /^Final 1 · 1080p/ })).toBeInTheDocument();
+    const sent = calls(fetchMock, `${BASE}/s1/final`);
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(String(sent[0][1]?.body))).toEqual({ resolution: "1080p" });
+  });
+
+  test("a spending cap refusal is shown where the buttons are", async () => {
+    stub({ more: { [`${BASE}/s1/draft`]: () => errorResponse(402, "That would pass today's cap of $10.00.", { code: 2 }) } });
+    render(<SceneScreen run="create" />);
+    const draft = await screen.findByRole("button", { name: /^New draft/ });
+    await waitFor(() => expect(draft).toBeEnabled());
+    fireEvent.click(draft);
+    expect(await screen.findByRole("alert")).toHaveTextContent("That would pass today's cap of $10.00.");
+  });
+
+  test("an uncertain create says to check Spend and holds both buttons until dismissed", async () => {
+    stub({ more: { [`${BASE}/s1/draft`]: () => errorResponse(409, "kie did not answer the create call.", { code: 5 }) } });
+    render(<SceneScreen run="create" />);
+    const draft = await screen.findByRole("button", { name: /^New draft/ });
+    await waitFor(() => expect(draft).toBeEnabled());
+    fireEvent.click(draft);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("kie did not answer the create call.");
+    expect(alert).toHaveTextContent("Check Spend before trying again");
+    expect(draft).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Make final/ })).toBeDisabled();
+    fireEvent.click(within(alert).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(draft).toBeEnabled());
+  });
+
+  test("the player shows the chosen version, and Choose marks another", async () => {
+    const one = version({ job: "j-1", media: "/media/runs/create/one.mp4" });
+    const two = version({ job: "j-2", media: "/media/runs/create/two.mp4", createdAt: new Date().toISOString() });
+    const fetchMock = stub({
+      scenes: [scene({ versions: [one, two], chosen: "j-1" })],
+      more: { [`${BASE}/s1/choose`]: () => scene({ versions: [one, two], chosen: "j-2" }) },
+    });
+    const { container } = render(<SceneScreen run="create" />);
+    const list = await screen.findByRole("list", { name: "Versions" });
+    expect(container.querySelector("video")).toHaveAttribute("src", "/media/runs/create/one.mp4");
+    expect(within(list).getByText(/chosen/)).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Choose draft 2" }));
+    await waitFor(() => expect(JSON.parse(String(calls(fetchMock, `${BASE}/s1/choose`)[0]?.[1]?.body))).toEqual({ job: "j-2" }));
+    fireEvent.click(within(list).getByRole("button", { name: /^Draft 2/ }));
+    expect(container.querySelector("video")).toHaveAttribute("src", "/media/runs/create/two.mp4");
+  });
+
+  test("moving image 2 up renumbers the mentions", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }, { id: "r2", source: "file:refs/door.png" }], cards: { ...blankCards(), goal: "@{r2}" } })] });
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    expect(goal).toHaveValue("@image2");
+    expect(screen.getByRole("button", { name: "Move image 1 up" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move image 2 up" }));
+    expect(goal).toHaveValue("@image1");
+  });
+
+  test("removing a mentioned image asks first", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }], cards: { ...blankCards(), goal: "@{r1} jumps" } })] });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    fireEvent.click(screen.getByRole("button", { name: "Remove image 1" }));
+    expect(confirm).toHaveBeenCalledWith("image 1 is used in the prompt. Remove it? Its mentions become plain words.");
+    expect(goal).toHaveValue("@image1 jumps");
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Remove image 1" }));
+    expect(goal).toHaveValue("alexandros jumps");
+    expect(screen.queryByRole("button", { name: "Remove image 1" })).toBeNull();
+  });
+
+  test("an empty slot nobody mentions is removed without asking", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: null }] })] });
+    const confirm = vi.spyOn(window, "confirm");
+    render(<SceneScreen run="create" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove image 1" }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByText("image 1 · empty")).toBeNull();
+  });
+
+  test("Upload adds the picture as a new image", async () => {
+    stub({ more: { "/api/films/create/refs": () => ({ source: "file:refs/door.png" }) } });
+    render(<SceneScreen run="create" />);
+    await screen.findByRole("textbox", { name: "Goal" });
+    fireEvent.change(screen.getByLabelText("Upload"), { target: { files: [new File(["x"], "door.png", { type: "image/png" })] } });
+    const rows = await screen.findByRole("list", { name: "In this scene" });
+    expect(await within(rows).findByText("door.png")).toBeInTheDocument();
+    expect(within(rows).getByText("image1")).toBeInTheDocument();
+    expect(rows.querySelector("img")).toHaveAttribute("src", "/media/runs/create/refs/door.png");
+  });
+
+  test("Add stage keeps the length, and the stage bar shows each stage's seconds", async () => {
+    stub();
+    render(<SceneScreen run="create" />);
+    await screen.findByRole("textbox", { name: "Goal" });
+    expect(screen.getByText("whole scene")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "+ Add stage" }));
+    expect(screen.getByRole("spinbutton", { name: "Stage 1 seconds" })).toHaveValue(8);
+    fireEvent.change(screen.getByRole("textbox", { name: "Stage 1 title" }), { target: { value: "Exit" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Stage 1 seconds" }), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "+ Add stage" }));
+    expect(screen.getByText("0–4s Exit")).toBeInTheDocument();
+    expect(screen.getByText("4–8s Stage 2")).toBeInTheDocument();
+    expect(screen.getByText("8s · 9:16 · Seedance 2.5")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Length" })).toBeNull();
+  });
+
+  test("with no scenes yet, one is made; + makes the next", async () => {
+    const made: unknown[] = [];
+    const fetchMock = vi.fn(
+      routes({
+        [BASE]: (init) => {
+          if (init?.method !== "POST") return { idea: null, scenes: [] };
+          const body = JSON.parse(String(init.body));
+          made.push(body);
+          return scene({ ...body, id: `s${made.length}` });
+        },
+        "/api/library": () => [],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SceneScreen run="create" />);
+    expect(await screen.findByRole("tab", { name: "1 Scene 1" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: "New scene" }));
+    expect(await screen.findByRole("tab", { name: "2 Scene 2" })).toHaveAttribute("aria-selected", "true");
+    expect(made).toEqual([
+      expect.objectContaining({ title: "Scene 1", durationS: 8, refs: [] }),
+      expect.objectContaining({ title: "Scene 2", durationS: 8, refs: [] }),
+    ]);
+  });
+});

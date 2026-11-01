@@ -127,7 +127,7 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
     const { library } = context();
     return library.list().map((s) => {
       const a = library.get(s.name);
-      return { ...s, cover: mediaUrl((sheetOf(a) ?? a.images[0])?.path), usedIn: a.usedIn ?? [] };
+      return { ...s, keep: a.keep ?? "", cover: mediaUrl((sheetOf(a) ?? a.images[0])?.path), usedIn: a.usedIn ?? [] };
     });
   });
 

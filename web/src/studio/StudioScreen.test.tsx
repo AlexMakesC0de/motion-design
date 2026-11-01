@@ -9,6 +9,7 @@ const newer = job({ id: "j-20261031-bbbbbb", createdAt: "2026-10-31T10:00:00.000
 
 beforeEach(() => {
   resetForTests({}, "");
+  localStorage.removeItem("shard.createTab");
   vi.stubGlobal(
     "fetch",
     vi.fn(
@@ -24,7 +25,31 @@ beforeEach(() => {
   );
 });
 
-describe("StudioScreen", () => {
+describe("Create's tabs", () => {
+  test("Scene is the default tab and shows the scene editor for Create's own run", async () => {
+    render(<StudioScreen />);
+    expect(screen.getByRole("tab", { name: "Scene" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Quick take" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+    const asked = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
+    expect(asked).toContain("/api/films/create/scenes");
+  });
+
+  test("Quick take still shows the prompt bar, and the choice is remembered", async () => {
+    const { unmount } = render(<StudioScreen />);
+    fireEvent.click(screen.getByRole("tab", { name: "Quick take" }));
+    expect(await screen.findByRole("textbox", { name: "Prompt" })).toBeInTheDocument();
+    expect(localStorage.getItem("shard.createTab")).toBe("quick");
+    unmount();
+    render(<StudioScreen />);
+    expect(screen.getByRole("tab", { name: "Quick take" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("textbox", { name: "Prompt" })).toBeInTheDocument();
+  });
+});
+
+describe("StudioScreen, Quick take", () => {
+  beforeEach(() => localStorage.setItem("shard.createTab", "quick"));
+
   test("opens on the newest film and shows its takes, newest first", async () => {
     render(<StudioScreen />);
     expect(await screen.findByRole("combobox", { name: "Working in" })).toHaveValue("zed");

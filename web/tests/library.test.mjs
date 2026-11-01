@@ -173,6 +173,7 @@ describe("sheets", () => {
     const listed = (await req(port, "/api/library")).json.find((x) => x.name === "maya");
     assert.equal(listed.hasSheet, true);
     assert.equal(listed.cover, "/media/library/maya/2.png");
+    assert.equal(listed.keep, "her red scarf");
   });
 
   test("a bad image entry is refused with code 3 on images", async () => {

@@ -3,14 +3,12 @@
 import { readFilmJson, withFilmLock, writeFilmJson } from "./files.mjs";
 import { unknown } from "../lib/errors.mjs";
 import { MAX_REFS, emptyCards } from "./mentions.mjs";
+import { RATIOS, DURATION } from "./scene-shape.mjs";
 export { emptyCards, parseDanPrompt } from "./mentions.mjs";
+export { RATIOS, DURATION, emptyScene, stageTimes } from "./scene-shape.mjs";
 
 const FILE = "scenes.json";
-export const RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"];
-export const DURATION = { min: 4, max: 30 };
 const SOURCE = /^(library:[a-z0-9][a-z0-9-]{0,80}|file:refs\/[A-Za-z0-9._-]+\.(png|jpe?g|webp))$/;
-
-export const emptyScene = () => ({ title: "", durationS: 8, ratio: "16:9", refs: [], cards: emptyCards() });
 
 const bad = (field, message) => unknown(message, { field });
 const text = (v, field) => {
@@ -21,11 +19,6 @@ const text = (v, field) => {
 
 export function readScenes(film) {
   return readFilmJson(film, FILE) ?? { version: 1, idea: null, scenes: [] };
-}
-
-export function stageTimes(scene) {
-  let at = 0;
-  return scene.cards.stages.map((s) => ({ fromS: at, toS: (at += s.seconds) }));
 }
 
 /** Check and tidy what a caller sent. Versions and chosen are never taken from the caller. */

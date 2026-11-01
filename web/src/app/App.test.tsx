@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 import { assistantLine, chatSettings, routes } from "../test-fixtures";
 import { resetChatForTests, openChat } from "../chat/chatStore";
@@ -42,11 +42,13 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
   });
 
-  test("Create is the takes feed with its prompt bar", () => {
+  test("Create opens on the Scene tab; Quick take is the takes feed with its prompt bar", () => {
     pending();
     window.location.hash = "#/create";
     render(<App />);
     expect(screen.getByRole("link", { name: "Create" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("tab", { name: "Scene" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Quick take" }));
     expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument();
   });
 

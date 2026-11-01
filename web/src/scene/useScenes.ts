@@ -62,6 +62,8 @@ export function useScenes(run: string) {
       const saved = await api<Scene>(`${base(p.run)}/${encodeURIComponent(id)}`, { method: "PUT", body: p.scene });
       // The server's copy (checked, times derived) lands unless typing went on meanwhile.
       if (p.run === run && !pending.current.has(id)) setScenes((list) => list.map((s) => (s.id === id ? saved : s)));
+      // A save that went through clears an earlier refusal (a stage too short, say) now fixed.
+      setError(null);
     } catch (e) {
       setError((e as ApiError).message);
     }
@@ -81,8 +83,9 @@ export function useScenes(run: string) {
     pending.current.set(scene.id, p);
   }, [run, send]);
 
-  const create = useCallback(async () => {
-    const scene = await api<Scene>(base(run), { method: "POST", body: {} });
+  /** A new scene from `fields` (title, durationS, ratio…); the server checks them and gives it an id. */
+  const create = useCallback(async (fields: Partial<Omit<Scene, "id" | "versions" | "chosen">> = {}) => {
+    const scene = await api<Scene>(base(run), { method: "POST", body: fields });
     setScenes((list) => [...list, scene]);
     return scene;
   }, [run]);

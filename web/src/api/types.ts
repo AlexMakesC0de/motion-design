@@ -52,6 +52,8 @@ export interface AssetSummary {
   updatedAt: string;
   /** Only from GET /api/library; the SSE library event sends core's list without them. */
   cover?: string | null;
+  /** What a reference to the item must preserve; a scene's keep line shows it as the placeholder. */
+  keep?: string;
   usedIn?: string[];
 }
 
