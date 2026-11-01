@@ -28,6 +28,9 @@ function stateWord(v: SceneVersion) {
   return "record missing";
 }
 
+/** What the player says when the version it shows has nothing to play. */
+const emptyText = (v: SceneVersion, name: string) => (v.state === "succeeded" ? `${name}'s video file is missing.` : `${name} is ${stateWord(v)}.`);
+
 function ago(iso: string, now: number) {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
   if (!Number.isFinite(s)) return "";
@@ -57,7 +60,7 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
   const versions = scene.versions;
   const labels = names(versions);
   const newestDone = [...versions].reverse().find((v) => v.state === "succeeded" && v.media);
-  const shown = versions.find((v) => v.job === picked) ?? versions.find((v) => v.job === scene.chosen) ?? newestDone ?? null;
+  const shown = versions.find((v) => v.job === picked) ?? versions.find((v) => v.job === scene.chosen) ?? newestDone ?? versions.at(-1) ?? null;
   const shownName = shown ? labels[versions.indexOf(shown)] : null;
 
   const problems = preview?.problems ?? [];
@@ -96,7 +99,7 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
         {shown?.media ? (
           <video key={shown.media} src={shown.media} controls playsInline aria-label={`${shownName} of ${scene.title || "this scene"}`} />
         ) : (
-          <p className="scene-player__empty">{shown ? `${shownName} is ${stateWord(shown)}.` : "No versions yet. A draft is a quick 480p try."}</p>
+          <p className="scene-player__empty">{shown ? emptyText(shown, shownName!) : "No versions yet. A draft is a quick 480p try."}</p>
         )}
       </div>
 

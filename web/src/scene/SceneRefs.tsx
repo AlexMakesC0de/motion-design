@@ -90,7 +90,7 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
                       <LooseInput
                         className="scene-ref__keep"
                         aria-label={`Keep for image ${n}`}
-                        placeholder={inherited ? "Keep something else in this scene" : "What to keep, e.g. exact face and glasses"}
+                        placeholder={inherited ? "Also keep…" : "What to keep, e.g. exact face and glasses"}
                         value={ref.keep ?? ""}
                         onValue={(v) => onKeep(ref.id, v)}
                       />

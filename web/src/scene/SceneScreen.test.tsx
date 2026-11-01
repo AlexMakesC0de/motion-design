@@ -215,6 +215,17 @@ describe("SceneScreen", () => {
     expect(container.querySelector("video")).toHaveAttribute("src", "/media/runs/create/two.mp4");
   });
 
+  test("versions whose videos are gone say so instead of 'No versions yet'", async () => {
+    const one = version({ job: "j-1", media: null, state: "failed" });
+    const two = version({ job: "j-2", media: null });
+    stub({ scenes: [scene({ versions: [one, two] })] });
+    render(<SceneScreen run="create" />);
+    expect(await screen.findByText("Draft 2's video file is missing.")).toBeInTheDocument();
+    expect(screen.queryByText(/No versions yet/)).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("list", { name: "Versions" })).getByRole("button", { name: /^Draft 1/ }));
+    expect(screen.getByText("Draft 1 is failed.")).toBeInTheDocument();
+  });
+
   test("moving image 2 up renumbers the mentions", async () => {
     stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }, { id: "r2", source: "file:refs/door.png" }], cards: { ...blankCards(), goal: "@{r2}" } })] });
     render(<SceneScreen run="create" />);
@@ -363,7 +374,7 @@ describe("SceneScreen", () => {
     stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }] })], more: { "/api/library": () => [{ ...alexandros, keep }] } });
     render(<SceneScreen run="create" />);
     expect(await screen.findByText(`Keeps ${keep}`)).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Keep for image 1" })).toHaveAttribute("placeholder", "Keep something else in this scene");
+    expect(screen.getByRole("textbox", { name: "Keep for image 1" })).toHaveAttribute("placeholder", "Also keep…");
   });
 
   test("a film's Scenes step with no scenes offers one instead of making it", async () => {
