@@ -82,4 +82,19 @@ describe("compileScene", () => {
       "@image7: there is no image 7 in this scene.",
     ]);
   });
+
+  test("pictures the model would refuse are caught in the preview, before any spend", () => {
+    const limits = { minSide: 300, maxSide: 6000, minAspect: 0.4, maxAspect: 2.5 };
+    const sizeOf = (path) => (path === join("sky", "refs/door.png") ? { width: 200, height: 200 } : null);
+    const { refs, problems } = compileScene(scene(), { film: "sky", library, limits, sizeOf });
+    assert.deepEqual(refs, []);
+    assert.deepEqual(problems, [
+      "@library:alexandros's sheet is 3.00:1 wide; Seedance takes 0.4:1 to 2.5:1. Make the sheet less wide.",
+      "door.png is 200×200; Seedance needs 300 to 6000px on each side. Use a bigger picture.",
+    ]);
+  });
+
+  test("without limits, sizes are not checked", () => {
+    assert.deepEqual(compileScene(scene(), { film: "sky", library }).problems, []);
+  });
 });

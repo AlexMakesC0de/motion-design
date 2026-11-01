@@ -8,7 +8,24 @@ import { stageTimes } from "./scenes.mjs";
 export const DEFAULT_REF_TOKEN = "[Image {n}]";
 const KIND_WORD = { character: "character", product: "prop", location: "location", style: "style" };
 
-export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN }) {
+/** Why a picture of `width`×`height` would be refused, or null. `limits` is a route's refLimits.image. */
+function sizeProblem(what, size, limits) {
+  if (!limits || !size?.width || !size?.height) return null;
+  const { width: w, height: h } = size;
+  if (Math.min(w, h) < limits.minSide || Math.max(w, h) > limits.maxSide) {
+    return `${what} is ${w}×${h}; Seedance needs ${limits.minSide} to ${limits.maxSide}px on each side. Use a ${Math.min(w, h) < limits.minSide ? "bigger" : "smaller"} picture.`;
+  }
+  const aspect = w / h;
+  if (aspect > limits.maxAspect) return `${what} is ${aspect.toFixed(2)}:1 wide; Seedance takes ${limits.minAspect}:1 to ${limits.maxAspect}:1. Make ${what.startsWith("@") ? "the sheet" : "it"} less wide.`;
+  if (aspect < limits.minAspect) return `${what} is ${aspect.toFixed(2)}:1 tall; Seedance takes ${limits.minAspect}:1 to ${limits.maxAspect}:1. Make ${what.startsWith("@") ? "the sheet" : "it"} less tall.`;
+  return null;
+}
+
+/**
+ * `limits` and `sizeOf(path)` are optional: with them, pictures the model
+ * would refuse are named here, in the preview, rather than at submit.
+ */
+export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN, limits = null, sizeOf = () => null }) {
   const scene = attachLibraryMentions(input);
   const problems = [];
   const token = (i) => refToken.replace("{n}", String(i + 1));
@@ -28,12 +45,16 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
       if (!a) return problems.push(`@library:${name} is not in the Library. Make it in the Library first.`) && null;
       const sheet = sheetOf(a);
       if (!sheet) return problems.push(`@library:${name} has no sheet yet. Make one in the Library.`) && null;
+      const tooBig = sizeProblem(`@library:${name}'s sheet`, sheet, limits);
+      if (tooBig) return problems.push(tooBig) && null;
       return {
         send: { source: `${name}#${sheet.n}`, role: "identity" },
         line: `${token(i)} — ${name}, ${KIND_WORD[a.kind] ?? a.kind}. Preserve ${r.keep ?? a.keep ?? a.description}${/[.!?]$/.test(r.keep ?? a.keep ?? a.description) ? "" : "."}`,
       };
     }
     const rel = r.source.slice("file:".length);
+    const tooBig = sizeProblem(refLabel(r), sizeOf(join(film, rel)), limits);
+    if (tooBig) return problems.push(tooBig) && null;
     return { send: { source: join(film, rel), role: "identity" }, line: `${token(i)} — ${refLabel(r)}.${r.keep ? ` Preserve ${r.keep}.` : ""}` };
   });
   if (scene.refs.length > MAX_REFS) problems.push(`A scene holds at most ${MAX_REFS} images.`);

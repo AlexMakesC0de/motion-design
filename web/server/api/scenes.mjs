@@ -5,7 +5,7 @@ import { join, parse } from "node:path";
 import { readScenes, saveScene, deleteScene, orderScenes, addVersion, chooseVersion } from "../../../cli/director/scenes.mjs";
 import { compileScene, DEFAULT_REF_TOKEN } from "../../../cli/director/scene.mjs";
 import { resolveModel } from "../../../cli/lib/models.mjs";
-import { runDir } from "../../../cli/lib/run.mjs";
+import { runDir, RUNS_DIR } from "../../../cli/lib/run.mjs";
 import { estimate } from "../../../cli/core/views.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
 import { unknown } from "../../../cli/lib/errors.mjs";
@@ -59,7 +59,25 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
     return scene;
   };
 
-  const compile = (slug, scene) => compileScene(scene, { film: slug, library: context().library, refToken: model().promptProfile?.refToken ?? DEFAULT_REF_TOKEN });
+  /** Width and height of a film's own picture, `<slug>/refs/<file>`; null when unreadable (submit reports it). */
+  const sizeOf = (path) => {
+    try {
+      return checkLocalFile(join(RUNS_DIR, path), { kinds: ["image"] });
+    } catch {
+      return null;
+    }
+  };
+
+  const compile = (slug, scene) => {
+    const route = model().routes.find((r) => r.provider === "kie");
+    return compileScene(scene, {
+      film: slug,
+      library: context().library,
+      refToken: model().promptProfile?.refToken ?? DEFAULT_REF_TOKEN,
+      limits: route?.input?.refLimits?.image ?? null,
+      sizeOf,
+    });
+  };
 
   router.get("/api/films/:slug/scenes", ({ params }) => {
     const slug = slugOf(params);

@@ -99,4 +99,12 @@ describe("scenes api", () => {
     assert.match(r.json.source, /^file:refs\/door-view(-\d+)?\.png$/);
     assert.ok(existsSync(join(RUNS, "create", r.json.source.slice(5))));
   });
+
+  test("the preview names a picture Seedance would refuse", async () => {
+    const up = await req(port, "/api/films/create/refs?name=tiny.png", { method: "POST", body: png(200, 200), headers: { "content-type": "image/png" } });
+    await req(port, "/api/films/create/scenes/s1", { method: "PUT", body: { ...scene, refs: [...scene.refs, { id: "r2", source: up.json.source }] } });
+    const r = await req(port, "/api/films/create/scenes/s1/prompt");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.problems, ["tiny.png is 200×200; Seedance needs 300 to 6000px on each side. Use a bigger picture."]);
+  });
 });
