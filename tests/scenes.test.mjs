@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,8 +36,15 @@ describe("scenes.json", () => {
     assert.equal(s.durationS, 10);
     assert.deepEqual(stageTimes(s), [{ fromS: 0, toS: 4 }, { fromS: 4, toS: 10 }]);
   });
+  test("a scene's length range is exactly what Seedance 2.5 accepts", async () => {
+    const { DURATION } = await import("../cli/director/scenes.mjs");
+    const catalog = JSON.parse(readFileSync(new URL("../cli/models.json", import.meta.url), "utf8"));
+    const seedance = catalog.models["seedance-2-5"];
+    assert.deepEqual([DURATION.min, DURATION.max], [Math.min(...seedance.durationsS), Math.max(...seedance.durationsS)]);
+  });
   test("bad scenes are refused with the field named", () => {
     assert.throws(() => saveScene("f4", { ...base(), durationS: 2 }), /4 to 30 seconds/);
+    assert.throws(() => saveScene("f4", { ...base(), durationS: 31 }), /4 to 30 seconds, got 31/);
     assert.throws(() => saveScene("f4", { ...base(), ratio: "5:4" }), /ratio/);
     assert.throws(() => saveScene("f4", { ...base(), refs: Array.from({ length: 10 }, (_, i) => ({ id: `r${i + 1}`, source: null })) }), /at most 9/);
     assert.throws(() => saveScene("f4", { ...base(), refs: [{ id: "r1", source: "https://x" }] }), /library:<name> or file:refs/);
