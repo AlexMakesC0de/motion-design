@@ -1,10 +1,10 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { NAME, planCodex, applyCodex, claudeEntry, planClaude, applyClaude } from "../mcp/register.mjs";
+import { NAME, planCodex, applyCodex, claudeEntry, planClaude, applyClaude, claudeConfigs } from "../mcp/register.mjs";
 
 const want = { command: "/usr/local/bin/node", args: ["/repo/mcp/server.mjs"] };
 const UNRELATED = `model = "gpt-5.5"
@@ -138,5 +138,24 @@ describe("Claude Code", () => {
     const ours = runner(out(want.command, want.args.join(" ")));
     applyClaude(want, { uninstall: true, run: ours.run });
     assert.deepEqual(ours.log.at(-1), ["mcp", "remove", NAME, "-s", "user"]);
+  });
+
+  test("each Claude profile is its own config: the default, then every ~/.claude-profiles folder with a .claude.json", () => {
+    const home = mkdtempSync(join(tmpdir(), "kie-home-"));
+    assert.deepEqual(claudeConfigs(home), [null]);
+    for (const n of ["work", "alt", "empty"]) mkdirSync(join(home, ".claude-profiles", n), { recursive: true });
+    writeFileSync(join(home, ".claude-profiles", "work", ".claude.json"), "{}");
+    writeFileSync(join(home, ".claude-profiles", "alt", ".claude.json"), "{}");
+    assert.deepEqual(claudeConfigs(home), [null, join(home, ".claude-profiles", "alt"), join(home, ".claude-profiles", "work")]);
+  });
+
+  test("applyClaude reads and writes the profile it was given", () => {
+    const seen = [];
+    const run = (args, configDir) => {
+      seen.push([args[1], configDir]);
+      return args[1] === "get" ? { status: 1, stdout: "" } : { status: 0, stdout: "" };
+    };
+    applyClaude(want, { run, configDir: "/p/alt" });
+    assert.deepEqual(seen, [["get", "/p/alt"], ["add", "/p/alt"]]);
   });
 });

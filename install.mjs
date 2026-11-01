@@ -10,10 +10,10 @@
 
 import { existsSync, mkdirSync, lstatSync, symlinkSync, unlinkSync, readlinkSync, chmodSync, appendFileSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, dirname } from "node:path";
+import { basename, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { serverCommand, applyClaude, applyCodex } from "./mcp/register.mjs";
+import { serverCommand, applyClaude, applyCodex, claudeConfigs } from "./mcp/register.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SKILL_SRC = join(ROOT, "skills", "motion-design");
@@ -136,9 +136,12 @@ if (!argv.has("--no-mcp")) {
     skip: "skip",
     failed: "FAIL: the claude CLI returned an error",
   };
-  const c = applyClaude(want, { uninstall: UNINSTALL, dryRun: DRY });
-  if (["add", "update", "remove"].includes(c.action)) changed += 1;
-  log(`  Claude Code: ${say[c.action]}${c.reason ? ` (${c.reason})` : ""}`);
+  // Each Claude profile keeps its own user-scope servers, so register in every one.
+  for (const configDir of claudeConfigs()) {
+    const c = applyClaude(want, { uninstall: UNINSTALL, dryRun: DRY, configDir });
+    if (["add", "update", "remove"].includes(c.action)) changed += 1;
+    log(`  Claude Code${configDir ? ` (${basename(configDir)})` : ""}: ${say[c.action]}${c.reason ? ` (${c.reason})` : ""}`);
+  }
 
   const codexDir = join(homedir(), ".codex");
   if (existsSync(codexDir)) {

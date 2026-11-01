@@ -3,8 +3,9 @@
 // block between our markers. Zero dependencies, so install.mjs can import it
 // before mcp/node_modules exists.
 
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const NAME = "motion-design";
@@ -63,8 +64,27 @@ export function applyCodex(path, want, { uninstall = false, dryRun = false, now 
   return { action: plan.action, backup };
 }
 
-export function runClaude(args) {
-  const r = spawnSync("claude", args, { encoding: "utf8" });
+/**
+ * The Claude Code configs to register in. `null` is the default (no
+ * CLAUDE_CONFIG_DIR, so ~/.claude.json); then each profile folder under
+ * ~/.claude-profiles that has its own .claude.json. A user-scope server lives
+ * in one config only, so a profile left out never sees the tools.
+ */
+export function claudeConfigs(home = homedir()) {
+  const root = join(home, ".claude-profiles");
+  if (!existsSync(root)) return [null];
+  const profiles = readdirSync(root)
+    .map((n) => join(root, n))
+    .filter((d) => existsSync(join(d, ".claude.json")))
+    .sort();
+  return [null, ...profiles];
+}
+
+export function runClaude(args, configDir = null) {
+  const env = { ...process.env };
+  if (configDir) env.CLAUDE_CONFIG_DIR = configDir;
+  else delete env.CLAUDE_CONFIG_DIR;
+  const r = spawnSync("claude", args, { encoding: "utf8", env });
   if (r.error?.code === "ENOENT") return { missing: true };
   return { status: r.status, stdout: r.stdout ?? "" };
 }
@@ -73,8 +93,8 @@ export function runClaude(args) {
  * Our entry as Claude Code reports it. The output is parsed, never printed:
  * `claude mcp get` shows headers and env values, which can be secrets.
  */
-export function claudeEntry(run = runClaude) {
-  const r = run(["mcp", "get", NAME]);
+export function claudeEntry(run = runClaude, configDir = null) {
+  const r = run(["mcp", "get", NAME], configDir);
   if (r.missing) return { state: "no-cli" };
   if (r.status !== 0) return { state: "absent" };
   const field = (label) => r.stdout.match(new RegExp(`^\\s*${label}:\\s*(.+)$`, "m"))?.[1]?.trim() ?? null;
@@ -92,11 +112,11 @@ export function planClaude(entry, want, { uninstall = false } = {}) {
   return entry.command === want.command ? { action: "none" } : { action: "update" };
 }
 
-export function applyClaude(want, { uninstall = false, dryRun = false, run = runClaude } = {}) {
-  const plan = planClaude(claudeEntry(run), want, { uninstall });
+export function applyClaude(want, { uninstall = false, dryRun = false, run = runClaude, configDir = null } = {}) {
+  const plan = planClaude(claudeEntry(run, configDir), want, { uninstall });
   if (dryRun) return plan;
-  const remove = () => run(["mcp", "remove", NAME, "-s", "user"]);
-  const add = () => run(["mcp", "add", "--scope", "user", NAME, "--", want.command, ...want.args]);
+  const remove = () => run(["mcp", "remove", NAME, "-s", "user"], configDir);
+  const add = () => run(["mcp", "add", "--scope", "user", NAME, "--", want.command, ...want.args], configDir);
   let status = 0;
   if (plan.action === "remove") status = remove().status;
   if (plan.action === "update") status = remove().status || add().status;

@@ -10,7 +10,9 @@ the same code as the `kie` CLI.
 1. Install the CLI and its key first (see the main README); `kie doctor` should pass.
 2. `node install.mjs` from the repo root. It installs this folder's
    dependencies and registers the server:
-   - Claude Code: `claude mcp add --scope user motion-design -- <node> <repo>/mcp/server.mjs`
+   - Claude Code: `claude mcp add --scope user motion-design -- <node> <repo>/mcp/server.mjs`,
+     in the default config and in every profile folder under `~/.claude-profiles`
+     that has its own `.claude.json` (each profile keeps its own servers).
    - Codex: a block between `# >>> motion-design >>>` and `# <<< motion-design <<<`
      in `~/.codex/config.toml` (backed up first). The block sets
      `tool_timeout_sec = 300`, because Codex defaults to 60 s per tool call and
@@ -27,12 +29,30 @@ the same code as the `kie` CLI.
 | Group | Tools | Cost |
 |---|---|---|
 | Look | `status`, `list_models`, `list_presets`, `estimate`, `list_runs`, `get_run` | free |
-| Assets | `save_asset`, `list_assets`, `get_asset` | free |
+| Assets | `save_asset`, `list_assets`, `get_asset`, `update_asset`, `remove_asset` | free (`remove_asset` moves the item to `library/.trash`) |
 | Generate | `generate_image`, `generate_video`, `wait_job` | spends kie credits |
 | Finish | `frames`, `probe`, `assemble`, `variants`, `caption`, `render` | free, local |
 | Direct | `get_menu`, `get_brief`, `save_brief`, `get_plan`, `save_plan`, `update_shot`, `check_plan`, `suggest_model`, `shot_wording` | free, local |
 | Make (look) | `get_shots`, `review_shot`, `save_review`, `adopt_sheet`, `cut_film` | free, local (`save_review` can spend, see below) |
 | Make (spend) | `make_sheet`, `make_still`, `film_shot`, `film_all` | spends kie credits; each takes `dry_run` |
+| Scenes (look) | `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene` | free, local |
+| Scenes (spend) | `draft_scene`, `final_scene` | spends kie credits |
+
+## Scenes
+
+The studio's Create > Scene tab, through tools. Create's own run is `create`.
+A scene is one Seedance 2.5 reference-to-video generation, built from cards
+(goal, scene, stages, style, audio) and up to 9 images; the studio and these
+tools share `cli/director/scene-make.mjs`, so both send the same prompt.
+
+- `save_scene` with an `id` replaces only the fields given (cards merge by
+  key; `stages`, when given, replace the list). Change what the user named.
+- `get_scene_prompt` is free: the exact prompt, the images in order, what
+  would stop it, and the draft, 720p and 1080p prices. Read it before spending.
+- `draft_scene` (480p, draft mode) and `final_scene` (720p or 1080p) refuse
+  with nothing spent while the prompt has problems; then `wait_job`.
+- `add_scene_image` copies a picture into `runs/<film>/refs/` and returns the
+  `file:refs/...` source for the scene's refs.
 
 ## Making a film
 
