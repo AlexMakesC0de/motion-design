@@ -47,6 +47,7 @@ export interface AssetSummary {
   kind: string;
   description: string;
   imageCount: number;
+  hasSheet?: boolean;
   updatedAt: string;
   /** Only from GET /api/library; the SSE library event sends core's list without them. */
   cover?: string | null;
@@ -57,9 +58,10 @@ export interface AssetDetail {
   name: string;
   kind: string;
   description: string;
+  keep: string | null;
   createdAt: string;
   updatedAt: string;
-  images: { n: number; file: string; width: number | null; height: number | null; bytes: number; mime: string | null; url: string | null }[];
+  images: { n: number; role: "sheet" | "source"; file: string; width: number | null; height: number | null; bytes: number; mime: string | null; url: string | null }[];
   /** Film (run) slugs, from the asset record. */
   usedIn: string[];
   /** Jobs whose refs used this asset, newest first. */
