@@ -155,8 +155,9 @@ describe("SceneScreen", () => {
     await waitFor(() => expect(draft).toBeEnabled());
     fireEvent.click(draft);
     const list = await screen.findByRole("list", { name: "Versions" });
-    expect(await within(list).findByRole("button", { name: /^Draft 1 · 480p/ })).toBeInTheDocument();
-    expect(within(list).getByText(/running/)).toBeInTheDocument();
+    const item = await within(list).findByRole("listitem", { name: "Draft 1" });
+    expect(within(item).getByText(/480p · running/)).toBeInTheDocument();
+    expect(within(item).getByText("This version is running.")).toBeInTheDocument();
     expect(calls(fetchMock, `${BASE}/s1/draft`)).toHaveLength(1);
     expect(calls(fetchMock, `${BASE}/s1/final`)).toHaveLength(0);
   });
@@ -168,7 +169,7 @@ describe("SceneScreen", () => {
     expect(final).toHaveClass("generate");
     await waitFor(() => expect(final).toBeEnabled());
     fireEvent.click(final);
-    expect(await screen.findByRole("button", { name: /^Final 1 · 1080p/ })).toBeInTheDocument();
+    expect(within(await screen.findByRole("listitem", { name: "Final 1" })).getByText(/1080p/)).toBeInTheDocument();
     const sent = calls(fetchMock, `${BASE}/s1/final`);
     expect(sent).toHaveLength(1);
     expect(JSON.parse(String(sent[0][1]?.body))).toEqual({ resolution: "1080p" });
@@ -198,21 +199,35 @@ describe("SceneScreen", () => {
     await waitFor(() => expect(draft).toBeEnabled());
   });
 
-  test("the player shows the chosen version, and Choose marks another", async () => {
+  test("every version has its own player and a visible Choose", async () => {
     const one = version({ job: "j-1", media: "/media/runs/create/one.mp4" });
     const two = version({ job: "j-2", media: "/media/runs/create/two.mp4", createdAt: new Date().toISOString() });
     const fetchMock = stub({
       scenes: [scene({ versions: [one, two], chosen: "j-1" })],
       more: { [`${BASE}/s1/choose`]: () => scene({ versions: [one, two], chosen: "j-2" }) },
     });
-    const { container } = render(<SceneScreen run="create" />);
+    render(<SceneScreen run="create" />);
     const list = await screen.findByRole("list", { name: "Versions" });
-    expect(container.querySelector("video")).toHaveAttribute("src", "/media/runs/create/one.mp4");
-    expect(within(list).getByText(/chosen/)).toBeInTheDocument();
-    fireEvent.click(within(list).getByRole("button", { name: "Choose draft 2" }));
+    // Newest first, each with its own video.
+    const items = within(list).getAllByRole("listitem");
+    expect(items.map((li) => li.getAttribute("aria-label"))).toEqual(["Draft 2", "Draft 1, chosen"]);
+    expect(within(items[0]).getByLabelText("Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4");
+    expect(within(items[1]).getByLabelText("Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4");
+    expect(within(items[1]).getByText("★ Chosen")).toBeInTheDocument();
+    fireEvent.click(within(items[0]).getByRole("button", { name: "Choose draft 2" }));
     await waitFor(() => expect(JSON.parse(String(calls(fetchMock, `${BASE}/s1/choose`)[0]?.[1]?.body))).toEqual({ job: "j-2" }));
-    fireEvent.click(within(list).getByRole("button", { name: /^Draft 2/ }));
-    expect(container.querySelector("video")).toHaveAttribute("src", "/media/runs/create/two.mp4");
+    expect(await within(list).findByRole("listitem", { name: "Draft 2, chosen" })).toBeInTheDocument();
+  });
+
+  test("playing one version pauses the others", async () => {
+    stub({ scenes: [scene({ versions: [version({ job: "j-1" }), version({ job: "j-2", media: "/media/runs/create/two.mp4" })] })] });
+    render(<SceneScreen run="create" />);
+    const first = await screen.findByLabelText("Draft 1 of Freefall");
+    const second = screen.getByLabelText("Draft 2 of Freefall");
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function (this: HTMLMediaElement) {});
+    fireEvent.play(second);
+    expect(pause.mock.contexts).toEqual([first]);
+    pause.mockRestore();
   });
 
   test("versions whose videos are gone say so instead of 'No versions yet'", async () => {
@@ -220,10 +235,10 @@ describe("SceneScreen", () => {
     const two = version({ job: "j-2", media: null });
     stub({ scenes: [scene({ versions: [one, two] })] });
     render(<SceneScreen run="create" />);
-    expect(await screen.findByText("Draft 2's video file is missing.")).toBeInTheDocument();
+    const list = await screen.findByRole("list", { name: "Versions" });
+    expect(within(within(list).getByRole("listitem", { name: "Draft 2" })).getByText("The video file is missing.")).toBeInTheDocument();
+    expect(within(within(list).getByRole("listitem", { name: "Draft 1" })).getByText("This version is failed.")).toBeInTheDocument();
     expect(screen.queryByText(/No versions yet/)).not.toBeInTheDocument();
-    fireEvent.click(within(screen.getByRole("list", { name: "Versions" })).getByRole("button", { name: /^Draft 1/ }));
-    expect(screen.getByText("Draft 1 is failed.")).toBeInTheDocument();
   });
 
   test("moving image 2 up renumbers the mentions", async () => {

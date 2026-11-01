@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { SyntheticEvent } from "react";
 import { ApiError } from "../api/client";
 import type { Scene, ScenePreview, SceneVersion } from "../api/types";
 import { usd } from "../studio/format";
@@ -28,8 +29,8 @@ function stateWord(v: SceneVersion) {
   return "record missing";
 }
 
-/** What the player says when the version it shows has nothing to play. */
-const emptyText = (v: SceneVersion, name: string) => (v.state === "succeeded" ? `${name}'s video file is missing.` : `${name} is ${stateWord(v)}.`);
+/** What a version's frame says when it has nothing to play. */
+const emptyText = (v: SceneVersion) => (v.state === "succeeded" ? "The video file is missing." : `This version is ${stateWord(v)}.`);
 
 function ago(iso: string, now: number) {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
@@ -46,12 +47,16 @@ function names(versions: SceneVersion[]) {
   return versions.map((v) => `${v.kind === "final" ? "Final" : "Draft"} ${(count[v.kind] += 1)}`);
 }
 
+/** One video plays at a time: starting one pauses the others in its list. */
+const pauseOthers = (e: SyntheticEvent<HTMLVideoElement>) => {
+  for (const v of e.currentTarget.closest("ol")?.querySelectorAll("video") ?? []) if (v !== e.currentTarget) v.pause();
+};
+
 const priceText = (p: { usd: number | null } | null | undefined) => (p?.usd != null ? usd(p.usd) : "no price");
 
-/** The right column: the player, the versions, New draft and Make final. */
+/** The right column: every version with its own player and Choose, then New draft and Make final. */
 export function Versions({ scene, preview, onDraft, onFinal, onChoose }: VersionsProps) {
   const now = useNow(30_000);
-  const [picked, setPicked] = useState<string | null>(null);
   const [final, setFinal] = useState<Final>("1080p");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -59,9 +64,6 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
 
   const versions = scene.versions;
   const labels = names(versions);
-  const newestDone = [...versions].reverse().find((v) => v.state === "succeeded" && v.media);
-  const shown = versions.find((v) => v.job === picked) ?? versions.find((v) => v.job === scene.chosen) ?? newestDone ?? versions.at(-1) ?? null;
-  const shownName = shown ? labels[versions.indexOf(shown)] : null;
 
   const problems = preview?.problems ?? [];
   const draftPrice = preview?.prices.draft;
@@ -73,8 +75,7 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
     setBusy(true);
     setFailure(null);
     try {
-      const r = await go();
-      setPicked(r.scene.versions.at(-1)?.job ?? null);
+      await go();
     } catch (e) {
       if (e instanceof ApiError && e.code === 5) setUnsure(e.message);
       else setFailure(e instanceof Error ? e.message : String(e));
@@ -87,25 +88,22 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
     setFailure(null);
     try {
       await onChoose(job);
-      setPicked(job);
     } catch (e) {
       setFailure(e instanceof Error ? e.message : String(e));
     }
   };
 
   return (
-    <section className="scene-versions" aria-label="Player and versions">
-      <div className="scene-player" style={{ aspectRatio: scene.ratio.replace(":", " / ") }}>
-        {shown?.media ? (
-          <video key={shown.media} src={shown.media} controls playsInline aria-label={`${shownName} of ${scene.title || "this scene"}`} />
-        ) : (
-          <p className="scene-player__empty">{shown ? emptyText(shown, shownName!) : "No versions yet. A draft is a quick 480p try."}</p>
-        )}
-      </div>
-
-      {versions.length > 0 && (
+    <section className="scene-versions" aria-label="Versions and making">
+      {versions.length === 0 ? (
+        <div className="scene-version__frame" style={{ aspectRatio: scene.ratio.replace(":", " / ") }}>
+          <p className="scene-version__empty">No versions yet. A draft is a quick 480p try.</p>
+        </div>
+      ) : (
         <>
-          <h2 className="scene-label">Versions</h2>
+          <h2 className="scene-label">
+            Versions <span className="mono scene-versions__count">{versions.length}</span>
+          </h2>
           <ol className="scene-versions__list" aria-label="Versions">
             {versions
               .map((v, i) => ({ v, name: labels[i] }))
@@ -113,24 +111,30 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
               .map(({ v, name }) => {
                 const word = stateWord(v);
                 const chosen = scene.chosen === v.job;
-                // The full name in aria-label: name computation trims each span, which would drop the spaces.
-                const label = `${name} · ${v.resolution} · ${word ?? ago(v.createdAt, now)}${chosen ? ", chosen" : ""}`;
                 return (
-                  <li key={v.job} className="scene-version" data-on={shown?.job === v.job ? "true" : undefined} data-state={word ? v.state ?? "missing" : undefined}>
-                    <button type="button" className="scene-version__pick" aria-pressed={shown?.job === v.job} aria-label={label} onClick={() => setPicked(v.job)}>
+                  <li key={v.job} className="scene-version" aria-label={`${name}${chosen ? ", chosen" : ""}`} data-chosen={chosen ? "true" : undefined} data-state={word ? v.state ?? "missing" : undefined}>
+                    <div className="scene-version__frame" style={{ aspectRatio: scene.ratio.replace(":", " / ") }}>
+                      {v.media ? (
+                        <video src={v.media} controls playsInline preload="metadata" onPlay={pauseOthers} aria-label={`${name} of ${scene.title || "this scene"}`} />
+                      ) : (
+                        <p className="scene-version__empty">{emptyText(v)}</p>
+                      )}
+                    </div>
+                    <div className="scene-version__bar">
                       <span className="scene-version__what">{name}</span>
-                      <span className="mono"> · {v.resolution}</span>
-                      <span className="scene-version__when"> · {word ?? ago(v.createdAt, now)}</span>
-                    </button>
-                    {chosen ? (
-                      <span className="scene-version__chosen">★ chosen</span>
-                    ) : (
-                      v.state === "succeeded" && (
-                        <button type="button" className="button button--quiet scene-version__choose" aria-label={`Choose ${name.toLowerCase()}`} onClick={() => void choose(v.job)}>
-                          Choose
-                        </button>
-                      )
-                    )}
+                      <span className="mono scene-version__when">
+                        {v.resolution} · {word ?? ago(v.createdAt, now)}
+                      </span>
+                      {chosen ? (
+                        <span className="scene-version__chosen">★ Chosen</span>
+                      ) : (
+                        v.state === "succeeded" && (
+                          <button type="button" className="button scene-version__choose" aria-label={`Choose ${name.toLowerCase()}`} onClick={() => void choose(v.job)}>
+                            Choose
+                          </button>
+                        )
+                      )}
+                    </div>
                   </li>
                 );
               })}
