@@ -133,3 +133,48 @@ export function attachLibraryMentions(scene) {
   }
   return refs.length === scene.refs.length ? scene : { ...scene, refs };
 }
+
+// Cards and pasted prompts live here, not in scenes.mjs, because the page needs them too.
+export const emptyCards = () => ({ goal: "", scene: "", stages: [], style: "", audio: "" });
+
+const SECTION = /^\[(GOAL|REFERENCES|SCENE|VISUAL STYLE|AUDIO|MAINTAIN CONSISTENCY|STAGE (\d+) \| (\d+)\s*[–-]\s*(\d+) SECONDS \| ([^\]]+))\]\s*$/i;
+
+/** A whole prompt in Dan's sections → cards, or null when the text has no sections. */
+export function parseDanPrompt(raw) {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  if (!lines.some((l) => SECTION.test(l.trim()))) return null;
+  const cards = emptyCards();
+  let target = null;
+  const body = [];
+  const flush = () => {
+    const t = body.splice(0).join("\n").trim();
+    if (!target) return;
+    if (target.stage) {
+      for (const line of t.split("\n")) {
+        const m = line.match(/^(Camera|Action|End):\s*(.*)$/i);
+        if (m) target.stage[m[1].toLowerCase()] = m[2].trim();
+        else if (line.trim()) target.stage.action = [target.stage.action, line.trim()].filter(Boolean).join(" ");
+      }
+    } else if (target.key) cards[target.key] = t;
+  };
+  for (const line of lines) {
+    const m = line.trim().match(SECTION);
+    if (!m) {
+      body.push(line);
+      continue;
+    }
+    flush();
+    const head = m[1].toUpperCase();
+    if (m[2]) {
+      const stage = { title: titleCase(m[5].trim()), seconds: Math.max(1, Number(m[4]) - Number(m[3])), camera: "", action: "", end: "" };
+      cards.stages.push(stage);
+      target = { stage };
+    } else {
+      target = { key: { GOAL: "goal", SCENE: "scene", "VISUAL STYLE": "style", AUDIO: "audio" }[head] ?? null };
+    }
+  }
+  flush();
+  return cards;
+}
+
+const titleCase = (s) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
