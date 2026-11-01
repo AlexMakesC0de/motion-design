@@ -1,5 +1,7 @@
 # References first: design
 
+> **Superseded on 2026-11-01** by [Shard: scenes, Library sheets and a new look](2026-11-01-shard-scenes-design.md), before any of it was built. Kept as history.
+
 Approved in conversation 2026-10-31. Extends the [director](2026-10-31-director-design.md) and the [studio](2026-10-30-studio-web-app-design.md).
 
 ## Why

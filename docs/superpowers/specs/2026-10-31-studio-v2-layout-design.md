@@ -1,5 +1,7 @@
 # Studio v2 layout: design
 
+> **Stage 1 built (2026-11-01). Stages 2–4 replaced** by [Shard: scenes, Library sheets and a new look](2026-11-01-shard-scenes-design.md). Kept as history.
+
 Approved in conversation 2026-10-31 from the low-fidelity frames in [studio-v2-wireframes.html](../../design/studio-v2-wireframes.html). This changes where things are and how you move between them. Colours, type and the amber-accent rules stay as in [DESIGN.md](../../../DESIGN.md). The References step is specified in [references-first](2026-10-31-references-first-design.md).
 
 ## Why
