@@ -129,7 +129,10 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     const image = record.images.find((im) => im.n === n);
     if (!image) throw unknown(`${name} has images 1-${record.images.length}; there is no #${n}.`);
     const prior = image.upload;
-    if (prior && prior.sha256 === image.sha256 && now() - Date.parse(prior.at) < REUSE_UPLOAD_MS) return prior.url;
+    // Uploads are named by a hash of their bytes (lib/upload.mjs); a link without
+    // this picture's hash predates that and may hold another picture.
+    const named = Boolean(image.sha256) && Boolean(prior?.url?.includes(image.sha256.slice(0, 16)));
+    if (prior && named && prior.sha256 === image.sha256 && now() - Date.parse(prior.at) < REUSE_UPLOAD_MS) return prior.url;
 
     const { url } = await upload(join(assetDir(name), image.file), { mime: image.mime });
     image.upload = { url, at: now().toISOString(), sha256: image.sha256 };

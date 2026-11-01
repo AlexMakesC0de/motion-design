@@ -1,5 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { basename, extname } from "node:path";
 import { redact } from "./redact.mjs";
 import { getProvider, providerKey } from "./providers.mjs";
@@ -20,6 +21,18 @@ const MIME = {
 };
 
 const MAX_BYTES = 64 * 1024 * 1024;
+
+/**
+ * The name a file is stored under on kie. Every upload shares one folder, so
+ * the name carries a hash of the bytes: two Library pictures both called
+ * 1.png would otherwise overwrite each other and every reference would point
+ * at whichever was sent last. The same bytes keep the same name.
+ */
+function uploadName(path, bytes) {
+  const ext = extname(path).toLowerCase();
+  const stem = basename(path, extname(path)).replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 40) || "file";
+  return `${stem}-${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}${ext}`;
+}
 
 /**
  * Turns a local path into a remote URL, which is the ONLY way an asset may
@@ -65,7 +78,7 @@ export async function uploadFile(catalog, path, { providerName = "kie", mime: kn
     body: JSON.stringify({
       base64Data: `data:${mime};base64,${bytes.toString("base64")}`,
       uploadPath: "motion-design",
-      fileName: basename(path),
+      fileName: uploadName(path, bytes),
     }),
   });
 

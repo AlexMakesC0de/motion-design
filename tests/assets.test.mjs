@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 import { EXIT } from "../cli/lib/errors.mjs";
@@ -16,6 +17,7 @@ const img = (name, buf) => {
 };
 const zed1 = img("zed-front.png", png(1024, 1024));
 const zed2 = img("zed-side.jpg", jpeg(800, 1200));
+const hash16 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex").slice(0, 16);
 const lib = (opts) => openLibrary(mkdtempSync(join(tmpdir(), "kie-lib-")), opts);
 const zed = { name: "zed", kind: "character", description: "Zed, a small round robot with one blue eye.", images: [zed1, zed2] };
 
@@ -81,12 +83,24 @@ describe("uploads are reused while kie still has them", () => {
     const l = lib({ now: () => now });
     l.save(zed);
     let uploads = 0;
-    const upload = async () => ({ url: `https://files.test/${++uploads}.png` });
-    assert.equal(await l.uploadUrl("zed", 1, { upload }), "https://files.test/1.png");
+    const upload = async (path) => ({ url: `https://files.test/${++uploads}-${hash16(path)}.png` });
+    const first = await l.uploadUrl("zed", 1, { upload });
+    assert.match(first, /^https:\/\/files\.test\/1-/);
     now = new Date("2026-10-31T05:00:00Z"); // 19 hours later
-    assert.equal(await l.uploadUrl("zed", 1, { upload }), "https://files.test/1.png");
+    assert.equal(await l.uploadUrl("zed", 1, { upload }), first);
     now = new Date("2026-10-31T07:00:00Z"); // 21 hours later: kie may have deleted it
-    assert.equal(await l.uploadUrl("zed", 1, { upload }), "https://files.test/2.png");
+    assert.match(await l.uploadUrl("zed", 1, { upload }), /^https:\/\/files\.test\/2-/);
+  });
+
+  test("a remembered link not named for this picture is not trusted", async () => {
+    // Before uploads were named by content, every 1.png shared one link, and
+    // the last picture sent replaced the others behind it.
+    const l = lib();
+    l.save(zed);
+    const shared = "https://files.test/motion-design/1.png";
+    await l.uploadUrl("zed", 1, { upload: async () => ({ url: shared }) });
+    const fresh = await l.uploadUrl("zed", 1, { upload: async (path) => ({ url: `https://files.test/1-${hash16(path)}.png` }) });
+    assert.notEqual(fresh, shared);
   });
 
   test("recordUse lists each run once", () => {
