@@ -10,9 +10,11 @@
 .filter:hover { color: var(--text); }
 .filter[aria-pressed="true"] { background: var(--surface-3); color: var(--text); border-color: var(--surface-3); }
 
-.library { display: grid; grid-template-columns: 1fr; min-height: 100%; }
+/* The page does not scroll here: the grid and the sheet maker each scroll on their own. */
+.app__main[data-screen="library"] { overflow: hidden; padding: 0; }
+.library { display: grid; grid-template-columns: 1fr; height: 100%; }
 .library[data-open="true"] { grid-template-columns: 1fr 520px; }
-.library__main { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); }
+.library__main { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); overflow-y: auto; min-height: 0; }
 .filter__n { color: var(--text-3); font-size: var(--text-sm); margin-left: 2px; }
 .library__empty { color: var(--text-2); font-size: var(--text-md); }
 
@@ -31,6 +33,7 @@
 
 /* The sheet maker: a side panel. One green button (Copy prompt). */
 .sheet-maker { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-5); background: var(--surface-1); border-left: 1px solid var(--line); overflow-y: auto; }
+.sheet-maker > * { flex-shrink: 0; } /* it scrolls; nothing squeezes to fit */
 .sheet-maker__head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-maker__title { margin: 0; font-size: var(--text-xl); font-weight: 600; }
 .seg { display: flex; padding: 3px; border-radius: var(--radius-md); background: var(--surface-2); margin: var(--space-2) 0; }
