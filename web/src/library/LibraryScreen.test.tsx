@@ -1,90 +1,57 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { LibraryScreen } from "./LibraryScreen";
-import { getDraft, resetForTests } from "../studio/promptStore";
-import { job, routes } from "../test-fixtures";
+import { routes } from "../test-fixtures";
 
 const list = [
-  { name: "zed", kind: "character", description: "Zed.", imageCount: 2, updatedAt: "", cover: "/media/library/zed/1.png", usedIn: ["zethus-hero"] },
-  { name: "warm", kind: "style", description: "Warm light.", imageCount: 1, updatedAt: "", cover: null, usedIn: [] },
+  { name: "alexandros", kind: "character", description: "Alex.", imageCount: 3, hasSheet: false, updatedAt: "", cover: "/media/library/alexandros/1.png", usedIn: ["skydive"] },
+  { name: "jumpsuit", kind: "product", description: "A jumpsuit.", imageCount: 1, hasSheet: true, updatedAt: "", cover: "/media/library/jumpsuit/1.png", usedIn: [] },
+  { name: "alley", kind: "location", description: "An alley.", imageCount: 1, hasSheet: true, updatedAt: "", cover: "/media/library/alley/1.png", usedIn: ["a", "b"] },
 ];
-const zed = {
-  name: "zed",
-  kind: "character",
-  description: "Zed, the mascot.",
-  createdAt: "",
-  updatedAt: "",
-  images: [{ n: 1, file: "1.png", width: 512, height: 512, bytes: 10, mime: "image/png", url: "/media/library/zed/1.png" }],
-  usedIn: ["zethus-hero"],
-  takes: [job({ id: "j-20261031-cccccc", run: "zethus-hero" })],
+const alexandros = {
+  name: "alexandros", kind: "character", description: "Alex.", keep: null, createdAt: "", updatedAt: "",
+  images: [{ n: 1, role: "source", file: "1.png", width: 1, height: 1, bytes: 1, mime: "image/png", url: "/media/library/alexandros/1.png" }],
+  usedIn: ["skydive"], takes: [],
 };
 
-function stub(extra: Record<string, (init?: RequestInit) => unknown> = {}) {
-  const fetchMock = vi.fn(
-    routes({
-      "/api/library": () => list,
-      "/api/vocab": () => ({ kinds: ["character", "product", "location", "style"], roles: ["identity", "style", "first_frame"] }),
-      "/api/library/zed": () => zed,
-      ...extra,
-    }),
-  );
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-}
-
 beforeEach(() => {
-  resetForTests({}, "zed");
   window.location.hash = "#/library";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      routes({
+        "/api/library": () => list,
+        "/api/library/alexandros": () => alexandros,
+        "/api/library/sheet-prompt": () => ({ prompt: "A three-panel character reference sheet…" }),
+      }),
+    ),
+  );
 });
 
 describe("LibraryScreen", () => {
-  test("shows each asset's @name and filters by kind", async () => {
-    stub();
+  test("cards show @library:name, the kind as people say it, and whether there is a sheet", async () => {
     render(<LibraryScreen />);
-    const grid = await screen.findByRole("list", { name: "Assets" });
-    expect(await within(grid).findByText("@zed")).toHaveClass("mono");
-    expect(within(grid).getByText("@warm")).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("button", { name: "style" }));
-    expect(within(grid).queryByText("@zed")).toBeNull();
-    expect(within(grid).getByText("@warm")).toBeInTheDocument();
+    const grid = await screen.findByRole("list", { name: "Library" });
+    expect(await within(grid).findByText("@library:jumpsuit")).toHaveClass("mono");
+    expect(within(grid).getByText(/^Prop ·/)).toBeInTheDocument();
+    expect(within(grid).getByText("no sheet yet")).toBeInTheDocument();
+    expect(within(grid).getByText(/in 2 films/)).toBeInTheDocument();
   });
 
-  test("a refused drop shows core's reason", async () => {
-    const refusal = () => new Response(JSON.stringify({ error: { code: 3, field: "file", message: "clip.mp4 is not an image file (checked by its content, not its name)." } }), { status: 400 });
-    stub({ "/api/library/incoming": refusal });
+  test("tabs filter by kind and show counts", async () => {
     render(<LibraryScreen />);
-    const file = new File(["x"], "clip.mp4", { type: "video/mp4" });
-    fireEvent.drop(screen.getByLabelText("Drop images here"), { dataTransfer: { files: [file] } });
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("clip.mp4 is not an image file");
-    // Nothing is savable: no "Save 0" button, and the refusal gets the card's width.
-    expect(screen.queryByRole("button", { name: /as an asset/ })).toBeNull();
-    expect(alert.closest("li")).toHaveAttribute("data-state", "refused");
+    const grid = await screen.findByRole("list", { name: "Library" });
+    await within(grid).findByText("@library:alley");
+    fireEvent.click(screen.getByRole("button", { name: /Props\s*1/ }));
+    expect(within(grid).queryByText("@library:alley")).toBeNull();
+    expect(within(grid).getByText("@library:jumpsuit")).toBeInTheDocument();
   });
 
-  test("an accepted drop saves as an asset with its upload token", async () => {
-    const fetchMock = stub({ "/api/library/incoming": () => ({ token: "incoming:" + "a".repeat(32) + ".png", name: "zed.png", kind: "image", mime: "image/png", bytes: 3, width: 1, height: 1 }) });
+  test("+ New sheet opens the sheet maker; a card opens it for that item", async () => {
     render(<LibraryScreen />);
-    fireEvent.drop(screen.getByLabelText("Drop images here"), { dataTransfer: { files: [new File(["x"], "zed.png", { type: "image/png" })] } });
-    fireEvent.click(await screen.findByRole("button", { name: "Save 1 as an asset" }));
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "zed" } });
-    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Zed, the mascot." } });
-    fireEvent.click(screen.getByRole("button", { name: "Save 1 image" }));
-    await waitFor(() => {
-      const post = fetchMock.mock.calls.find((c) => c[0] === "/api/library" && c[1]?.method === "POST");
-      expect(JSON.parse(post![1]!.body as string)).toMatchObject({ name: "zed", kind: "character", images: ["incoming:" + "a".repeat(32) + ".png"] });
-    });
-  });
-
-  test("an asset's panel lists its films and takes, and Use in prompt adds an @asset chip", async () => {
-    stub();
-    render(<LibraryScreen />);
-    fireEvent.click(await screen.findByRole("button", { name: /@zed/ }));
-    const panel = await screen.findByRole("region", { name: "@zed" });
-    expect(within(panel).getByText("zethus-hero")).toBeInTheDocument();
-    expect(within(panel).getByText(/seedance-2-5 · 4s · 480p/)).toBeInTheDocument();
-    fireEvent.click(within(panel).getByRole("button", { name: "Use in prompt" }));
-    expect(getDraft().refs).toEqual([{ source: "zed", role: "identity" }]);
-    expect(window.location.hash).toBe("#/create");
+    fireEvent.click(await screen.findByRole("button", { name: /New sheet/ }));
+    expect(screen.getByRole("region", { name: "New sheet" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /@library:alexandros/ }));
+    expect(await screen.findByRole("region", { name: "@library:alexandros" })).toBeInTheDocument();
   });
 });
