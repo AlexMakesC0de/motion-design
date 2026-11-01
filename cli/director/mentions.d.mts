@@ -1,0 +1,18 @@
+export type Ref = { id: string; source: string | null; keep?: string };
+export type Stage = { title: string; seconds: number; camera: string; action: string; end: string };
+export type Cards = { goal: string; scene: string; stages: Stage[]; style: string; audio: string };
+export type Span = {
+  start: number; end: number; kind: "image" | "library"; n?: number; name?: string; refId: string | null;
+  state: "linked" | "missing"; reason: string | null; label: string;
+};
+export const MAX_REFS: number;
+export function normalizeMentions(text: string): string;
+export function nextRefId(refs: Ref[]): string;
+export function refLabel(ref: Ref | null | undefined): string;
+export function toDisplay(stored: string, refs: Ref[]): string;
+export function toStored(display: string, refs: Ref[], opts?: { settle?: boolean }): { text: string; refs: Ref[] };
+export function mentionSpans(display: string, refs: Ref[], items: Map<string, { hasSheet: boolean }>): Span[];
+export function cardTexts(cards: Cards): string[];
+export function mapCardTexts(cards: Cards, fn: (t: string) => string): Cards;
+export function removeRef<S extends { refs: Ref[]; cards: Cards }>(scene: S, id: string): S;
+export function attachLibraryMentions<S extends { refs: Ref[]; cards: Cards }>(scene: S): S;
