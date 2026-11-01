@@ -14,7 +14,8 @@ import { pipeline } from "node:stream/promises";
 import { randomBytes } from "node:crypto";
 import { basename, isAbsolute, join } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR } from "../../../cli/lib/run.mjs";
-import { KINDS } from "../../../cli/core/assets.mjs";
+import { KINDS, sheetOf } from "../../../cli/core/assets.mjs";
+import { sheetPrompt } from "../../../cli/core/sheets.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
 import { HttpError } from "../http.mjs";
 import { context, jobView } from "../state.mjs";
@@ -71,6 +72,32 @@ export async function saveBody(req, path, limit) {
   return size;
 }
 
+/** "incoming:<file>" → its path in library/.incoming, refused unless it is a real waiting upload. */
+function incomingPath(incoming, src, field) {
+  const m = src.match(TOKEN);
+  if (!m || !existsSync(join(incoming, m[1]))) throw f.invalid(field, `"${src}" is not an upload waiting to be saved. Drop the file again.`);
+  return join(incoming, m[1]);
+}
+
+/** images: ["incoming:…" | "run/path.png" | { src, role }] → [{ path, role }], plus the uploads to clear after saving. */
+function imageList(body, incoming) {
+  const v = body?.images ?? [];
+  if (!Array.isArray(v)) throw f.invalid("images", "images must be a list.");
+  const uploads = [];
+  const images = v.map((entry) => {
+    const { src, role = "source" } = typeof entry === "string" ? { src: entry } : (entry ?? {});
+    if (typeof src !== "string" || !src) throw f.invalid("images", "Each image needs a src: an upload token or a path inside runs/.");
+    if (src.startsWith("incoming:")) {
+      const path = incomingPath(incoming, src, "images");
+      uploads.push(path);
+      return { path, role };
+    }
+    // The MCP save_asset rule: relative means inside runs/.
+    return { path: isAbsolute(src) ? src : join(RUNS_DIR, src), role };
+  });
+  return { images, uploads };
+}
+
 export function assetDetail(name, following) {
   const { library, store } = context();
   const a = library.get(name);
@@ -78,9 +105,10 @@ export function assetDetail(name, following) {
     name: a.name,
     kind: a.kind,
     description: a.description,
+    keep: a.keep,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
-    images: a.images.map((im) => ({ n: im.n, file: im.file, width: im.width ?? null, height: im.height ?? null, bytes: im.bytes, mime: im.mime ?? null, url: mediaUrl(im.path) })),
+    images: a.images.map((im) => ({ n: im.n, role: im.role, file: im.file, width: im.width ?? null, height: im.height ?? null, bytes: im.bytes, mime: im.mime ?? null, url: mediaUrl(im.path) })),
     // Runs come from the asset record; takes from job records, which keep the
     // assets each job's refs used (the CLI, MCP and this server all record them).
     usedIn: a.usedIn ?? [],
@@ -99,8 +127,21 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
     const { library } = context();
     return library.list().map((s) => {
       const a = library.get(s.name);
-      return { ...s, cover: mediaUrl(a.images[0]?.path), usedIn: a.usedIn ?? [] };
+      return { ...s, cover: mediaUrl((sheetOf(a) ?? a.images[0])?.path), usedIn: a.usedIn ?? [] };
     });
+  });
+
+  router.get("/api/library/sheet-prompt", ({ query }) => {
+    const photos = Number(query.get("photos") ?? 0);
+    return {
+      prompt: sheetPrompt({
+        kind: query.get("kind") ?? "",
+        description: query.get("description") ?? "",
+        outfit: query.get("outfit") ?? "",
+        view: query.get("view") ?? "",
+        photos: Number.isInteger(photos) && photos > 0 ? photos : 0,
+      }),
+    };
   });
 
   router.get("/api/library/:name", ({ params }) => assetDetail(params.name, following));
@@ -149,24 +190,42 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
     const name = f.text(body, "name", { required: true });
     const kind = f.text(body, "kind", { required: true });
     const description = f.text(body, "description", { required: true });
-    const images = f.strings(body, "images");
+    const keep = f.text(body, "keep");
     const replace = f.flag(body, "replace");
     const { library, roots } = context();
     const incoming = incomingDir();
-    const uploads = [];
-    const paths = images.map((src) => {
-      if (src.startsWith("incoming:")) {
-        const m = src.match(TOKEN);
-        if (!m || !existsSync(join(incoming, m[1]))) throw f.invalid("images", `"${src}" is not an upload waiting to be saved. Drop the file again.`);
-        uploads.push(join(incoming, m[1]));
-        return join(incoming, m[1]);
-      }
-      // The MCP save_asset rule: relative means inside runs/.
-      return isAbsolute(src) ? src : join(RUNS_DIR, src);
-    });
+    const { images, uploads } = imageList(body, incoming);
     // incoming first: it sits inside library/ under a hidden name, which the library root would refuse.
-    library.save({ name, kind, description, images: paths, replace }, { roots: [incoming, ...roots] });
+    library.save({ name, kind, description, keep, images, replace }, { roots: [incoming, ...roots] });
     for (const p of uploads) rmSync(p, { force: true });
     return assetDetail(name, following);
+  });
+
+  router.patch("/api/library/:name", ({ params, body = {} }) => {
+    const { library } = context();
+    const changes = {};
+    for (const field of ["kind", "description", "keep"]) {
+      const v = body[field];
+      if (v === undefined) continue;
+      if (typeof v !== "string") throw f.invalid(field, `${field} must be text.`);
+      changes[field] = v;
+    }
+    library.update(params.name, changes);
+    return assetDetail(params.name, following);
+  });
+
+  router.post("/api/library/:name/sheet", ({ params, body = {} }) => {
+    const src = f.text(body, "image", { required: true });
+    const { library, roots } = context();
+    const incoming = incomingDir();
+    const path = incomingPath(incoming, src, "image");
+    const current = library.get(params.name);
+    const sources = current.images.filter((im) => im.role === "source").map((im) => ({ path: im.path, role: "source" }));
+    library.save(
+      { name: current.name, kind: current.kind, description: current.description, keep: current.keep, images: [{ path, role: "sheet" }, ...sources], replace: true },
+      { roots: [incoming, ...roots] },
+    );
+    rmSync(path, { force: true });
+    return assetDetail(params.name, following);
   });
 }

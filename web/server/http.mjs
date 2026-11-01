@@ -70,6 +70,7 @@ export function createRouter() {
     post: add("POST"),
     put: add("PUT"),
     delete: add("DELETE"),
+    patch: add("PATCH"),
     match(method, path) {
       for (const r of routes) {
         if (r.method !== method) continue;

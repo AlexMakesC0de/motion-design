@@ -158,3 +158,64 @@ describe("read", () => {
     assert.ok(r.json.roles.includes("first_frame"));
   });
 });
+
+const patch = (name, body) => req(port, `/api/library/${name}`, { method: "PATCH", body });
+const sheet = (name, body) => req(port, `/api/library/${name}/sheet`, { method: "POST", body });
+
+describe("sheets", () => {
+  test("images may carry a role, and keep is saved; the cover is the sheet", async () => {
+    const a = await drop(png(600, 400), "front.png");
+    const b = await drop(png(400, 600), "selfie.png");
+    const r = await save({ name: "maya", kind: "character", description: "Maya.", keep: "her red scarf", images: [{ src: b.json.token, role: "source" }, { src: a.json.token, role: "sheet" }] });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.images.map((i) => i.role), ["source", "sheet"]);
+    assert.equal(r.json.keep, "her red scarf");
+    const listed = (await req(port, "/api/library")).json.find((x) => x.name === "maya");
+    assert.equal(listed.hasSheet, true);
+    assert.equal(listed.cover, "/media/library/maya/2.png");
+  });
+
+  test("a bad image entry is refused with code 3 on images", async () => {
+    const r = await save({ name: "bad-entry", kind: "style", description: "x", images: [{ role: "sheet" }] });
+    assert.equal(r.status, 400);
+    assert.equal(r.json.error.field, "images");
+  });
+
+  test("PATCH changes kind, description and keep only", async () => {
+    const up = await drop(png(300, 300), "cup.png");
+    await save({ name: "cup", kind: "product", description: "A cup.", images: [up.json.token] });
+    const r = await patch("cup", { description: "A white cup.", keep: "the chip on the rim" });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual([r.json.description, r.json.keep, r.json.images.length], ["A white cup.", "the chip on the rim", 1]);
+  });
+
+  test("a new sheet replaces the old sheet and keeps the source photos", async () => {
+    const s1 = await drop(png(320, 320), "s1.png");
+    const src = await drop(png(330, 330), "src.png");
+    await save({ name: "zara", kind: "character", description: "Zara.", images: [{ src: src.json.token, role: "source" }, { src: s1.json.token, role: "sheet" }] });
+    const s2 = await drop(png(900, 300), "s2.png");
+    const r = await sheet("zara", { image: s2.json.token });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.images.map((i) => [i.role, i.width]), [["sheet", 900], ["source", 330]]);
+    assert.ok(existsSync(join(LIBRARY, "zara", ".history")));
+  });
+
+  test("a sheet for an asset with only source photos is added in front of them", async () => {
+    const src = await drop(png(340, 340), "only.png");
+    await save({ name: "solo", kind: "character", description: "Solo.", images: [src.json.token] });
+    const s = await drop(png(910, 310), "sheet.png");
+    const r = await sheet("solo", { image: s.json.token });
+    assert.deepEqual(r.json.images.map((i) => i.role), ["sheet", "source"]);
+  });
+
+  test("the sheet prompt comes from core, with the photo count", async () => {
+    const q = new URLSearchParams({ kind: "character", description: "Maya, tall", outfit: "red scarf", photos: "2" });
+    const r = await req(port, `/api/library/sheet-prompt?${q}`);
+    assert.equal(r.status, 200, r.text);
+    assert.match(r.json.prompt, /^Generate the final image based on my attached reference photos\./);
+    assert.match(r.json.prompt, /OUTFIT: red scarf\./);
+    const bad = await req(port, "/api/library/sheet-prompt?kind=character&description=");
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json.error.field, "description");
+  });
+});
