@@ -29,6 +29,17 @@ beforeEach(() => {
 });
 
 describe("LibraryScreen", () => {
+  test("a visit from a scene offers the way back to it, and leaving the Library forgets it", async () => {
+    sessionStorage.setItem("shard.back", JSON.stringify({ hash: "#/films/boat/scenes/s2", label: "the scene" }));
+    const { unmount } = render(<LibraryScreen newName="skipper" />);
+    expect(await screen.findByRole("link", { name: "← Back to the scene" })).toHaveAttribute("href", "#/films/boat/scenes/s2");
+    unmount();
+    expect(sessionStorage.getItem("shard.back")).toBeNull();
+    render(<LibraryScreen />);
+    await screen.findByRole("list", { name: "Library" });
+    expect(screen.queryByRole("link", { name: /Back to/ })).toBeNull();
+  });
+
   test("cards show @library:name, the kind as people say it, and whether there is a sheet", async () => {
     render(<LibraryScreen />);
     const grid = await screen.findByRole("list", { name: "Library" });

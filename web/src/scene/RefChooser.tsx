@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, KeyboardEvent } from "react";
 import type { AssetSummary } from "../api/types";
+import { leaveFor } from "../app/back";
 import { libraryItemHref } from "../app/route";
 import { kindLabel } from "../library/kinds";
 import "./scene.css";
@@ -59,8 +60,8 @@ export function RefChooser({ n, library, onPick, onUpload, onClose }: RefChooser
 
   /** An item with no sheet cannot be picked yet: go to its page in the Library, and leave the chooser. */
   const makeSheet = (name: string) => {
-    window.location.hash = libraryItemHref(name);
     onClose();
+    leaveFor(libraryItemHref(name), "the scene");
   };
 
   const keys = (e: KeyboardEvent) => {
@@ -84,7 +85,10 @@ export function RefChooser({ n, library, onPick, onUpload, onClose }: RefChooser
             <li key={a.name} className="ref-chooser__item">
               <button type="button" className="ref-chooser__card" disabled={!a.hasSheet} onClick={() => onPick(`library:${a.name}`)}>
                 {a.hasSheet && a.cover ? <img src={a.cover} alt="" loading="lazy" /> : <span className="ref-chooser__blank" aria-hidden="true" />}
-                <span id={`${id}-name-${i}`} className="ref-chooser__name mono">@library:{a.name}</span>
+                <span id={`${id}-name-${i}`} className="ref-chooser__name mono">
+                  @library:<wbr />
+                  {a.name}
+                </span>
                 <span className="ref-chooser__meta">{kindLabel(a.kind)}{a.hasSheet ? "" : " · no sheet yet"}</span>
               </button>
               {!a.hasSheet && (

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { AssetDetail, AssetSummary } from "../api/types";
+import { clearBack, readBack } from "../app/back";
 import { replaceHash } from "../app/route";
 import { onStudioEvent } from "../app/useStudio";
 import { KIND_ORDER, KIND_PLURAL, kindLabel } from "./kinds";
@@ -18,6 +19,9 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [kind, setKind] = useState<string>("all");
   const [open, setOpen] = useState<Open>(null);
+  // Where this visit came from (a scene, References), read once; leaving the Library forgets it.
+  const [back] = useState(readBack);
+  useEffect(() => () => clearBack(), []);
 
   const load = useCallback(() => api<AssetSummary[]>("/api/library").then(setAssets).catch(() => {}), []);
   useEffect(() => {
@@ -50,6 +54,11 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
   return (
     <div className="library" data-open={open !== null}>
       <div className="library__main">
+        {back && (
+          <a className="library__back" href={back.hash}>
+            ← Back to {back.label}
+          </a>
+        )}
         <header className="library__head">
           <h1>Library</h1>
           <div className="library__filters" role="group" aria-label="Kind">

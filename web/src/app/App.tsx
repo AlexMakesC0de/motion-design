@@ -32,7 +32,7 @@ function Screen({ place }: { place: Place }) {
     case "projects":
       return <ProjectsScreen />;
     case "film":
-      return <FilmWorkspace key={place.slug} slug={place.slug} step={place.step} />;
+      return <FilmWorkspace key={place.slug} slug={place.slug} step={place.step} scene={place.scene} />;
     case "create":
       return <StudioScreen />;
     case "library":

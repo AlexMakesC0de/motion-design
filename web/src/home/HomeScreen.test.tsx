@@ -43,31 +43,25 @@ describe("HomeScreen", () => {
     expect(screen.getByRole("link", { name: "See all projects" })).toHaveAttribute("href", "#/projects");
   });
 
-  test("Start film saves the brief under a slug from its words and opens it on Brief", async () => {
+  test("Start film saves the idea under a slug from its words and opens it on Idea", async () => {
     // The first four words are "rain on glass a", so that name is taken and the new film gets -2.
     const put = vi.fn(() => ({}));
-    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [film("rain-on-glass-a", "2026-10-31T10:00:00.000Z")], "/api/director/menu": () => menu, "/api/films/rain-on-glass-a-2/brief": put })));
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [film("rain-on-glass-a", "2026-10-31T10:00:00.000Z")], "/api/director/menu": () => menu, "/api/films/rain-on-glass-a-2/idea": put })));
     render(<HomeScreen />);
     await screen.findByRole("article", { name: "rain-on-glass-a" }); // the film list has loaded
     fireEvent.change(await screen.findByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass, a cup going cold" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "8" } });
     fireEvent.click(screen.getByRole("button", { name: "Start film" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-a-2/brief"));
+    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-a-2/idea"));
     const body = JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body));
-    expect(body).toEqual({ brief: { takeaway: "Rain on glass, a cup going cold", durationS: 8, aspectRatio: "16:9", filmType: "live-action" }, create: true });
-  });
-
-  test("film types are the menu's own, by label", async () => {
-    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
-    render(<HomeScreen />);
-    expect(await screen.findByRole("option", { name: "Character animation" })).toHaveValue("character");
+    expect(body).toEqual({ idea: { text: "Rain on glass, a cup going cold", ratio: "16:9", lengthS: 8 }, create: true });
   });
 
   test("Start film waits for the film list, which its name must not clash with", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/director/menu": () => menu }))); // /api/films never answers
     render(<HomeScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
-    await screen.findByRole("option", { name: "Character animation" }); // the menu has loaded; the list has not
+    await new Promise((r) => setTimeout(r, 20)); // the list never answers
     expect(screen.getByRole("button", { name: "Start film" })).toBeDisabled();
   });
 
@@ -96,8 +90,8 @@ describe("HomeScreen", () => {
           // Another tab made rain-on-glass after this page read the list.
           "/api/films": () => (++lists === 1 ? [] : [film("rain-on-glass", "2026-10-31T10:00:00.000Z")]),
           "/api/director/menu": () => menu,
-          "/api/films/rain-on-glass/brief": taken,
-          "/api/films/rain-on-glass-2/brief": put,
+          "/api/films/rain-on-glass/idea": taken,
+          "/api/films/rain-on-glass-2/idea": put,
         }),
       ),
     );
@@ -106,7 +100,7 @@ describe("HomeScreen", () => {
     fireEvent.change(box, { target: { value: "Rain on glass" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Start film" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-2/brief"));
+    await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-2/idea"));
     expect(taken).toHaveBeenCalledTimes(1);
     expect(lists).toBe(2);
     expect(JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body)).create).toBe(true);
@@ -120,8 +114,8 @@ describe("HomeScreen", () => {
         routes({
           "/api/films": () => [],
           "/api/director/menu": () => menu,
-          "/api/films/rain-on-glass/brief": taken("rain-on-glass"),
-          "/api/films/rain-on-glass-2/brief": taken("rain-on-glass-2"),
+          "/api/films/rain-on-glass/idea": taken("rain-on-glass"),
+          "/api/films/rain-on-glass-2/idea": taken("rain-on-glass-2"),
         }),
       ),
     );

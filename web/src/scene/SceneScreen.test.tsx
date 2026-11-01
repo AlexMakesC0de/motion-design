@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { SceneScreen } from "./SceneScreen";
 import { errorResponse, routes } from "../test-fixtures";
+import { getChat, resetChatForTests } from "../chat/chatStore";
 import type { Scene, SceneVersion } from "../api/types";
 
 const BASE = "/api/films/create/scenes";
@@ -345,5 +346,68 @@ describe("SceneScreen", () => {
       expect.objectContaining({ title: "Scene 1", durationS: 8, refs: [] }),
       expect.objectContaining({ title: "Scene 2", durationS: 8, refs: [] }),
     ]);
+  });
+
+  test("going to make a sheet remembers the scene, so the Library can offer the way back", async () => {
+    sessionStorage.clear();
+    window.location.hash = "#/create";
+    stub({ scenes: [scene({ cards: { ...blankCards(), goal: "over @library:ghost" } })] });
+    render(<SceneScreen run="create" />);
+    fireEvent.click(await screen.findByRole("button", { name: "ghost, not in the Library" }));
+    expect(JSON.parse(sessionStorage.getItem("shard.back") ?? "null")).toEqual({ hash: "#/create", label: "the scene" });
+    window.location.hash = "";
+  });
+
+  test("a Library item's keep shows whole under an empty keep line", async () => {
+    const keep = "his exact face, short dark beard, round glasses and the grey hoodie";
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }] })], more: { "/api/library": () => [{ ...alexandros, keep }] } });
+    render(<SceneScreen run="create" />);
+    expect(await screen.findByText(`Keeps ${keep}`)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Keep for image 1" })).toHaveAttribute("placeholder", "Keep something else in this scene");
+  });
+
+  test("a film's Scenes step with no scenes offers one instead of making it", async () => {
+    const fetchMock = vi.fn(routes({ "/api/films/boat/scenes": () => ({ idea: null, scenes: [] }), "/api/library": () => [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SceneScreen run="boat" autoFirst={false} />);
+    expect(await screen.findByRole("button", { name: "+ New scene" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some((c) => c[1]?.method === "POST")).toBe(false);
+  });
+
+  test("Save into film copies the scene into a new film named from its title and opens it there", async () => {
+    window.location.hash = "#/create";
+    const fetchMock = stub({
+      scenes: [scene({ versions: [version()] })],
+      more: {
+        "/api/films": () => [{ run: "rainy-coffee", modified: "", files: 3, takes: 2, cover: null, progress: { legacy: true } }],
+        [`${BASE}/s1/copy`]: (init) => ({ film: JSON.parse(String(init?.body)).to, scene: scene({ id: "s4" }) }),
+      },
+    });
+    render(<SceneScreen run="create" saveInto />);
+    fireEvent.click(await screen.findByRole("button", { name: "Save into film…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Save “Freefall” into a film" });
+    expect(within(dialog).getByText("Copies the scene, its pictures and its video. It stays in Create too.")).toBeInTheDocument();
+    await within(dialog).findByRole("option", { name: "rainy-coffee (takes only)" });
+    expect(within(dialog).getByRole("combobox", { name: "Film" })).toHaveValue("");
+    expect(within(dialog).getByText("runs/freefall")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save into film" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/films/freefall/scenes/s4"));
+    expect(JSON.parse(String(calls(fetchMock, `${BASE}/s1/copy`)[0][1]?.body))).toEqual({ to: "freefall" });
+    window.location.hash = "";
+  });
+
+  test("in a film, Ask chat starters hand the chat a request about this scene; Create has none", async () => {
+    resetChatForTests();
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/boat/scenes": () => ({ idea: null, scenes: [scene({ id: "s1" }), scene({ id: "s2", title: "Landing" })] }), "/api/library": () => [] })));
+    const { unmount } = render(<SceneScreen run="boat" initialId="s2" autoFirst={false} />);
+    expect(await screen.findByRole("tab", { name: "2 Landing" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(within(screen.getByRole("group", { name: "Ask chat" })).getByRole("button", { name: "Make stage 2 slower" }));
+    expect(getChat()).toMatchObject({ open: true, outbox: { text: "Make stage 2 slower (scene 2, id s2)" } });
+    unmount();
+    resetChatForTests();
+    stub({ scenes: [scene()] });
+    render(<SceneScreen run="create" saveInto />);
+    await screen.findByRole("textbox", { name: "Goal" });
+    expect(screen.queryByRole("group", { name: "Ask chat" })).toBeNull();
   });
 });

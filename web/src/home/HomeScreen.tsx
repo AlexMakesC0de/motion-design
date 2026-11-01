@@ -1,31 +1,26 @@
 // web/src/home/HomeScreen.tsx
-// Where you land: one box to start a film (its words become the brief's
-// takeaway and its folder name), and your four most recent films.
+// Where you land: one box to start a film (its words become the film's idea
+// and its folder name), and your four most recent films.
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { DirectorMenu, FilmSummary } from "../api/types";
+import { RATIOS } from "../../../cli/director/scene-shape.mjs";
+import type { FilmSummary } from "../api/types";
 import { filmHref } from "../app/route";
 import { FilmCard } from "../projects/FilmCard";
 import { filmSlug } from "./slug";
 import "../projects/projects.css";
 import "./home.css";
 
-// The server validates the brief (cli/director/brief.mjs): whole seconds 1-120,
-// one of the menu's aspects, one of its film types. These lengths and the
-// defaults below are all inside that.
-const LENGTHS = [6, 8, 10, 15, 20, 30];
-const ASPECTS = ["16:9", "9:16", "1:1", "21:9"];
-const FILM_TYPES = [{ id: "live-action", label: "Live-action look" }];
+// The server checks the idea (saveIdea in cli/director/scenes.mjs): a scene ratio, and a total length of whole seconds.
+const LENGTHS = [8, 10, 15, 20, 30, 45, 60, 90, 120];
 
 export function HomeScreen() {
   // null until /api/films answers: the new film's folder name is made unique against this list.
   const [films, setFilms] = useState<FilmSummary[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
-  const [menu, setMenu] = useState<DirectorMenu | null>(null);
   const [text, setText] = useState("");
   const [aspect, setAspect] = useState("16:9");
   const [length, setLength] = useState(15);
-  const [type, setType] = useState("live-action");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +28,6 @@ export function HomeScreen() {
     api<FilmSummary[]>("/api/films")
       .then(setFilms)
       .catch((e) => setListError(`Couldn't load your films, so a new one can't be named yet: ${e instanceof ApiError ? e.message : String(e)}`));
-    api<DirectorMenu>("/api/director/menu").then(setMenu).catch(() => {});
   }, []);
 
   async function start() {
@@ -41,9 +35,9 @@ export function HomeScreen() {
     if (!takeaway || busy || !films) return;
     setBusy(true);
     setError(null);
-    const brief = { takeaway, durationS: length, aspectRatio: aspect, filmType: type };
+    const idea = { text: takeaway, ratio: aspect, lengthS: length };
     // create: true makes the server refuse (409, exists) rather than write over a film already at that name.
-    const save = (slug: string) => api(`/api/films/${slug}/brief`, { method: "PUT", body: { brief, create: true } }).then(() => slug);
+    const save = (slug: string) => api(`/api/films/${slug}/idea`, { method: "PUT", body: { idea, create: true } }).then(() => slug);
     const taken = (e: unknown) => e instanceof ApiError && e.status === 409 && e.detail.exists === true;
     let slug = filmSlug(takeaway, films.map((f) => f.run));
     try {
@@ -56,7 +50,7 @@ export function HomeScreen() {
         setFilms(fresh);
         slug = await save(filmSlug(takeaway, [...fresh.map((f) => f.run), slug]));
       }
-      window.location.hash = filmHref(slug, "brief");
+      window.location.hash = filmHref(slug, "idea");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
       setBusy(false);
@@ -83,7 +77,7 @@ export function HomeScreen() {
         />
         <div className="home__chips">
           <select aria-label="Aspect ratio" value={aspect} onChange={(e) => setAspect(e.target.value)}>
-            {(menu?.aspects ?? ASPECTS).map((a) => (
+            {RATIOS.map((a) => (
               <option key={a}>{a}</option>
             ))}
           </select>
@@ -91,13 +85,6 @@ export function HomeScreen() {
             {LENGTHS.map((s) => (
               <option key={s} value={s}>
                 {s}s
-              </option>
-            ))}
-          </select>
-          <select aria-label="Film type" value={type} onChange={(e) => setType(e.target.value)}>
-            {(menu?.menu.filmTypes ?? FILM_TYPES).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
               </option>
             ))}
           </select>

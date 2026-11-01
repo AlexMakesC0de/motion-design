@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { Scene, ScenePreview } from "../api/types";
+import type { Idea, Scene, ScenePreview } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 
 const SAVE_PAUSE_MS = 400;
@@ -15,6 +15,7 @@ const base = (run: string) => `/api/films/${encodeURIComponent(run)}/scenes`;
  */
 export function useScenes(run: string) {
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [idea, setIdea] = useState<Idea | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // The one pending save per scene id; also read by reload() so a load never
@@ -26,9 +27,10 @@ export function useScenes(run: string) {
 
   const reload = useCallback(() => {
     const ticket = ++latest.current;
-    return api<{ idea: unknown; scenes: Scene[] }>(base(run))
+    return api<{ idea: Idea | null; scenes: Scene[] }>(base(run))
       .then((d) => {
         if (ticket !== latest.current) return;
+        setIdea(d.idea);
         setScenes(d.scenes.map((s) => pending.current.get(s.id)?.scene ?? s));
         setError(null);
         setLoading(false);
@@ -42,6 +44,7 @@ export function useScenes(run: string) {
 
   useEffect(() => {
     setScenes([]);
+    setIdea(null);
     setLoading(true);
     reload();
   }, [reload]);
@@ -98,6 +101,26 @@ export function useScenes(run: string) {
     setScenes((list) => list.filter((s) => s.id !== id));
   }, [run]);
 
+  /** A new order: shown at once, then saved; a refusal reloads the server's order. */
+  const order = useCallback(async (ids: string[]) => {
+    setScenes((list) => ids.map((id) => list.find((s) => s.id === id)).filter((s): s is Scene => Boolean(s)));
+    try {
+      await api(`${base(run)}/order`, { method: "PUT", body: { ids } });
+    } catch (e) {
+      setError((e as ApiError).message);
+      void reload();
+    }
+  }, [run, reload]);
+
+  /** The film's idea, and optionally titles and lengths for its scenes (an entry without an id adds one). */
+  const saveIdea = useCallback(async (next: Idea, list?: { id?: string; title: string; durationS: number }[]) => {
+    await flush();
+    const d = await api<{ idea: Idea; scenes: Scene[] }>(`/api/films/${encodeURIComponent(run)}/idea`, { method: "PUT", body: { idea: next, ...(list ? { scenes: list } : {}) } });
+    setIdea(d.idea);
+    setScenes(d.scenes);
+    return d;
+  }, [run, flush]);
+
   const preview = useCallback(async (id: string) => {
     await flush();
     return api<ScenePreview>(`${base(run)}/${encodeURIComponent(id)}/prompt`);
@@ -126,5 +149,5 @@ export function useScenes(run: string) {
     return r.source;
   }, [run]);
 
-  return { scenes, loading, error, create, save, remove, preview, draft, final, choose, uploadRef };
+  return { idea, scenes, loading, error, reload, flush, create, save, remove, order, saveIdea, preview, draft, final, choose, uploadRef };
 }

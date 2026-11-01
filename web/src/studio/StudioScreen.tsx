@@ -71,7 +71,7 @@ export function StudioScreen() {
         ))}
       </div>
       <div id="create-panel" className="create__panel" role="tabpanel" aria-labelledby={`create-tab-${tab}`}>
-        {tab === "scene" ? <SceneScreen run={CREATE_RUN} /> : <QuickTake />}
+        {tab === "scene" ? <SceneScreen run={CREATE_RUN} saveInto /> : <QuickTake />}
       </div>
     </div>
   );

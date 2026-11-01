@@ -1,41 +1,21 @@
 // web/src/film/FilmWorkspace.tsx
-// One film's home: its step bar and the step you are on. Stage 1 mounts the
-// existing screens: the storyboard for Brief and Shots, the film page for
-// Finish. References arrives with the references-first work.
+// One film's home: its step bar and the step you are on. Idea, References and
+// Scenes read the film's scenes.json; Finish is the film page (its takes and
+// the finishing tools). Every step stays open.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { FilmProgress, FilmStep } from "../api/types";
 import { filmHref, replaceHash } from "../app/route";
 import { onStudioEvent } from "../app/useStudio";
-import { Storyboard } from "../storyboard/Storyboard";
-import { useBoard } from "../storyboard/useBoard";
 import { FilmPage } from "../films/FilmPage";
+import { SceneScreen } from "../scene/SceneScreen";
 import { getRun, setRun } from "../studio/promptStore";
-import { sendToChat } from "../chat/chatStore";
+import { IdeaStep } from "./IdeaStep";
+import { ReferencesStep } from "./ReferencesStep";
 import { StepBar } from "./StepBar";
 import "./film.css";
 
-function BoardStep({ slug }: { slug: string }) {
-  const { board, error, apply } = useBoard(slug);
-  return <Storyboard film={slug} board={board} error={error} apply={apply} onPlan={(text) => sendToChat(text)} />;
-}
-
-function ReferencesStep({ slug }: { slug: string }) {
-  return (
-    <section className="film-step film-step--note" aria-labelledby="refs-h">
-      <h2 id="refs-h">References</h2>
-      <p>
-        Reference images for each character, product and place, from several angles, come in the next update. Until then, shots use the Library
-        items named in their cast.
-      </p>
-      <a className="button" href={filmHref(slug, "shots")}>
-        Go to Shots
-      </a>
-    </section>
-  );
-}
-
-export function FilmWorkspace({ slug, step }: { slug: string; step: FilmStep | null }) {
+export function FilmWorkspace({ slug, step, scene }: { slug: string; step: FilmStep | null; scene?: string }) {
   const [progress, setProgress] = useState<FilmProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Each read gets a number; only the newest one may land, so a slow older answer never replaces a newer one.
@@ -62,7 +42,17 @@ export function FilmWorkspace({ slug, step }: { slug: string; step: FilmStep | n
     };
   }, [load]);
 
-  // The same events that redraw the storyboard (useBoard) can move the film on a step.
+  // Moving between steps reads progress again: an edit on one step can finish another.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    load();
+  }, [step, load]);
+
+  // A job landing, a finishing task or a chat tool can move the film on a step.
   useEffect(
     () =>
       onStudioEvent((e) => {
@@ -70,6 +60,7 @@ export function FilmWorkspace({ slug, step }: { slug: string; step: FilmStep | n
         else if (e.event === "job" && e.data.run === slug) load();
         else if (e.event === "task" && e.data.run === slug && e.data.state !== "running") load();
         else if (e.event === "chat" && e.data.film === slug && e.data.entry?.kind === "tool" && e.data.entry.state !== "running") load();
+        else if (e.event === "library") load();
       }),
     [slug, load],
   );
@@ -96,8 +87,12 @@ export function FilmWorkspace({ slug, step }: { slug: string; step: FilmStep | n
           Next: <a href={filmHref(slug, progress.next.step)}>{progress.next.text}</a>
         </p>
       </div>
-      {(step === "brief" || step === "shots") && <BoardStep slug={slug} />}
-      {step === "references" && <ReferencesStep slug={slug} />}
+      {progress.legacy && step !== "finish" && (
+        <p className="film-ws__legacy">Made before Shard: this film has takes only. Its scenes start empty here; its takes are on Finish.</p>
+      )}
+      {step === "idea" && <IdeaStep key={slug} slug={slug} onChange={load} />}
+      {step === "references" && <ReferencesStep key={slug} slug={slug} />}
+      {step === "scenes" && <SceneScreen key={slug} run={slug} initialId={scene} autoFirst={false} />}
       {step === "finish" && <FilmPage key={slug} slug={slug} />}
     </div>
   );

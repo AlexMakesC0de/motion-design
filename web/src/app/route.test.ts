@@ -19,9 +19,14 @@ describe("parseRoute", () => {
     }
   });
   test("a film with and without a step", () => {
-    expect(parseRoute("#/films/rainy-coffee/shots")).toEqual({ screen: "film", slug: "rainy-coffee", step: "shots" });
+    expect(parseRoute("#/films/rainy-coffee/scenes")).toEqual({ screen: "film", slug: "rainy-coffee", step: "scenes" });
+    expect(parseRoute("#/films/rainy-coffee/scenes/s2")).toEqual({ screen: "film", slug: "rainy-coffee", step: "scenes", scene: "s2" });
     expect(parseRoute("#/films/rainy-coffee")).toEqual({ screen: "film", slug: "rainy-coffee", step: null });
     expect(parseRoute("#/films/rainy-coffee/nope")).toEqual({ screen: "film", slug: "rainy-coffee", step: null });
+  });
+  test("the steps before Shard redirect: Brief to Idea, Shots to Scenes", () => {
+    expect(parseRoute("#/films/rainy-coffee/brief")).toEqual({ redirect: "#/films/rainy-coffee/idea" });
+    expect(parseRoute("#/films/rainy-coffee/shots")).toEqual({ redirect: "#/films/rainy-coffee/scenes" });
   });
   test("a stray % in a film name does not throw", () => {
     expect(parseRoute("#/films/50%25-off")).toEqual({ screen: "film", slug: "50%-off", step: null });

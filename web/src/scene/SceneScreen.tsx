@@ -4,8 +4,11 @@ import { DURATION, RATIOS, emptyScene } from "../../../cli/director/scene-shape.
 import { api } from "../api/client";
 import type { AssetSummary, Cards, Ref, Scene, ScenePreview, Span } from "../api/types";
 import { libraryItemHref, libraryNewHref } from "../app/route";
+import { leaveFor } from "../app/back";
 import { onStudioEvent } from "../app/useStudio";
+import { sendToChat } from "../chat/chatStore";
 import { RefChooser } from "./RefChooser";
+import { SaveIntoFilm } from "./SaveIntoFilm";
 import { LooseInput, SceneCards } from "./SceneCards";
 import { SceneRefs } from "./SceneRefs";
 import { Versions } from "./Versions";
@@ -14,6 +17,8 @@ import "./scene.css";
 
 /** The preview (prices and problems) is asked for this long after the scene last changed. */
 const PREVIEW_PAUSE_MS = 500;
+// The chat drawer's starters for a film's scene; Create's chat works in another film, so it has none.
+const STARTERS = ["Write this scene", "Make stage 2 slower", "What will a draft cost?"];
 const LENGTHS = Array.from({ length: DURATION.max - DURATION.min + 1 }, (_, i) => DURATION.min + i);
 
 /** Which slot the chooser fills: a ref by id, or a new one at the end. */
@@ -32,10 +37,22 @@ function fit(s: Scene): Scene {
  * One scene at a time: its references on the left, the cards in the centre,
  * versions and the two spending buttons on the right. Edits save as you go.
  */
-export function SceneScreen({ run }: { run: string }) {
-  const { scenes, loading, error, create, save, preview, draft, final, choose, uploadRef } = useScenes(run);
+export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true }: {
+  run: string;
+  /** The scene to open (#/films/<slug>/scenes/<id>). */
+  initialId?: string;
+  /** Create's scratch scenes offer "Save into film". */
+  saveInto?: boolean;
+  /** Make a first scene on a first visit (Create); a film shows an empty state instead. */
+  autoFirst?: boolean;
+}) {
+  const { scenes, loading, error, flush, create, save, preview, draft, final, choose, uploadRef } = useScenes(run);
   const [library, setLibrary] = useState<AssetSummary[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialId ?? null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (initialId) setSelectedId(initialId);
+  }, [initialId]);
   const [choosing, setChoosing] = useState<Choosing | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [shownPreview, setShownPreview] = useState<{ id: string; data: ScenePreview } | null>(null);
@@ -81,10 +98,10 @@ export function SceneScreen({ run }: { run: string }) {
   // A first visit finds no scene: make one, so there is somewhere to write. Once per run.
   const madeFirst = useRef<string | null>(null);
   useEffect(() => {
-    if (loading || error || scenes.length || madeFirst.current === run) return;
+    if (!autoFirst || loading || error || scenes.length || madeFirst.current === run) return;
     madeFirst.current = run;
     void newScene(0);
-  }, [loading, error, scenes.length, run, newScene]);
+  }, [autoFirst, loading, error, scenes.length, run, newScene]);
 
   // Prices and problems for what is on screen, asked for once typing pauses.
   useEffect(() => {
@@ -133,7 +150,7 @@ export function SceneScreen({ run }: { run: string }) {
     const cur = latest.current;
     if (!cur) return;
     if (span.kind === "library") {
-      window.location.hash = span.reason === "no sheet yet" ? libraryItemHref(span.name ?? "") : libraryNewHref(span.name ?? "");
+      leaveFor(span.reason === "no sheet yet" ? libraryItemHref(span.name ?? "") : libraryNewHref(span.name ?? ""), "the scene");
       return;
     }
     const at = span.refId ? cur.refs.findIndex((r) => r.id === span.refId) : -1;
@@ -197,10 +214,18 @@ export function SceneScreen({ run }: { run: string }) {
   const problem = error ?? note;
 
   if (!scene) {
+    const empty = !autoFirst && !loading && !problem;
     return (
       <div className="scene scene--empty">
         {/* Not an alert: when the server is down, App's banner is the one alert. */}
-        <p className={problem ? "scene-failure" : "scene-hint"}>{problem ?? (loading ? "Loading scenes…" : "Making a first scene…")}</p>
+        <p className={problem ? "scene-failure" : "scene-hint"}>
+          {problem ?? (loading ? "Loading scenes…" : empty ? "No scenes yet. Plan them on the Idea step, or start one here." : "Making a first scene…")}
+        </p>
+        {empty && (
+          <button type="button" className="button" onClick={() => void newScene(0)}>
+            + New scene
+          </button>
+        )}
       </div>
     );
   }
@@ -249,6 +274,11 @@ export function SceneScreen({ run }: { run: string }) {
         <div className="scene-title">
           <LooseInput className="scene-title__input" aria-label="Scene title" placeholder="Untitled scene" value={scene.title} onValue={(title) => update((s) => ({ ...s, title }))} />
           <span className="scene-title__data mono">{`${scene.durationS}s · ${scene.ratio} · Seedance 2.5`}</span>
+          {saveInto && (
+            <button type="button" className="button scene-title__save" onClick={() => void flush().then(() => setSaving(true))}>
+              Save into film…
+            </button>
+          )}
         </div>
         <div className="scene-settings">
           <label className="scene-setting">
@@ -272,6 +302,16 @@ export function SceneScreen({ run }: { run: string }) {
         </div>
 
         <SceneCards scene={scene} items={items} onText={onText} onScene={update} onChoose={onChoose} onPasteWhole={onPasteWhole} onSettle={onSettle} />
+        {!saveInto && (
+          <div className="scene-ask" role="group" aria-label="Ask chat">
+            <span className="scene-ask__label">Ask chat:</span>
+            {STARTERS.map((t) => (
+              <button key={t} type="button" className="button button--quiet" onClick={() => sendToChat(`${t} (scene ${scenes.indexOf(scene) + 1}, id ${scene.id})`)}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="scene__col scene__col--versions">
@@ -285,6 +325,7 @@ export function SceneScreen({ run }: { run: string }) {
         />
       </div>
 
+      {saving && <SaveIntoFilm run={run} scene={scene} onClose={() => setSaving(false)} />}
       {choosing && <RefChooser n={choosing.n} library={library} onPick={onPick} onUpload={uploadRef} onClose={() => setChoosing(null)} />}
     </div>
   );

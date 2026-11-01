@@ -44,7 +44,7 @@
 .ref-chooser__fix { justify-self: start; padding: 0 var(--space-1); border: 0; background: none; color: var(--text-2); font: 400 var(--text-sm) var(--font-sans); text-decoration: underline; cursor: pointer; }
 .ref-chooser__fix:hover { color: var(--text); }
 .ref-chooser__fix:focus-visible { outline: 1px solid var(--text-2); outline-offset: 2px; }
-.ref-chooser__name { font-size: var(--text-sm); overflow-wrap: anywhere; }
+.ref-chooser__name { font-size: var(--text-sm); overflow-wrap: break-word; hyphens: none; }
 .ref-chooser__meta, .ref-chooser__hint, .ref-chooser__empty { color: var(--text-3); font-size: var(--text-sm); margin: 0; }
 .ref-chooser__upload { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-md); }
 /* The upload button is a label around a hidden input: it rings when the input has focus. */
@@ -119,6 +119,7 @@
 .scene-ref__fix:focus-visible { outline: 1px solid var(--text-2); outline-offset: 2px; }
 .scene-ref__keep { width: 100%; margin-top: 2px; padding: 2px 0; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--text-2); font: 400 var(--text-sm)/1.4 var(--font-sans); }
 .scene-ref__keep::placeholder { color: var(--text-3); }
+.scene-ref__inherited { display: block; color: var(--text-3); font-size: var(--text-sm); line-height: 1.4; overflow-wrap: break-word; }
 .scene-ref__keep:hover { border-bottom-color: var(--line); }
 .scene-ref__keep:focus-visible { outline: none; border-bottom-color: var(--text-3); color: var(--text); }
 /* One line under the thumbnail and text, the whole width of the row; Up and Down sit at the right. */
@@ -164,3 +165,15 @@
   .scene__col { overflow: visible; }
   .scene__col + .scene__col { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+.scene-title__save { margin-left: auto; }
+.scene-ask { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; color: var(--text-3); font-size: var(--text-sm); }
+.scene-ask__label { margin-right: var(--space-1); }
+
+/* Save into film: a small form in the chooser's frame. */
+.save-into { width: min(480px, calc(100vw - var(--space-5))); }
+.save-into__what { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.save-into__form { display: grid; gap: var(--space-3); }
+.save-into__field { display: grid; gap: var(--space-1); font-size: var(--text-sm); color: var(--text-2); }
+.save-into__slug { color: var(--text-3); font-size: var(--text-xs); }
+.save-into__actions { display: flex; justify-content: flex-end; gap: var(--space-2); }

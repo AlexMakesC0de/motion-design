@@ -63,3 +63,5 @@
 /* Quiet and last: a text button in the bad colour, away from Save. */
 .sheet-maker__remove { align-self: flex-start; margin-top: var(--space-4); padding: 0; border: 0; background: none; color: var(--bad-ink); font: 400 var(--text-sm) var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .sheet-maker__remove:disabled { color: var(--text-3); cursor: default; }
+.library__back { align-self: flex-start; color: var(--text-2); font-size: var(--text-sm); text-decoration: none; }
+.library__back:hover { color: var(--text); text-decoration: underline; }

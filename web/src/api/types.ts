@@ -177,14 +177,14 @@ export interface FilmSummary extends RunSummary {
   progress: FilmProgress | null;
 }
 
-export type FilmStep = "brief" | "references" | "shots" | "finish";
+export type FilmStep = "idea" | "references" | "scenes" | "finish";
 export type StepState = "done" | "current" | "todo" | "locked";
 
 export interface FilmProgress {
   step: FilmStep;
   steps: Record<FilmStep, StepState>;
   next: { text: string; step: FilmStep };
-  counts: { shots: number; stills: number; takes: number; outputs: number };
+  counts: { scenes: number; versions: number; chosen: number; outputs: number };
   spentUsd: number;
   legacy: boolean;
   updatedAt?: string;
@@ -500,6 +500,8 @@ export interface ReviewFrames {
 // Scenes. The mention types come from the module the server shares, so the
 // page and generation agree on what a ref, a stage and a mention are.
 export type { Ref, Cards, Stage, Span } from "../../../cli/director/mentions.mjs";
-export interface SceneVersion { job: string; kind: "draft" | "final"; resolution: string; prompt: string; createdAt: string; state: string | null; media: string | null; estimateUsd: number | null; actualUsd: number | null }
+export interface SceneVersion { job: string; kind: "draft" | "final"; resolution: string; prompt: string; createdAt: string; file?: string; state: string | null; media: string | null; estimateUsd: number | null; actualUsd: number | null }
+/** What a film is about: its words, and the ratio and total length it aims for. */
+export interface Idea { text: string; ratio: string | null; lengthS: number | null }
 export interface Scene { id: string; title: string; durationS: number; ratio: string; refs: Ref[]; cards: Cards; versions: SceneVersion[]; chosen: string | null }
 export interface ScenePreview { prompt: string; refs: { source: string; role: string }[]; problems: string[]; prices: Record<"draft" | "final720" | "final1080", { usd: number | null; basis: string | null } | null> }

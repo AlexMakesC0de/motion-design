@@ -1,6 +1,6 @@
 // web/src/projects/FilmCard.tsx
-// One film as a card: cover, name, four step markers, how many shots and
-// takes, what it cost, and the next thing to do as a link straight to that
+// One film as a card: cover, name, four step markers, how many scenes and
+// versions, what it cost, and the next thing to do as a link straight to that
 // step. Shared by Home and Projects.
 import type { FilmProgress, FilmSummary, StepState } from "../api/types";
 import { STEPS, filmHref } from "../app/route";
@@ -10,10 +10,10 @@ const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { date
 /** The marker's state in words, for screen readers (the marker shows it by its look). */
 const STATE_WORDS: Record<StepState, string> = { done: "done", current: "current", locked: "locked", todo: "not started" };
 
-/** "3 shots · 1 take", leaving out what is zero; empty when nothing is counted yet. */
+/** "3 scenes · 4 versions", leaving out what is zero; empty when nothing is counted yet. */
 function countLine(c: FilmProgress["counts"]): string {
   const part = (n: number, one: string) => (n ? `${n} ${one}${n === 1 ? "" : "s"}` : null);
-  return [part(c.shots, "shot"), part(c.takes, "take")].filter(Boolean).join(" · ");
+  return [part(c.scenes, "scene"), part(c.versions, "version")].filter(Boolean).join(" · ");
 }
 
 export function FilmCard({ film, onReveal }: { film: FilmSummary; onReveal?: (slug: string) => void }) {

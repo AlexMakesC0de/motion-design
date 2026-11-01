@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { MAX_REFS, refLabel } from "../../../cli/director/mentions.mjs";
 import type { AssetSummary, Ref } from "../api/types";
+import { leaveFor } from "../app/back";
 import { libraryItemHref, libraryNewHref } from "../app/route";
 import { LooseInput } from "./SceneCards";
 import "./scene.css";
@@ -65,6 +66,7 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
             const thumb = thumbOf(ref, run, library);
             const item = ref.source?.startsWith("library:") ? library.get(refLabel(ref)) : undefined;
             const problem = trouble(ref, library);
+            const inherited = item?.keep || item?.description || "";
             return (
               <li key={ref.id} className="scene-ref" data-empty={ref.source ? undefined : "true"}>
                 {thumb ? <img className="scene-ref__thumb" src={thumb} alt="" loading="lazy" /> : <span className="scene-ref__thumb" aria-hidden="true" />}
@@ -80,7 +82,7 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
                       {problem && (
                         <span className="scene-ref__trouble">
                           <span className="scene-ref__problem">{problem.text}</span>
-                          <button type="button" className="scene-ref__fix" aria-label={problem.fixLabel} onClick={() => (window.location.hash = problem.href)}>
+                          <button type="button" className="scene-ref__fix" aria-label={problem.fixLabel} onClick={() => leaveFor(problem.href, "the scene")}>
                             {problem.fix}
                           </button>
                         </span>
@@ -88,10 +90,12 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
                       <LooseInput
                         className="scene-ref__keep"
                         aria-label={`Keep for image ${n}`}
-                        placeholder={item?.keep || item?.description || "What to keep, e.g. exact face and glasses"}
+                        placeholder={inherited ? "Keep something else in this scene" : "What to keep, e.g. exact face and glasses"}
                         value={ref.keep ?? ""}
                         onValue={(v) => onKeep(ref.id, v)}
                       />
+                      {/* The Library's keep, used while the line above is empty: shown whole, as a placeholder would cut it off. */}
+                      {inherited && !ref.keep?.trim() && <span className="scene-ref__inherited">Keeps {inherited}</span>}
                     </>
                   )}
                 </div>

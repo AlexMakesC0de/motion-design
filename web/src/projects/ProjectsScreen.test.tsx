@@ -6,10 +6,10 @@ import { routes } from "../test-fixtures";
 import type { FilmProgress, FilmSummary } from "../api/types";
 
 const prog = (over: Partial<FilmProgress>): FilmProgress => ({
-  step: "shots",
-  steps: { brief: "done", references: "done", shots: "current", finish: "locked" },
-  next: { text: "Film s2 and s3", step: "shots" },
-  counts: { shots: 3, stills: 3, takes: 1, outputs: 0 },
+  step: "scenes",
+  steps: { idea: "done", references: "done", scenes: "current", finish: "todo" },
+  next: { text: "Draft scenes 2 and 3", step: "scenes" },
+  counts: { scenes: 3, versions: 1, chosen: 1, outputs: 0 },
   spentUsd: 0.42,
   legacy: false,
   ...over,
@@ -23,7 +23,7 @@ const films: FilmSummary[] = [
     files: 9,
     takes: 6,
     cover: { kind: "video", url: "/media/runs/rainy-coffee/film.mp4" },
-    progress: prog({ step: "finish", steps: { brief: "done", references: "done", shots: "done", finish: "done" }, next: { text: "Watch the film", step: "finish" }, spentUsd: 0.64 }),
+    progress: prog({ step: "finish", steps: { idea: "done", references: "done", scenes: "done", finish: "done" }, next: { text: "Watch the film", step: "finish" }, spentUsd: 0.64 }),
   },
   // A folder the tools cannot name: no progress. It counts under All only.
   { run: "Old Stuff", modified: "2026-10-01T09:00:00.000Z", files: 1, takes: 1, cover: null, progress: null },
@@ -34,7 +34,7 @@ describe("ProjectsScreen", () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films })));
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
-    expect(within(boat).getByRole("link", { name: "Next: Film s2 and s3" })).toHaveAttribute("href", "#/films/boat/shots");
+    expect(within(boat).getByRole("link", { name: "Next: Draft scenes 2 and 3" })).toHaveAttribute("href", "#/films/boat/scenes");
     expect(within(boat).getByText("$0.42 spent")).toBeInTheDocument();
     expect(within(boat).getByRole("list", { name: "Steps" })).toBeInTheDocument();
   });
@@ -86,7 +86,7 @@ describe("ProjectsScreen", () => {
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
     const steps = within(within(boat).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
-    expect(steps.map((li) => li.textContent)).toEqual(["Brief, done", "References, done", "Shots, current", "Finish, locked"]);
+    expect(steps.map((li) => li.textContent)).toEqual(["Idea, done", "References, done", "Scenes, current", "Finish, not started"]);
   });
 
   test("the Finder button's name starts with its visible text", async () => {
@@ -97,14 +97,14 @@ describe("ProjectsScreen", () => {
     expect(button).toHaveTextContent(/^Show in Finder$/);
   });
 
-  test("a card counts its shots and takes, leaving out what is zero", async () => {
-    const fresh: FilmSummary = { ...films[0], run: "fresh", progress: prog({ counts: { shots: 2, stills: 0, takes: 0, outputs: 0 } }) };
-    const empty: FilmSummary = { ...films[0], run: "empty", progress: prog({ counts: { shots: 0, stills: 0, takes: 0, outputs: 0 } }) };
+  test("a card counts its scenes and versions, leaving out what is zero", async () => {
+    const fresh: FilmSummary = { ...films[0], run: "fresh", progress: prog({ counts: { scenes: 2, versions: 0, chosen: 0, outputs: 0 } }) };
+    const empty: FilmSummary = { ...films[0], run: "empty", progress: prog({ counts: { scenes: 0, versions: 0, chosen: 0, outputs: 0 } }) };
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [...films, fresh, empty] })));
     render(<ProjectsScreen />);
-    expect(within(await screen.findByRole("article", { name: "boat" })).getByText("3 shots · 1 take")).toBeInTheDocument();
-    expect(within(screen.getByRole("article", { name: "fresh" })).getByText("2 shots")).toBeInTheDocument();
-    expect(within(screen.getByRole("article", { name: "empty" })).queryByText(/shot|take/)).toBeNull();
+    expect(within(await screen.findByRole("article", { name: "boat" })).getByText("3 scenes · 1 version")).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "fresh" })).getByText("2 scenes")).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "empty" }).querySelector(".film-card2__counts")).toBeNull();
   });
 
   test("a search that matches nothing says so", async () => {
