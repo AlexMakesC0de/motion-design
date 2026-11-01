@@ -7,6 +7,19 @@ import { checkLocalFile } from "./inputs.mjs";
 
 export const KINDS = ["character", "product", "location", "style"];
 export const ASSET_NAME = /^[a-z0-9][a-z0-9-]{0,80}$/;
+export const IMAGE_ROLES = ["sheet", "source"];
+/** Images saved before roles existed are source photos. */
+const roleOf = (im) => (im.role === "sheet" ? "sheet" : "source");
+/** The asset's sheet image (the one scenes use), or null. */
+export const sheetOf = (record) => record.images.find((im) => roleOf(im) === "sheet") ?? null;
+
+function checkKind(kind) {
+  if (!KINDS.includes(kind)) throw unknown(`kind must be one of ${KINDS.join(", ")}, got "${kind}".`);
+}
+function checkDescription(description) {
+  if (!description?.trim()) throw unknown("An asset needs a description; it is reused word for word in prompts.");
+}
+const cleanKeep = (keep) => (typeof keep === "string" && keep.trim() ? keep.trim() : null);
 // kie deletes uploads after 24 hours (docs.kie.ai file-upload quickstart, read
 // 2026-10-30). Reusing one for 20 leaves a margin for a long job.
 const REUSE_UPLOAD_MS = 20 * 3_600_000;
@@ -37,7 +50,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       .filter((n) => ASSET_NAME.test(n) && existsSync(join(dir, n, "asset.json")))
       .map((n) => {
         const r = read(n);
-        return { name: r.name, kind: r.kind, description: r.description, imageCount: r.images.length, updatedAt: r.updatedAt };
+        return { name: r.name, kind: r.kind, description: r.description, imageCount: r.images.length, hasSheet: r.images.some((im) => roleOf(im) === "sheet"), updatedAt: r.updatedAt };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -48,21 +61,24 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       throw unknown(`No asset "${name}". Saved assets: ${list().map((a) => a.name).join(", ") || "none"}.`);
     }
     const r = read(name);
-    return { ...r, images: r.images.map((im) => ({ ...im, path: join(assetDir(name), im.file) })) };
+    return { ...r, keep: r.keep ?? null, images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })) };
   }
 
-  function save({ name, kind, description, images, replace = false }, { roots = null } = {}) {
+  function save({ name, kind, description, keep, images, replace = false }, { roots = null } = {}) {
     const target = assetDir(name);
-    if (!KINDS.includes(kind)) throw unknown(`kind must be one of ${KINDS.join(", ")}, got "${kind}".`);
-    if (!description?.trim()) throw unknown("An asset needs a description; it is reused word for word in prompts.");
+    checkKind(kind);
+    checkDescription(description);
     if (!Array.isArray(images) || images.length < 1 || images.length > 4) throw unknown("An asset holds 1 to 4 images.");
+    const wanted = images.map((im) => (typeof im === "string" ? { path: im, role: "source" } : { path: im?.path, role: im?.role ?? "source" }));
+    for (const w of wanted) if (!IMAGE_ROLES.includes(w.role)) throw unknown(`An image's role must be sheet or source, got "${w.role}".`);
+    if (wanted.filter((w) => w.role === "sheet").length > 1) throw unknown("An asset has at most one sheet.");
 
     // Check and read every source before touching the library, so a bad
     // image leaves nothing half-written, and replacing an asset with one of
     // its own images still works after the old files move to .history.
-    const sources = images.map((p) => {
-      const info = checkLocalFile(p, { roots, kinds: ["image"] });
-      return { info, bytes: readFileSync(info.path) };
+    const sources = wanted.map(({ path, role }) => {
+      const info = checkLocalFile(path, { roots, kinds: ["image"] });
+      return { info, role, bytes: readFileSync(info.path) };
     });
 
     const exists = existsSync(join(target, "asset.json"));
@@ -86,11 +102,12 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     }
 
     mkdirSync(target, { recursive: true });
-    const stored = sources.map(({ info, bytes }, i) => {
+    const stored = sources.map(({ info, role, bytes }, i) => {
       const file = `${i + 1}${info.ext}`;
       writeFileSync(join(target, file), bytes);
       return {
         n: i + 1,
+        role,
         file,
         sha256: sha256(bytes),
         bytes: info.bytes,
@@ -100,7 +117,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
         upload: null,
       };
     });
-    return write({ name, kind, description: description.trim(), images: stored, createdAt, updatedAt: at, usedIn });
+    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), images: stored, createdAt, updatedAt: at, usedIn });
   }
 
   /**
@@ -120,6 +137,24 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     return url;
   }
 
+  /** Change an asset's kind, description or keep. Images are untouched. */
+  function update(name, { kind, description, keep } = {}) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const record = read(name);
+    if (kind !== undefined) {
+      checkKind(kind);
+      record.kind = kind;
+    }
+    if (description !== undefined) {
+      checkDescription(description);
+      record.description = description.trim();
+    }
+    if (keep !== undefined) record.keep = cleanKeep(keep);
+    record.updatedAt = now().toISOString();
+    write(record);
+    return get(name);
+  }
+
   function recordUse(name, run) {
     const record = read(name);
     record.usedIn ??= [];
@@ -129,5 +164,5 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     }
   }
 
-  return { dir, list, get, save, uploadUrl, recordUse };
+  return { dir, list, get, save, update, uploadUrl, recordUse };
 }

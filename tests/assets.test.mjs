@@ -97,3 +97,59 @@ describe("uploads are reused while kie still has them", () => {
     assert.deepEqual(JSON.parse(readFileSync(join(l.dir, "zed", "asset.json"), "utf8")).usedIn, ["film-a"]);
   });
 });
+
+import { IMAGE_ROLES, sheetOf } from "../cli/core/assets.mjs";
+
+describe("sheets and source photos", () => {
+  test("images given as paths are source photos; { path, role } sets the role", () => {
+    const l = lib();
+    const a = l.save({ ...zed, images: [{ path: zed1, role: "sheet" }, zed2] });
+    assert.deepEqual(a.images.map((i) => i.role), ["sheet", "source"]);
+    assert.equal(sheetOf(l.get("zed")).n, 1);
+    assert.deepEqual(IMAGE_ROLES, ["sheet", "source"]);
+  });
+
+  test("an asset holds at most one sheet, and roles are checked", () => {
+    const l = lib();
+    assert.throws(() => l.save({ ...zed, images: [{ path: zed1, role: "sheet" }, { path: zed2, role: "sheet" }] }), /at most one sheet/);
+    assert.throws(() => l.save({ ...zed, images: [{ path: zed1, role: "poster" }] }), /role must be sheet or source/);
+  });
+
+  test("records saved before roles read their images as source photos", () => {
+    const l = lib();
+    l.save(zed);
+    const path = join(l.dir, "zed", "asset.json");
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    for (const im of raw.images) delete im.role;
+    delete raw.keep;
+    writeFileSync(path, JSON.stringify(raw));
+    const a = l.get("zed");
+    assert.deepEqual(a.images.map((i) => i.role), ["source", "source"]);
+    assert.equal(a.keep, null);
+    assert.equal(sheetOf(a), null);
+    assert.equal(l.list()[0].hasSheet, false);
+  });
+
+  test("keep is saved trimmed, or null when empty", () => {
+    const l = lib();
+    assert.equal(l.save({ ...zed, keep: "  his one blue eye  " }).keep, "his one blue eye");
+    assert.equal(l.save({ ...zed, keep: "", replace: true }).keep, null);
+  });
+
+  test("list says which assets have a sheet", () => {
+    const l = lib();
+    l.save({ ...zed, images: [{ path: zed1, role: "sheet" }] });
+    assert.equal(l.list()[0].hasSheet, true);
+  });
+
+  test("update changes kind, description and keep without touching images", () => {
+    const l = lib();
+    l.save(zed);
+    const before = l.get("zed").images.map((i) => i.sha256);
+    const a = l.update("zed", { kind: "product", description: "A new line.", keep: "the dent" });
+    assert.deepEqual([a.kind, a.description, a.keep], ["product", "A new line.", "the dent"]);
+    assert.deepEqual(l.get("zed").images.map((i) => i.sha256), before);
+    assert.throws(() => l.update("zed", { kind: "vibe" }), /kind must be one of/);
+    assert.throws(() => l.update("zed", { description: " " }), /needs a description/);
+  });
+});
