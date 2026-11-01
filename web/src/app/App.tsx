@@ -73,7 +73,7 @@ export function App() {
         </TopBar>
         {!online && (
           <div className="banner" role="alert">
-            Studio server isn't running. Start it with <code className="mono">npm run studio</code>, and this page reconnects.
+            Shard's server isn't running. Start it with <code className="mono">npm run studio</code>, and this page reconnects.
           </div>
         )}
         <main className="app__main" data-screen={route.screen}>

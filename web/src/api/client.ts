@@ -65,7 +65,7 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
     res = await send();
     if (res.status === 403 && (await refreshKey())) res = await send();
   } catch {
-    throw new ApiError("Studio server isn't running. Start it with: npm run studio", { offline: true });
+    throw new ApiError("Shard's server isn't running. Start it with: npm run studio", { offline: true });
   }
   const text = await res.text();
   let json: any = null;

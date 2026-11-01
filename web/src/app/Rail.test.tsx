@@ -12,13 +12,20 @@ beforeEach(() => {
 describe("Rail", () => {
   test("links every place, lights the current one, and has a Chat button", () => {
     render(<Rail current="projects" />);
-    const nav = screen.getByRole("navigation", { name: "Studio" });
+    const nav = screen.getByRole("navigation", { name: "Shard" });
     for (const name of ["Home", "Projects", "Create", "Library", "Presets", "Spend", "Settings"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
     expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
     expect(nav).toContainElement(screen.getByRole("button", { name: "Chat" }));
+  });
+
+  test("the brand is Shard's logo and goes Home", () => {
+    render(<Rail current="library" />);
+    const brand = screen.getByRole("link", { name: "Shard home" });
+    expect(brand).toHaveAttribute("href", "#/");
+    expect(brand.querySelector("svg")).not.toBeNull();
   });
 
   test("Chat opens and closes the drawer and says which", () => {

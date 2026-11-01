@@ -73,7 +73,7 @@ async function main() {
   const app = createApp({ key, resume: true });
   const port = await listenOnFreePort(app, Number(process.env.STUDIO_PORT) || 4317);
   const url = `http://127.0.0.1:${port}/`;
-  process.stdout.write(`Studio running at ${url}  (Ctrl-C to stop)\n`);
+  process.stdout.write(`Shard running at ${url}  (Ctrl-C to stop)\n`);
   if (!args.has("--no-open")) openBrowser(url);
   let stopping = false;
   const stop = () => {

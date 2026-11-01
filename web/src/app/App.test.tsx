@@ -16,7 +16,7 @@ describe("App", () => {
   test("a rail of places, Home lit by default", () => {
     pending();
     render(<App />);
-    expect(screen.getByRole("navigation", { name: "Studio" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Shard" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "What are we making?" })).toBeInTheDocument();
   });
@@ -67,7 +67,7 @@ describe("App", () => {
     pending();
     window.location.hash = "#/films/zed/finish";
     render(<App />);
-    const rail = screen.getByRole("navigation", { name: "Studio" });
+    const rail = screen.getByRole("navigation", { name: "Shard" });
     expect(within(rail).getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
     // The top bar says where you are, with the way back.
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "Projects" })).toHaveAttribute("href", "#/projects");

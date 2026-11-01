@@ -2,6 +2,7 @@
 // The left rail: where you can go, plus the Chat drawer's button. Places you
 // visit now and then (Spend, Settings) sit at the bottom with Chat.
 import { Icon } from "./icons";
+import { Logo } from "./Logo";
 import { RAIL, type RailId } from "./route";
 import { toggleChat, useChatDrawer } from "../chat/chatStore";
 
@@ -17,9 +18,9 @@ function Item({ id, label, current }: { id: RailId; label: string; current: Rail
 export function Rail({ current }: { current: RailId }) {
   const { open } = useChatDrawer();
   return (
-    <nav className="rail" aria-label="Studio">
-      <a className="rail__brand" href="#/" aria-label="Studio home">
-        MD
+    <nav className="rail" aria-label="Shard">
+      <a className="rail__brand" href="#/" aria-label="Shard home">
+        <Logo />
       </a>
       {RAIL.top.map((r) => (
         <Item key={r.id} {...r} current={current} />

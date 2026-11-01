@@ -259,7 +259,7 @@ describe("a film's storyboard in the shell", () => {
 
     // Closing and opening the drawer again does not send the idea a second time.
     fireEvent.click(screen.getByRole("button", { name: "Close chat" }));
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Studio" })).getByRole("button", { name: "Chat" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Shard" })).getByRole("button", { name: "Chat" }));
     await screen.findByRole("dialog", { name: "Chat drawer" });
     await new Promise((r) => setTimeout(r, 50));
     expect(sent("/api/chat/zed")).toHaveLength(1);
