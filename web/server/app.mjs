@@ -9,6 +9,7 @@ import { createFollower } from "./follow.mjs";
 import { createTasks } from "./tasks.mjs";
 import { registerLook } from "./api/look.mjs";
 import { registerGenerate } from "./api/generate.mjs";
+import { registerScenes } from "./api/scenes.mjs";
 import { registerFrames } from "./api/frames.mjs";
 import { registerLibrary } from "./api/library.mjs";
 import { registerPresets } from "./api/presets.mjs";
@@ -65,6 +66,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   router.post("/api/tasks/:id/cancel", ({ params }) => ({ task: tasks.cancel(params.id) }));
   registerLook(router, { catalog, deps, following });
   registerGenerate(router, { catalog, deps, follower });
+  registerScenes(router, { catalog, deps, follower });
   registerFrames(router);
   registerLibrary(router, { catalog, following });
   registerPresets(router, { catalog });

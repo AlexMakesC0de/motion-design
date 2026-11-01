@@ -14,25 +14,14 @@ import { expandRefs } from "../../../cli/core/refs.mjs";
 import { context, jobView } from "../state.mjs";
 import * as f from "./fields.mjs";
 
-export function registerGenerate(router, { catalog, deps = {}, follower }) {
+/**
+ * The submit path the generate routes and the scene routes share: expand refs,
+ * reserve and submit through core, record what was sent, then follow the job.
+ */
+export function createSubmitter({ catalog, deps = {}, follower }) {
   const view = (j) => jobView(j, follower.has);
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
-
-  /** The fields generate_video and generate_image share. */
-  function common(body) {
-    return {
-      run: f.run(body),
-      prompt: f.text(body, "prompt", { required: true }),
-      refs: f.refs(body),
-      resolution: f.text(body, "resolution"),
-      aspect_ratio: f.text(body, "aspect_ratio"),
-      params: f.params(body),
-      budget_usd: f.amount(body, "budget_usd"),
-      provider: f.text(body, "provider"),
-    };
-  }
-
-  async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {} }) {
+  return async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {} }) {
     const dir = runDir(a.run);
     const { store, limits, roots, library } = context();
     const expanded = await expandRefs(a.refs, { catalog, library, roots, baseDir: RUNS_DIR, upload });
@@ -98,6 +87,25 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
       refMapping: expanded.refMapping,
       warnings,
       job: view(sub.job),
+    };
+  }
+}
+
+export function registerGenerate(router, { catalog, deps = {}, follower }) {
+  const view = (j) => jobView(j, follower.has);
+  const submit = createSubmitter({ catalog, deps, follower });
+
+  /** The fields generate_video and generate_image share. */
+  function common(body) {
+    return {
+      run: f.run(body),
+      prompt: f.text(body, "prompt", { required: true }),
+      refs: f.refs(body),
+      resolution: f.text(body, "resolution"),
+      aspect_ratio: f.text(body, "aspect_ratio"),
+      params: f.params(body),
+      budget_usd: f.amount(body, "budget_usd"),
+      provider: f.text(body, "provider"),
     };
   }
 
