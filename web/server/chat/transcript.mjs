@@ -24,7 +24,7 @@ const KINDS = new Set(["user", "assistant", "tool", "notice"]);
  * The MCP tools that can reserve and submit a paid job (annotated open-world,
  * not read-only, not idempotent). Cut off mid-call, one may have submitted.
  */
-export const SPENDING_TOOLS = new Set(["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "save_review"]);
+export const SPENDING_TOOLS = new Set(["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "save_review", "draft_scene", "final_scene"]);
 export const STOPPED_SPENDING = "stopped; it may still have been submitted, see the feed";
 
 /** A chat failure with one sentence for the page. `connect` means: show the two connection options. */

@@ -32,6 +32,7 @@ import { ok, fail } from "./results.mjs";
 import { artifactPreview, imagePreview } from "./preview.mjs";
 import { registerDirector } from "./director.mjs";
 import { registerMaking } from "./making.mjs";
+import { registerScenes } from "./scenes.mjs";
 import { stoppable } from "./stop.mjs";
 
 const VERSION = "0.1.0";
@@ -47,7 +48,10 @@ const INSTRUCTIONS =
   "and let the checker, the model picker and shot_wording do the craft; all of these are free. " +
   "Then make it only as far as the user asked: make_still for each shot (first shot first), show the storyboard (get_shots), " +
   "film_all with the total the user agreed as max_usd, wait_job, review_shot and save_review for every take, then cut_film. " +
-  "A take judged redo waits for the user (film_shot) unless they switched auto-redo on in the studio or with kie auto-redo.";
+  "A take judged redo waits for the user (film_shot) unless they switched auto-redo on in the studio or with kie auto-redo. " +
+  "Scenes (the studio's Create > Scene tab, run \"create\") are one Seedance 2.5 generation each: list_scenes, save_scene " +
+  "(change only the fields the user named), get_scene_prompt (free: the exact prompt, its problems and prices), then " +
+  "draft_scene or final_scene only when the user agreed that spend, then wait_job.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -69,9 +73,11 @@ const Asset = {
   name: z.string(),
   kind: z.string(),
   description: z.string(),
+  keep: z.string().nullable(),
   images: z.array(
     z.object({
       n: z.number().int(),
+      role: z.string(),
       file: z.string(),
       path: z.string(),
       width: z.number().nullable(),
@@ -89,8 +95,10 @@ const assetView = (a) => ({
   name: a.name,
   kind: a.kind,
   description: a.description,
+  keep: a.keep ?? null,
   images: a.images.map((im) => ({
     n: im.n,
+    role: im.role ?? "source",
     file: im.file,
     path: im.path,
     width: im.width ?? null,
@@ -156,10 +164,12 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
 
   registerLook();
   registerAssets();
+  registerAssetEdits();
   registerGenerate(); // Task 5
   registerFinish(); // Task 6
   registerDirector(tool, { catalog, ctx });
   registerMaking(tool, { catalog, ctx, deps, runFile });
+  registerScenes(tool, { catalog, ctx, deps });
   return server;
 
   function registerLook() {
@@ -405,6 +415,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
               kind: z.string(),
               description: z.string(),
               imageCount: z.number(),
+              hasSheet: z.boolean(),
               updatedAt: z.string(),
             }),
           ),
@@ -437,6 +448,46 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         }
         const lines = [`${a.name} (${a.kind}): ${a.description}`, ...a.images.map((im) => `#${im.n} ${im.file} ${im.width ?? "?"}×${im.height ?? "?"}`)];
         return ok(lines.join("\n"), a, previews);
+      },
+    );
+  }
+
+  function registerAssetEdits() {
+    tool(
+      "update_asset",
+      {
+        title: "Update asset",
+        description: "Change a Library item's kind, description or keep (what a scene preserves from it) without touching its images. Free.",
+        inputSchema: {
+          name: z.string(),
+          kind: z.enum(KINDS).optional(),
+          description: z.string().min(1).optional(),
+          keep: z.string().optional().describe("Empty text clears it."),
+        },
+        outputSchema: Asset,
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ name, ...changes }) => {
+        const { library } = ctx();
+        const given = Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== undefined));
+        const a = assetView(library.update(name, given));
+        return ok(`updated ${a.name}`, a);
+      },
+    );
+
+    tool(
+      "remove_asset",
+      {
+        title: "Remove asset",
+        description: "Take an item out of the Library. Its folder moves to library/.trash, so it can be recovered by hand. Only when the user asked. Free.",
+        inputSchema: { name: z.string() },
+        outputSchema: { name: z.string(), trashed: z.string() },
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      },
+      async ({ name }) => {
+        const { library } = ctx();
+        const r = library.remove(name);
+        return ok(`removed ${r.name}; its files are in library/${r.trashed}`, r);
       },
     );
   }

@@ -12,28 +12,29 @@ const client = await connect(deps);
 
 const TOOLS = [
   "status", "list_models", "list_presets", "estimate", "list_runs", "get_run",
-  "save_asset", "list_assets", "get_asset",
+  "save_asset", "list_assets", "get_asset", "update_asset", "remove_asset",
   "generate_image", "generate_video", "wait_job",
   "frames", "probe", "assemble", "variants", "caption", "render",
   "get_menu", "get_brief", "save_brief", "get_plan", "save_plan", "update_shot", "check_plan", "suggest_model", "shot_wording",
   "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
+  "list_scenes", "get_scene_prompt", "save_scene", "add_scene_image", "delete_scene", "choose_version", "draft_scene", "final_scene",
 ];
 
 describe("the tool list", () => {
-  test("all 36 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 46 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");
     const filmAll = tools.find((t) => t.name === "film_all");
     assert.match(filmAll.description, /the total the user stated/);
     assert.match(filmAll.inputSchema.properties.max_usd.description, /never one you worked out/);
-    for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all"]) {
+    for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "draft_scene", "final_scene"]) {
       const t = tools.find((x) => x.name === name);
       assert.match(t.description, /^Spends kie credits\./);
       assert.equal(t.annotations.openWorldHint, true);
       assert.equal(t.annotations.destructiveHint, false);
     }
-    for (const name of ["list_models", "list_presets", "estimate", "list_runs", "get_run", "list_assets", "get_asset"]) {
+    for (const name of ["list_models", "list_presets", "estimate", "list_runs", "get_run", "list_assets", "get_asset", "list_scenes", "get_scene_prompt"]) {
       assert.equal(tools.find((x) => x.name === name).annotations.readOnlyHint, true, name);
     }
     assert.ok(tools.every((t) => t.outputSchema), "every tool declares an output schema");
@@ -99,7 +100,7 @@ describe("assets", () => {
     });
     assert.equal(r.structuredContent.images.length, 1);
     const list = await call(client, "list_assets");
-    assert.deepEqual(list.structuredContent.assets.map((a) => a.name), ["zed"]);
+    assert.deepEqual(list.structuredContent.assets.map((a) => [a.name, a.hasSheet]), [["zed", false]]);
   });
 
   test("an image outside the allowed folders is refused with code 3, naming them", async () => {

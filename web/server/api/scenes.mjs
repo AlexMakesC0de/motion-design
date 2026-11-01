@@ -1,40 +1,22 @@
-// Scenes: one Seedance 2.5 reference-to-video generation each. Drafts at 480p
-// with draft=true; finals re-run the same prompt and refs at 720p or 1080p.
-import { existsSync, mkdirSync, realpathSync, renameSync, rmSync } from "node:fs";
-import { join, parse } from "node:path";
-import { readScenes, saveScene, deleteScene, orderScenes, addVersion, chooseVersion } from "../../../cli/director/scenes.mjs";
-import { compileScene, DEFAULT_REF_TOKEN } from "../../../cli/director/scene.mjs";
-import { resolveModel } from "../../../cli/lib/models.mjs";
-import { runDir, RUNS_DIR } from "../../../cli/lib/run.mjs";
-import { estimate } from "../../../cli/core/views.mjs";
+// Scenes: one Seedance 2.5 reference-to-video generation each. The making
+// itself lives in cli/director/scene-make.mjs, shared with the MCP server.
+import { mkdirSync, realpathSync, renameSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { readScenes, saveScene, deleteScene, orderScenes, chooseVersion } from "../../../cli/director/scenes.mjs";
+import { compileFor, scenePrices, makeScene, findScene, safeStem, freeName, FINALS } from "../../../cli/director/scene-make.mjs";
+import { runDir } from "../../../cli/lib/run.mjs";
+import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
-import { unknown } from "../../../cli/lib/errors.mjs";
 import { HttpError } from "../http.mjs";
 import { context, jobView } from "../state.mjs";
-import { createSubmitter } from "./generate.mjs";
 import { label, saveBody } from "./library.mjs";
 import * as f from "./fields.mjs";
-
-const MODEL = "seedance-2-5";
-const FINALS = ["720p", "1080p"];
 
 /** A film slug from the path, checked the way a run field is. `create` is Create's own run. */
 const slugOf = (params) => f.run({ run: params.slug });
 
-/** A file name from the client's label: lowercase, odd characters as "-". */
-function safeStem(name) {
-  const stem = parse(name).name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^[-._]+|[-._]+$/g, "")
-    .slice(0, 60);
-  return stem || "image";
-}
-
 export function registerScenes(router, { catalog, deps = {}, follower, maxUploadBytes = MAX_BYTES.image }) {
-  const submit = createSubmitter({ catalog, deps, follower });
-  const model = () => resolveModel(catalog, MODEL, "video");
+  const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
 
   /** The stored scene with each version's job state, media and cost. */
   function sceneView(scene) {
@@ -52,32 +34,6 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
       }),
     };
   }
-
-  const findScene = (slug, id) => {
-    const scene = readScenes(slug).scenes.find((s) => s.id === id);
-    if (!scene) throw unknown(`No scene "${id}".`, { field: "id" });
-    return scene;
-  };
-
-  /** Width and height of a film's own picture, `<slug>/refs/<file>`; null when unreadable (submit reports it). */
-  const sizeOf = (path) => {
-    try {
-      return checkLocalFile(join(RUNS_DIR, path), { kinds: ["image"] });
-    } catch {
-      return null;
-    }
-  };
-
-  const compile = (slug, scene) => {
-    const route = model().routes.find((r) => r.provider === "kie");
-    return compileScene(scene, {
-      film: slug,
-      library: context().library,
-      refToken: model().promptProfile?.refToken ?? DEFAULT_REF_TOKEN,
-      limits: route?.input?.refLimits?.image ?? null,
-      sizeOf,
-    });
-  };
 
   router.get("/api/films/:slug/scenes", ({ params }) => {
     const slug = slugOf(params);
@@ -104,42 +60,40 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
   router.get("/api/films/:slug/scenes/:id/prompt", ({ params }) => {
     const slug = slugOf(params);
     const scene = findScene(slug, params.id);
-    const { prompt, refs, problems } = compile(slug, scene);
-    const { store, limits } = context();
-    const price = (resolution, extra = {}) => {
-      const r = estimate(
-        catalog,
-        { model: MODEL, capability: "video", durationS: scene.durationS, resolution, aspectRatio: scene.ratio, refs: [], params: { generate_audio: true, ...extra } },
-        { store, limits },
-      );
-      return { usd: r.estimateUsd ?? null, basis: r.basis ?? null };
-    };
-    return { prompt, refs, problems, prices: { draft: price("480p", { draft: true }), final720: price("720p"), final1080: price("1080p") } };
+    const { store, limits, library } = context();
+    const { prompt, refs, problems } = compileFor(catalog, slug, scene, library);
+    return { prompt, refs, problems, prices: scenePrices(catalog, scene, { store, limits }) };
   });
 
-  /** A draft or a final: compile, refuse on problems, submit, then record the version. */
-  async function make(slug, id, kind, resolution, params) {
-    const scene = findScene(slug, id);
-    const { prompt, refs, problems } = compile(slug, scene);
-    if (problems.length) throw unknown(`Refused before submitting, nothing was spent. ${problems.join(" ")}`, { field: "scene", problems });
-    const r = await submit(
-      "video",
-      model(),
-      { run: slug, prompt, refs, params, budget_usd: null, provider: null },
-      { prompt, duration: scene.durationS, aspect_ratio: scene.ratio, resolution },
-      { promptFile: `${id}-prompt.txt`, inputsFile: `${id}-inputs.json`, artifactBase: `${id}-${kind}`, useI2v: () => false, extra: { scene: id, kind } },
-    );
-    const saved = addVersion(slug, id, { job: r.localJobId, kind, resolution, prompt, createdAt: new Date().toISOString() });
-    return { ...r, scene: sceneView(saved) };
+  /** A draft or a final, followed in the background so the page hears when it lands. */
+  async function make(slug, id, kind, resolution) {
+    const { store, limits, roots, library } = context();
+    const r = await makeScene(catalog, slug, id, kind, resolution, { store, limits, roots, library, upload, deps: deps.generate, via: "studio" });
+    follower.follow(r.job.id);
+    const job = jobView(r.job, follower.has);
+    return {
+      localJobId: r.job.id,
+      upstreamTaskId: r.job.upstreamTaskId == null ? null : String(r.job.upstreamTaskId),
+      state: r.job.state,
+      provider: r.job.provider,
+      providerModel: r.job.providerModel,
+      failedOver: Boolean(r.job.failedOver),
+      estimateUsd: r.estimateUsd,
+      basis: r.basis,
+      refMapping: r.refMapping,
+      warnings: r.warnings,
+      job,
+      scene: sceneView(r.scene),
+    };
   }
 
-  router.post("/api/films/:slug/scenes/:id/draft", ({ params }) => make(slugOf(params), params.id, "draft", "480p", { draft: true, generate_audio: true }));
+  router.post("/api/films/:slug/scenes/:id/draft", ({ params }) => make(slugOf(params), params.id, "draft", "480p"));
 
   router.post("/api/films/:slug/scenes/:id/final", ({ params, body = {} }) => {
     const slug = slugOf(params);
     const resolution = f.text(body, "resolution");
     if (!FINALS.includes(resolution)) throw f.invalid("resolution", `A final is ${FINALS.join(" or ")}.`);
-    return make(slug, params.id, "final", resolution, { generate_audio: true });
+    return make(slug, params.id, "final", resolution);
   });
 
   router.post("/api/films/:slug/scenes/:id/choose", ({ params, body = {} }) => {
@@ -181,9 +135,7 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
         throw err;
       }
       // Never overwrite: door.png, door-2.png, door-3.png…
-      const stem = safeStem(name);
-      let file = `${stem}${info.ext}`;
-      for (let n = 2; existsSync(join(root, file)); n += 1) file = `${stem}-${n}${info.ext}`;
+      const file = freeName(root, safeStem(name), info.ext);
       renameSync(part, join(root, file));
       return { source: `file:refs/${file}` };
     },
