@@ -94,6 +94,13 @@ describe("compileScene", () => {
     ]);
   });
 
+  test("a scene that says nothing is refused", () => {
+    const blank = { goal: " ", scene: "", stages: [{ title: "Exit", seconds: 4, camera: "", action: "", end: "" }], style: "Film grain.", audio: "" };
+    const { refs, problems } = compileScene(scene({ refs: [], cards: blank }), { film: "sky", library });
+    assert.deepEqual(refs, []);
+    assert.deepEqual(problems, ["Write the Goal, or what happens in a stage, first."]);
+  });
+
   test("without limits, sizes are not checked", () => {
     assert.deepEqual(compileScene(scene(), { film: "sky", library }).problems, []);
   });

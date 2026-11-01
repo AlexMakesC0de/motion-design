@@ -58,6 +58,8 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
     return { send: { source: join(film, rel), role: "identity" }, line: `${token(i)} — ${refLabel(r)}.${r.keep ? ` Preserve ${r.keep}.` : ""}` };
   });
   if (scene.refs.length > MAX_REFS) problems.push(`A scene holds at most ${MAX_REFS} images.`);
+  const says = [scene.cards.goal, scene.cards.scene, ...scene.cards.stages.flatMap((s) => [s.camera, s.action])].some((t) => t?.trim());
+  if (!says) problems.push("Write the Goal, or what happens in a stage, first.");
 
   const render = (t) =>
     t
