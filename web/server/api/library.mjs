@@ -214,6 +214,9 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
     return assetDetail(params.name, following);
   });
 
+  /** Out of the Library: the folder moves to library/.trash/, so it can be moved back. */
+  router.delete("/api/library/:name", ({ params }) => context().library.remove(params.name));
+
   router.post("/api/library/:name/sheet", ({ params, body = {} }) => {
     const src = f.text(body, "image", { required: true });
     const { library, roots } = context();

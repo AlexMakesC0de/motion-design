@@ -11,6 +11,8 @@ interface Props {
   asset: AssetDetail | null;
   onSaved: (asset: AssetDetail) => void;
   onClose: () => void;
+  /** The item was removed from the Library. */
+  onRemoved?: () => void;
   /** Fills the Name of a new item, when the mention that sent you here named it. */
   initialName?: string;
 }
@@ -18,7 +20,7 @@ interface Props {
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 const upload = (file: File) => api<IncomingFile>("/api/library/incoming", { file: { data: file, name: file.name } });
 
-export function SheetMaker({ asset, onSaved, onClose, initialName = "" }: Props) {
+export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "" }: Props) {
   const id = useId();
   const editing = asset !== null;
   const [kind, setKind] = useState(asset?.kind ?? "character");
@@ -122,6 +124,23 @@ export function SheetMaker({ asset, onSaved, onClose, initialName = "" }: Props)
     setError(null);
     try {
       onSaved(await api<AssetDetail>(`/api/library/${encodeURIComponent(asset.name)}`, { method: "PATCH", body: { kind, description, keep } }));
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!asset) return;
+    const films = asset.usedIn.length;
+    const used = films ? ` It is used in ${films} film${films === 1 ? "" : "s"}; scenes that mention it will show it in red.` : "";
+    if (!window.confirm(`Remove @library:${asset.name}?${used} Its files move to library/.trash, so it can be put back.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/library/${encodeURIComponent(asset.name)}`, { method: "DELETE" });
+      onRemoved?.();
     } catch (e) {
       setError(message(e));
     } finally {
@@ -306,6 +325,11 @@ export function SheetMaker({ asset, onSaved, onClose, initialName = "" }: Props)
         <p className="sheet-maker__error" role="alert">
           {error}
         </p>
+      )}
+      {editing && (
+        <button type="button" className="sheet-maker__remove" aria-label={`Remove @library:${asset.name} from the Library`} disabled={busy} onClick={remove}>
+          Remove from Library
+        </button>
       )}
     </section>
   );

@@ -103,6 +103,11 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
             setOpen(null);
             settle();
           }}
+          onRemoved={() => {
+            setOpen(null);
+            load();
+            settle();
+          }}
         />
       )}
     </div>

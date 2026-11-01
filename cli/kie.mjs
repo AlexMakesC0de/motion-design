@@ -59,6 +59,7 @@ const HELP = `kie -- motion-design execution layer
   kie upload     <path>
   kie asset      save <name> <image>... --kind K --description "..." [--replace]
                  list | show <name>      saved references; use as --ref zed:identity or --ref zed#2:first_frame
+                 remove <name>           move it to library/.trash/ (move the folder back to undo)
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
                  [--duration N] [--ar R] [--resolution R] [--ref URL|ASSET:ROLE]...
@@ -423,7 +424,14 @@ function cmdAsset(args, positionals) {
     return EXIT.OK;
   }
 
-  throw usage("kie asset save|list|show");
+  if (action === "remove") {
+    if (!name) throw usage("kie asset remove <name>");
+    const r = library.remove(name);
+    say(`removed ${r.name}; its files are in ${join(library.dir, r.trashed)} (move the folder back to undo)`);
+    return EXIT.OK;
+  }
+
+  throw usage("kie asset save|list|show|remove");
 }
 
 // -------------------------------------------------------------- generation

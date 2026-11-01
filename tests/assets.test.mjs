@@ -153,3 +153,31 @@ describe("sheets and source photos", () => {
     assert.throws(() => l.update("zed", { description: " " }), /needs a description/);
   });
 });
+
+describe("removing an asset", () => {
+  test("moves its folder into .trash, stamped, and it leaves the list", () => {
+    const l = lib({ now: () => new Date("2026-11-01T10:20:30Z") });
+    l.save(zed);
+    const r = l.remove("zed");
+    assert.equal(r.trashed, ".trash/zed-20261101T102030Z");
+    assert.deepEqual(l.list(), []);
+    assert.ok(!existsSync(join(l.dir, "zed")));
+    assert.deepEqual(readdirSync(join(l.dir, ".trash", "zed-20261101T102030Z")).sort(), ["1.png", "2.jpg", "asset.json"]);
+  });
+
+  test("the name is free again, and a second removal gets its own folder", () => {
+    let t = 0;
+    const l = lib({ now: () => new Date(Date.UTC(2026, 10, 1, 10, 0, t++)) });
+    l.save(zed);
+    l.remove("zed");
+    l.save(zed);
+    l.remove("zed");
+    assert.equal(readdirSync(join(l.dir, ".trash")).length, 2);
+  });
+
+  test("an unknown or badly named asset is refused", () => {
+    const l = lib();
+    assert.throws(() => l.remove("ghost"), /No asset "ghost"/);
+    assert.throws(() => l.remove("../x"), /lowercase letters/);
+  });
+});

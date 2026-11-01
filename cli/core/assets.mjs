@@ -155,6 +155,21 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     return get(name);
   }
 
+  /**
+   * Take an asset out of the Library. Its folder (images, record, .history)
+   * moves to .trash/<name>-<UTC stamp>, so moving it back undoes this.
+   */
+  function remove(name) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const trash = join(dir, ".trash");
+    mkdirSync(trash, { recursive: true });
+    const stamp = now().toISOString().replace(/[-:]|\.\d+/g, "");
+    let to = `${name}-${stamp}`;
+    for (let i = 2; existsSync(join(trash, to)); i++) to = `${name}-${stamp}-${i}`;
+    renameSync(assetDir(name), join(trash, to));
+    return { name, trashed: `.trash/${to}` };
+  }
+
   function recordUse(name, run) {
     const record = read(name);
     record.usedIn ??= [];
@@ -164,5 +179,5 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     }
   }
 
-  return { dir, list, get, save, update, uploadUrl, recordUse };
+  return { dir, list, get, save, update, remove, uploadUrl, recordUse };
 }

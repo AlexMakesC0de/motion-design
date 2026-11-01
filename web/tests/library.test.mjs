@@ -209,6 +209,19 @@ describe("sheets", () => {
     assert.deepEqual(r.json.images.map((i) => i.role), ["sheet", "source"]);
   });
 
+  test("DELETE moves an asset to the trash; it leaves the list and its name is free", async () => {
+    const up = await drop(png(300, 300), "gone.png");
+    await save({ name: "gone", kind: "product", description: "A thing.", images: [up.json.token] });
+    const r = await req(port, "/api/library/gone", { method: "DELETE" });
+    assert.equal(r.status, 200, r.text);
+    assert.match(r.json.trashed, /^\.trash\/gone-\d{8}T\d{6}Z$/);
+    assert.ok(existsSync(join(LIBRARY, r.json.trashed, "asset.json")));
+    const list = await req(port, "/api/library");
+    assert.ok(!list.json.some((a) => a.name === "gone"));
+    const again = await req(port, "/api/library/gone", { method: "DELETE" });
+    assert.equal(again.status, 400);
+  });
+
   test("the sheet prompt comes from core, with the photo count", async () => {
     const q = new URLSearchParams({ kind: "character", description: "Maya, tall", outfit: "red scarf", photos: "2" });
     const r = await req(port, `/api/library/sheet-prompt?${q}`);

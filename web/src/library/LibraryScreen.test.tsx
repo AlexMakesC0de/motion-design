@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { LibraryScreen } from "./LibraryScreen";
 import { routes } from "../test-fixtures";
 
@@ -59,6 +59,35 @@ describe("LibraryScreen", () => {
     render(<LibraryScreen newName="maya" />);
     expect(await screen.findByRole("region", { name: "New sheet" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("maya");
+  });
+
+  test("Remove asks first, saying where it is used and that it can be put back", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        routes({
+          "/api/library": () => list,
+          "/api/library/alexandros": (init) => {
+            calls.push(init?.method ?? "GET");
+            return init?.method === "DELETE" ? { name: "alexandros", trashed: ".trash/alexandros-20261101T102030Z" } : alexandros;
+          },
+          "/api/library/sheet-prompt": () => ({ prompt: "" }),
+        }),
+      ),
+    );
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<LibraryScreen item="alexandros" />);
+    const panel = await screen.findByRole("region", { name: "@library:alexandros" });
+    fireEvent.click(within(panel).getByRole("button", { name: "Remove @library:alexandros from the Library" }));
+    expect(confirm).toHaveBeenLastCalledWith(
+      "Remove @library:alexandros? It is used in 1 film; scenes that mention it will show it in red. Its files move to library/.trash, so it can be put back.",
+    );
+    expect(calls).not.toContain("DELETE");
+    fireEvent.click(within(panel).getByRole("button", { name: "Remove @library:alexandros from the Library" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "@library:alexandros" })).toBeNull());
+    expect(calls).toContain("DELETE");
+    confirm.mockRestore();
   });
 
   test("item opens that item's sheet", async () => {
