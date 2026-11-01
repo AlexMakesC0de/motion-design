@@ -16,5 +16,6 @@ export function cardTexts(cards: Cards): string[];
 export function mapCardTexts(cards: Cards, fn: (t: string) => string): Cards;
 export function removeRef<S extends { refs: Ref[]; cards: Cards }>(scene: S, id: string): S;
 export function attachLibraryMentions<S extends { refs: Ref[]; cards: Cards }>(scene: S): S;
+export function libraryNames(scene: { refs: Ref[]; cards: Cards }): string[];
 export function emptyCards(): Cards;
 export function parseDanPrompt(text: string): Cards | null;

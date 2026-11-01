@@ -17,11 +17,11 @@ const TOOLS = [
   "frames", "probe", "assemble", "variants", "caption", "render",
   "get_menu", "get_brief", "save_brief", "get_plan", "save_plan", "update_shot", "check_plan", "suggest_model", "shot_wording",
   "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
-  "list_scenes", "get_scene_prompt", "save_scene", "add_scene_image", "delete_scene", "choose_version", "draft_scene", "final_scene",
+  "list_scenes", "get_scene_prompt", "save_scene", "add_scene_image", "delete_scene", "choose_version", "draft_scene", "final_scene", "save_idea", "copy_scene",
 ];
 
 describe("the tool list", () => {
-  test("all 46 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 48 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");

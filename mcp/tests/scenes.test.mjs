@@ -101,6 +101,18 @@ describe("scenes through the tools", { skip: !hasFfmpeg && "needs ffmpeg" }, () 
     assert.equal(data(c).chosen, data(r).localJobId);
   });
 
+  test("save_idea keeps the idea and adds the listed scenes; copy_scene copies one with its video", async () => {
+    const i = await call(client, "save_idea", { run: "trip", idea: { text: "A trip", ratio: "9:16" }, scenes: [{ title: "Station", durationS: 5 }] });
+    ok(i);
+    assert.deepEqual(data(i).scenes.map((s) => [s.id, s.title, s.ratio]), [["s1", "Station", "9:16"]]);
+    const c = await call(client, "copy_scene", { run: "film", id: "s1", to: "trip" });
+    ok(c);
+    assert.equal(data(c).scene.id, "s2");
+    const v = data(c).scene.versions.find((x) => x.kind === "draft");
+    assert.match(v.file, /trip\/s2-draft/);
+    assert.equal(data(await call(client, "list_scenes", { run: "film" })).scenes.length, 1, "the original stays");
+  });
+
   test("update_asset changes keep; remove_asset moves it to the trash", async () => {
     const u = await call(client, "update_asset", { name: "courier", keep: "his red cap" });
     ok(u);

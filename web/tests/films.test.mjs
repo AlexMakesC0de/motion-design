@@ -154,13 +154,13 @@ describe("film progress", () => {
     assert.equal(r.json.find((f) => f.run === "Old Stuff").progress, null);
   });
 
-  test("a film with a brief and no plan is on Brief, with the next action in words", async () => {
+  test("a film with nothing in it yet is on Idea, with the next action in words", async () => {
     mkdirSync(join(RUNS, "fresh"), { recursive: true });
     writeFileSync(join(RUNS, "fresh", "brief.json"), JSON.stringify({ takeaway: "A boat", durationS: 8, aspectRatio: "16:9", filmType: "live-action" }));
     const r = await req(port, "/api/films/fresh/progress");
     assert.equal(r.status, 200, r.text);
-    assert.equal(r.json.step, "brief");
-    assert.deepEqual(r.json.next, { text: "Plan the shots", step: "brief" });
+    assert.equal(r.json.step, "idea");
+    assert.deepEqual(r.json.next, { text: "Write the idea", step: "idea" });
     assert.equal(typeof r.json.updatedAt, "string");
   });
 

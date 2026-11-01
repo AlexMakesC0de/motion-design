@@ -13,8 +13,8 @@ import { checkLocalFile } from "../../../cli/core/inputs.mjs";
 import { RUNS_DIR, isInside, runDir, claimArtifact, landArtifact } from "../../../cli/lib/run.mjs";
 import { unknown } from "../../../cli/lib/errors.mjs";
 import { parseSrt } from "../../../cli/lib/caption.mjs";
-import { board } from "../../../cli/director/board.mjs";
-import { loadMenu } from "../../../cli/director/menu.mjs";
+import { readFilmJson } from "../../../cli/director/files.mjs";
+import { libraryNames } from "../../../cli/director/mentions.mjs";
 import { countedUsd } from "../../../cli/core/jobs.mjs";
 import { RATIOS } from "../../../cli/lib/ffmpeg.mjs";
 import { TEMPLATES } from "../../../cli/lib/render.mjs";
@@ -113,46 +113,62 @@ export function filmDetail(slug, following) {
 const r2 = (n) => Math.round(n * 100) / 100;
 const OUTPUTS = new Set(["film", "captioned", "variant", "card"]);
 
+/** Each Library item the scenes use, mapped to whether it has a sheet. An item not in the Library has none. */
+function sheetsFor(scenes, assets) {
+  const has = new Map(assets.map((a) => [a.name, Boolean(a.hasSheet)]));
+  return Object.fromEntries(scenes.flatMap((s) => libraryNames(s)).map((name) => [name, has.get(name) ?? false]));
+}
+
 /**
- * Where a film is (progress.mjs), from its board, its folder and what its jobs
- * cost. Throws core's code 3 for an unknown run. The films list passes what it
- * read once for every film: `jobs` (this run's jobs) and `assets` (the library).
+ * Where a film is (progress.mjs), from its scenes.json, the Library, its
+ * folder and what its jobs cost. Throws core's code 3 for an unknown run. A
+ * folder with files and no scenes.json was made before Shard: takes only.
+ * The films list passes what it read once for every film: `jobs` (this run's
+ * jobs), `jobById` (every job, for versions copied from Create) and `assets`.
  */
-export function filmProgress(slug, { menu = loadMenu(), jobs, assets } = {}) {
+export function filmProgress(slug, { jobs, jobById, assets } = {}) {
   const dir = runDir(slug, { create: false });
-  if (!jobs || !assets || !existsSync(dir)) {
+  if (!jobs || !jobById || !assets || !existsSync(dir)) {
     const { store, library } = context();
     if (!existsSync(dir)) getRun(slug, { store }); // throws the "No run" error with the recent list
-    jobs ??= store.list().filter((j) => j.run === slug);
+    const all = store.list();
+    jobs ??= all.filter((j) => j.run === slug);
+    jobById ??= new Map(all.map((j) => [j.id, j]));
     assets ??= library.list();
   }
-  // board() reads jobs only through store.list(), so this run's jobs stand in for the store.
-  const b = board({ list: () => jobs }, slug, { assets, menu });
+  const stored = readFilmJson(slug, "scenes.json", { ifInvalid: null });
+  const scenes = stored?.scenes ?? [];
+  const idea = stored?.idea ?? null;
   const files = visible(dir);
   const outputs = files.filter((f) => OUTPUTS.has(fileOrigin(f.name, f.kind))).length;
   const hasFilm = files.some((f) => fileOrigin(f.name, f.kind) === "film");
-  const legacy = !b.brief && !b.plan && files.length > 0;
-  const spentUsd = r2(jobs.reduce((t, j) => t + countedUsd(j), 0));
+  const legacy = !stored && files.length > 0;
+  // A version copied in from Create was paid for under Create's run: counted here too, once.
+  const counted = new Map(jobs.map((j) => [j.id, j]));
+  for (const v of scenes.flatMap((s) => s.versions)) if (!counted.has(v.job) && jobById.has(v.job)) counted.set(v.job, jobById.get(v.job));
+  const spentUsd = r2([...counted.values()].reduce((t, j) => t + countedUsd(j), 0));
   return {
-    ...progressOf(b, { outputs, hasFilm, spentUsd, legacy }),
+    ...progressOf({ idea, scenes, sheets: sheetsFor(scenes, assets) }, { outputs, hasFilm, spentUsd, legacy }),
     updatedAt: statSync(dir).mtime.toISOString(),
     cover: pickCover(dir, files),
   };
 }
 
 /** The films list: the job store and the library are read once for every card. */
-function filmsList(menu) {
+function filmsList() {
   const { store, library } = context();
   const assets = library.list();
+  const all = store.list();
+  const jobById = new Map(all.map((j) => [j.id, j]));
   const byRun = new Map();
-  for (const j of store.list()) {
+  for (const j of all) {
     if (!byRun.has(j.run)) byRun.set(j.run, []);
     byRun.get(j.run).push(j);
   }
   return listRuns().map((r) => {
     let progress = null;
     try {
-      progress = filmProgress(r.run, { menu, jobs: byRun.get(r.run) ?? [], assets });
+      progress = filmProgress(r.run, { jobs: byRun.get(r.run) ?? [], jobById, assets });
     } catch {
       // a folder the tools cannot name as a run, or one whose files do not read
     }
@@ -193,9 +209,8 @@ export function plainStem(name, fallback) {
 }
 
 export function registerFilms(router, { following, maxAudioBytes = MAX_AUDIO_UPLOAD, deps = {} } = {}) {
-  const menu = loadMenu();
-  router.get("/api/films", () => filmsList(menu));
-  router.get("/api/films/:slug/progress", ({ params }) => filmProgress(params.slug, { menu }));
+  router.get("/api/films", () => filmsList());
+  router.get("/api/films/:slug/progress", ({ params }) => filmProgress(params.slug));
   router.post("/api/films/:slug/reveal", ({ params }) => {
     (deps.reveal ?? revealDir)(revealable(params.slug));
     return { revealed: params.slug };

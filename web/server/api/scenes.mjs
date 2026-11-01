@@ -2,13 +2,15 @@
 // itself lives in cli/director/scene-make.mjs, shared with the MCP server.
 import { mkdirSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { readScenes, saveScene, deleteScene, orderScenes, chooseVersion } from "../../../cli/director/scenes.mjs";
+import { readScenes, saveScene, saveIdea, deleteScene, orderScenes, chooseVersion } from "../../../cli/director/scenes.mjs";
+import { copyScene, versionFile } from "../../../cli/director/scene-copy.mjs";
 import { compileFor, scenePrices, makeScene, findScene, safeStem, freeName, FINALS } from "../../../cli/director/scene-make.mjs";
-import { runDir } from "../../../cli/lib/run.mjs";
+import { SCRATCH_RUN, runDir } from "../../../cli/lib/run.mjs";
 import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
 import { HttpError } from "../http.mjs";
 import { context, jobView } from "../state.mjs";
+import { mediaUrl } from "../media.mjs";
 import { label, saveBody } from "./library.mjs";
 import * as f from "./fields.mjs";
 
@@ -18,8 +20,8 @@ const slugOf = (params) => f.run({ run: params.slug });
 export function registerScenes(router, { catalog, deps = {}, follower, maxUploadBytes = MAX_BYTES.image }) {
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
 
-  /** The stored scene with each version's job state, media and cost. */
-  function sceneView(scene) {
+  /** The stored scene with each version's job state, media and cost. A version copied from Create plays its own copy. */
+  function sceneView(slug, scene) {
     const { store } = context();
     return {
       ...scene,
@@ -30,7 +32,9 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
         } catch {
           // a version whose job record is gone still shows
         }
-        return { ...v, state: job?.state ?? null, media: job?.media?.[0] ?? null, estimateUsd: job?.estimateUsd ?? null, actualUsd: job?.actualUsd ?? null };
+        const own = v.file ? versionFile(slug, v, store) : null;
+        const media = own ? mediaUrl(own) : (job?.media?.[0] ?? null);
+        return { ...v, state: job?.state ?? (own ? "succeeded" : null), media, estimateUsd: job?.estimateUsd ?? null, actualUsd: job?.actualUsd ?? null };
       }),
     };
   }
@@ -38,10 +42,27 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
   router.get("/api/films/:slug/scenes", ({ params }) => {
     const slug = slugOf(params);
     const data = readScenes(slug);
-    return { idea: data.idea ?? null, scenes: data.scenes.map(sceneView) };
+    return { idea: data.idea ?? null, scenes: data.scenes.map((s) => sceneView(slug, s)) };
   });
 
-  router.post("/api/films/:slug/scenes", ({ params, body = {} }) => sceneView(saveScene(slugOf(params), { ...body, id: undefined })));
+  /** The idea and, optionally, a scene list (titles and lengths). With create, Home starts a film: 409 when the name is taken. */
+  router.put("/api/films/:slug/idea", ({ params, body = {} }) => {
+    const slug = slugOf(params);
+    if (slug === SCRATCH_RUN) throw f.invalid("slug", "Create's scratch scenes have no idea; save a scene into a film first.");
+    let data;
+    try {
+      data = saveIdea(slug, body.idea, { scenes: body.scenes ?? null, create: body.create === true });
+    } catch (err) {
+      if (err?.exists) throw new HttpError(409, err.message, { exists: true });
+      throw err;
+    }
+    return { idea: data.idea, scenes: data.scenes.map((s) => sceneView(slug, s)) };
+  });
+
+  router.post("/api/films/:slug/scenes", ({ params, body = {} }) => {
+    const slug = slugOf(params);
+    return sceneView(slug, saveScene(slug, { ...body, id: undefined }));
+  });
 
   // Before ":id", or "order" would be read as a scene.
   router.put("/api/films/:slug/scenes/order", ({ params, body = {} }) => {
@@ -50,7 +71,19 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
     return { ok: true };
   });
 
-  router.put("/api/films/:slug/scenes/:id", ({ params, body = {} }) => sceneView(saveScene(slugOf(params), { ...body, id: params.id })));
+  router.put("/api/films/:slug/scenes/:id", ({ params, body = {} }) => {
+    const slug = slugOf(params);
+    return sceneView(slug, saveScene(slug, { ...body, id: params.id }));
+  });
+
+  /** Save into film: the scene, its pictures and its versions' videos copied into another film (made if new). */
+  router.post("/api/films/:slug/scenes/:id/copy", ({ params, body = {} }) => {
+    const slug = slugOf(params);
+    const to = f.run({ run: f.text(body, "to", { required: true }) });
+    if (to === SCRATCH_RUN) throw f.invalid("to", "Choose a film to save the scene into.");
+    const scene = copyScene(slug, params.id, to, { store: context().store });
+    return { film: to, scene: sceneView(to, scene) };
+  });
 
   router.delete("/api/films/:slug/scenes/:id", ({ params }) => {
     deleteScene(slugOf(params), params.id);
@@ -83,7 +116,7 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
       refMapping: r.refMapping,
       warnings: r.warnings,
       job,
-      scene: sceneView(r.scene),
+      scene: sceneView(slug, r.scene),
     };
   }
 
@@ -98,7 +131,7 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
 
   router.post("/api/films/:slug/scenes/:id/choose", ({ params, body = {} }) => {
     const slug = slugOf(params);
-    return sceneView(chooseVersion(slug, params.id, f.text(body, "job", { required: true })));
+    return sceneView(slug, chooseVersion(slug, params.id, f.text(body, "job", { required: true })));
   });
 
   router.post(

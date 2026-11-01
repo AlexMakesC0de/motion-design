@@ -35,7 +35,7 @@ the same code as the `kie` CLI.
 | Direct | `get_menu`, `get_brief`, `save_brief`, `get_plan`, `save_plan`, `update_shot`, `check_plan`, `suggest_model`, `shot_wording` | free, local |
 | Make (look) | `get_shots`, `review_shot`, `save_review`, `adopt_sheet`, `cut_film` | free, local (`save_review` can spend, see below) |
 | Make (spend) | `make_sheet`, `make_still`, `film_shot`, `film_all` | spends kie credits; each takes `dry_run` |
-| Scenes (look) | `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene` | free, local |
+| Scenes (look) | `save_idea`, `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene`, `copy_scene` | free, local |
 | Scenes (spend) | `draft_scene`, `final_scene` | spends kie credits |
 
 ## Scenes
@@ -53,6 +53,9 @@ tools share `cli/director/scene-make.mjs`, so both send the same prompt.
   with nothing spent while the prompt has problems; then `wait_job`.
 - `add_scene_image` copies a picture into `runs/<film>/refs/` and returns the
   `file:refs/...` source for the scene's refs.
+- `save_idea` saves what a film is about and, optionally, its scene list
+  (titles and lengths); `copy_scene` copies a scene, its pictures and its
+  versions' videos into another film, as the studio's Save into film does.
 
 ## Making a film
 

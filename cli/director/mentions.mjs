@@ -134,6 +134,13 @@ export function attachLibraryMentions(scene) {
   return refs.length === scene.refs.length ? scene : { ...scene, refs };
 }
 
+/** The Library items a scene uses, attached or mentioned, each once, attached first. */
+export function libraryNames(scene) {
+  const names = scene.refs.flatMap((r) => (r.source?.startsWith("library:") ? [r.source.slice("library:".length)] : []));
+  for (const t of cardTexts(scene.cards)) for (const m of t.matchAll(LIBRARY)) names.push(m[1]);
+  return [...new Set(names)];
+}
+
 // Cards and pasted prompts live here, not in scenes.mjs, because the page needs them too.
 export const emptyCards = () => ({ goal: "", scene: "", stages: [], style: "", audio: "" });
 

@@ -3,74 +3,62 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { progressOf } from "../server/progress.mjs";
 
-const brief = { takeaway: "Rain and coffee", durationS: 8, aspectRatio: "16:9", filmType: "live-action" };
-const shot = (id, over = {}) => ({ id, continuesFrom: null, still: null, take: null, filming: [], ...over });
+const scene = (id, over = {}) => ({ id, title: id, durationS: 5, ratio: "16:9", refs: [], cards: { goal: "", scene: "", stages: [], style: "", audio: "" }, versions: [], chosen: null, ...over });
+const version = (job) => ({ job, kind: "draft", resolution: "480p", createdAt: "2026-11-01T00:00:00Z" });
 const facts = (over = {}) => ({ outputs: 0, hasFilm: false, spentUsd: 0, legacy: false, ...over });
+const film = (over = {}) => ({ idea: null, scenes: [], sheets: {}, ...over });
 
 describe("progressOf", () => {
-  test("no brief: the Brief step is current and the rest are locked", () => {
-    const p = progressOf({ brief: null, plan: null, shots: [] }, facts());
-    assert.equal(p.step, "brief");
-    assert.deepEqual(p.steps, { brief: "current", references: "locked", shots: "locked", finish: "locked" });
-    assert.deepEqual(p.next, { text: "Write the brief", step: "brief" });
+  test("nothing written: Idea is current, the other steps are open but not done", () => {
+    const p = progressOf(film(), facts());
+    assert.equal(p.step, "idea");
+    assert.deepEqual(p.steps, { idea: "current", references: "todo", scenes: "todo", finish: "todo" });
+    assert.deepEqual(p.next, { text: "Write the idea", step: "idea" });
   });
 
-  test("a brief without a plan asks for the shots to be planned", () => {
-    const p = progressOf({ brief, plan: null, shots: [] }, facts());
-    assert.equal(p.step, "brief");
-    assert.deepEqual(p.next, { text: "Plan the shots", step: "brief" });
+  test("an idea with no scenes asks for the scenes to be planned", () => {
+    const p = progressOf(film({ idea: { text: "A boat" } }), facts());
+    assert.deepEqual(p.next, { text: "Plan the scenes", step: "idea" });
   });
 
-  test("a plan with shots missing stills: Shots is current and names how many stills", () => {
-    const b = { brief, plan: { shots: [{}, {}, {}] }, shots: [shot("s1", { still: "s1-still.png" }), shot("s2"), shot("s3", { continuesFrom: "s2" })] };
-    const p = progressOf(b, facts());
-    assert.deepEqual(p.steps, { brief: "done", references: "done", shots: "current", finish: "locked" });
-    assert.deepEqual(p.next, { text: "Make 1 still", step: "shots" });
-    assert.deepEqual(p.counts, { shots: 3, stills: 1, takes: 0, outputs: 0 });
+  test("a mentioned Library item with no sheet makes References current, naming it", () => {
+    const p = progressOf(film({ scenes: [scene("s1")], sheets: { courier: false, alex: true } }), facts());
+    assert.deepEqual(p.steps, { idea: "done", references: "current", scenes: "todo", finish: "todo" });
+    assert.deepEqual(p.next, { text: "Make the sheet for courier", step: "references" });
   });
 
-  test("every still made: names the shots left to film", () => {
-    const b = { brief, plan: { shots: [{}, {}, {}] }, shots: [shot("s1", { still: "a", take: "s1-take.mp4" }), shot("s2", { still: "b" }), shot("s3", { still: "c" })] };
-    assert.deepEqual(progressOf(b, facts()).next, { text: "Film s2 and s3", step: "shots" });
+  test("no Library item mentioned: References is done", () => {
+    const p = progressOf(film({ scenes: [scene("s1")] }), facts());
+    assert.equal(p.steps.references, "done");
+    assert.equal(p.step, "scenes");
   });
 
-  test("shots being filmed say so", () => {
-    const b = { brief, plan: { shots: [{}] }, shots: [shot("s1", { still: "a", filming: ["j1"] })] };
-    assert.deepEqual(progressOf(b, facts()).next, { text: "Filming 1 shot", step: "shots" });
+  test("scenes with no version are named by their place to draft", () => {
+    const p = progressOf(film({ scenes: [scene("s1", { versions: [version("j1")], chosen: "j1" }), scene("s2"), scene("s3")] }), facts());
+    assert.deepEqual(p.next, { text: "Draft scenes 2 and 3", step: "scenes" });
+    assert.deepEqual(p.counts, { scenes: 3, versions: 1, chosen: 1, outputs: 0 });
   });
 
-  test("every shot has a take and no film yet: Finish is current", () => {
-    const b = { brief, plan: { shots: [{}] }, shots: [shot("s1", { still: "a", take: "t.mp4" })] };
-    const p = progressOf(b, facts());
-    assert.equal(p.step, "finish");
-    assert.deepEqual(p.steps, { brief: "done", references: "done", shots: "done", finish: "current" });
-    assert.deepEqual(p.next, { text: "Assemble the film", step: "finish" });
+  test("every scene has versions but one has none chosen: asks to choose", () => {
+    const p = progressOf(film({ scenes: [scene("s1", { versions: [version("j1")] })] }), facts());
+    assert.deepEqual(p.next, { text: "Choose a version of scene 1", step: "scenes" });
   });
 
-  test("a film.mp4 marks Finish done", () => {
-    const b = { brief, plan: { shots: [{}] }, shots: [shot("s1", { still: "a", take: "t.mp4" })] };
-    const p = progressOf(b, facts({ hasFilm: true, outputs: 1, spentUsd: 0.6449 }));
-    assert.equal(p.steps.finish, "done");
-    assert.deepEqual(p.next, { text: "Watch the film", step: "finish" });
-    assert.equal(p.spentUsd, 0.64);
+  test("every scene chosen: Finish is current; a film.mp4 marks it done", () => {
+    const f = film({ scenes: [scene("s1", { versions: [version("j1")], chosen: "j1" })] });
+    assert.equal(progressOf(f, facts()).step, "finish");
+    assert.deepEqual(progressOf(f, facts()).next, { text: "Assemble the film", step: "finish" });
+    const done = progressOf(f, facts({ hasFilm: true }));
+    assert.equal(done.steps.finish, "done");
+    assert.deepEqual(done.next, { text: "Watch the film", step: "finish" });
   });
 
-  test("a folder made before the studio opens on Finish as takes only", () => {
-    const p = progressOf({ brief: null, plan: null, shots: [] }, facts({ legacy: true, outputs: 2 }));
-    assert.equal(p.step, "finish");
+  test("a folder made before Shard opens on Finish as takes only", () => {
+    const p = progressOf(film(), facts({ legacy: true, outputs: 2 }));
     assert.equal(p.legacy, true);
-    assert.deepEqual(p.next, { text: "Made before the studio: takes only", step: "finish" });
-    assert.deepEqual(p.steps, { brief: "todo", references: "todo", shots: "todo", finish: "current" });
-  });
-  test("a saved plan with no shots keeps Brief current and asks for a shot", () => {
-    const p = progressOf({ brief, plan: { shots: [] }, shots: [] }, facts());
-    assert.equal(p.step, "brief");
-    assert.deepEqual(p.steps, { brief: "current", references: "locked", shots: "locked", finish: "locked" });
-    assert.deepEqual(p.next, { text: "Add a shot", step: "brief" });
-  });
-
-  test("a shot with a take but no still is not counted as needing a still", () => {
-    const b = { brief, plan: { shots: [{}, {}] }, shots: [shot("s1", { take: "s1-take.mp4" }), shot("s2", { still: "b" })] };
-    assert.deepEqual(progressOf(b, facts()).next, { text: "Film s2", step: "shots" });
+    assert.equal(p.step, "finish");
+    assert.deepEqual(p.steps, { idea: "todo", references: "todo", scenes: "todo", finish: "current" });
+    assert.deepEqual(p.next, { text: "Made before Shard: takes only", step: "finish" });
+    assert.equal(p.counts.outputs, 2);
   });
 });

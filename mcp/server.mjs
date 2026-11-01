@@ -49,9 +49,10 @@ const INSTRUCTIONS =
   "Then make it only as far as the user asked: make_still for each shot (first shot first), show the storyboard (get_shots), " +
   "film_all with the total the user agreed as max_usd, wait_job, review_shot and save_review for every take, then cut_film. " +
   "A take judged redo waits for the user (film_shot) unless they switched auto-redo on in the studio or with kie auto-redo. " +
-  "Scenes (the studio's Create > Scene tab, run \"create\") are one Seedance 2.5 generation each: list_scenes, save_scene " +
+  "Scenes are one Seedance 2.5 generation each, kept per film (a film's Scenes step; Create's scratch scenes are run \"create\"): " +
+  "save_idea (what the film is about and its scene list), list_scenes, save_scene " +
   "(change only the fields the user named), get_scene_prompt (free: the exact prompt, its problems and prices), then " +
-  "draft_scene or final_scene only when the user agreed that spend, then wait_job.";
+  "draft_scene or final_scene only when the user agreed that spend, then wait_job. copy_scene moves a scene from Create into a film.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };

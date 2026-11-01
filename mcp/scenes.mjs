@@ -3,9 +3,11 @@
 // preview are free; draft_scene and final_scene spend kie credits.
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
-import { readScenes, saveScene, deleteScene, chooseVersion, RATIOS } from "../cli/director/scenes.mjs";
+import { readScenes, saveScene, saveIdea, deleteScene, chooseVersion, RATIOS } from "../cli/director/scenes.mjs";
+import { copyScene, versionFile } from "../cli/director/scene-copy.mjs";
 import { compileFor, scenePrices, makeScene, findScene, addSceneImage, FINALS } from "../cli/director/scene-make.mjs";
-import { RUNS_DIR } from "../cli/lib/run.mjs";
+import { RUNS_DIR, SCRATCH_RUN } from "../cli/lib/run.mjs";
+import { unknown } from "../cli/lib/errors.mjs";
 import { uploadFile } from "../cli/lib/upload.mjs";
 import { ok } from "./results.mjs";
 import { stoppable } from "./stop.mjs";
@@ -47,7 +49,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
   });
 
   /** Each version with its job's state, file and cost. The prompt stays in scenes.json. */
-  const versionsOf = (scene) => {
+  const versionsOf = (run, scene) => {
     const { store } = ctx();
     return scene.versions.map(({ prompt, ...v }) => {
       let job = null;
@@ -56,10 +58,10 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
       } catch {
         // a version whose job record is gone still shows
       }
-      return { ...v, state: job?.state ?? null, file: job?.artifacts?.[0] ?? null, estimateUsd: job?.estimateUsd ?? null, actualUsd: job?.actualUsd ?? null };
+      return { ...v, state: job?.state ?? null, file: versionFile(run, v, store), estimateUsd: job?.estimateUsd ?? null, actualUsd: job?.actualUsd ?? null };
     });
   };
-  const view = (scene) => ({ ...scene, versions: versionsOf(scene) });
+  const view = (run, scene) => ({ ...scene, versions: versionsOf(run, scene) });
   const line = (s) => `${s.id} "${s.title}" ${s.durationS}s ${s.ratio}, ${s.refs.length} image(s), ${s.versions.length} version(s)`;
 
   tool(
@@ -73,7 +75,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     },
     async ({ run }) => {
       const data = readScenes(run);
-      const scenes = data.scenes.map(view);
+      const scenes = data.scenes.map((s) => view(run, s));
       return ok(scenes.map(line).join("\n") || "no scenes yet", { idea: data.idea ?? null, scenes });
     },
   );
@@ -136,7 +138,53 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
         ? { ...before, ...given, cards: { ...before.cards, ...(cards ?? {}) } }
         : { title: "", ratio: "16:9", refs: [], ...given, cards: { goal: "", scene: "", stages: [], style: "", audio: "", ...(cards ?? {}) } };
       const saved = saveScene(run, { ...merged, id });
-      return ok(`saved ${line(saved)}. Call get_scene_prompt to see what it would send.`, view(saved));
+      return ok(`saved ${line(saved)}. Call get_scene_prompt to see what it would send.`, view(run, saved));
+    },
+  );
+
+  tool(
+    "save_idea",
+    {
+      title: "Save idea",
+      description:
+        "Save what a film is about (its idea, ratio and total length) and, optionally, its scene list: titles and lengths only. " +
+        "A listed scene with an id is renamed or re-timed; one without an id is added. Scenes not listed are left alone. " +
+        "Write each scene's cards afterwards with save_scene. Free.",
+      inputSchema: {
+        run,
+        idea: z.object({
+          text: z.string().describe("What the film is about, in the user's words."),
+          ratio: z.enum(RATIOS).nullable().optional(),
+          lengthS: z.number().int().nullable().optional().describe("The whole film's target length in seconds."),
+        }),
+        scenes: z.array(z.object({ id: id.optional(), title: z.string(), durationS: z.number().int().describe("4 to 30 seconds.") })).optional(),
+      },
+      outputSchema: { idea: Data, scenes: z.array(Data) },
+      annotations: LOCAL_WRITE,
+    },
+    async ({ run, idea, scenes }) => {
+      if (run === SCRATCH_RUN) throw unknown("Create's scratch scenes have no idea; use a film's run.", { field: "run" });
+      const data = saveIdea(run, idea, { scenes: scenes ?? null });
+      const list = data.scenes.map((s) => view(run, s));
+      return ok(`idea saved\n${list.map(line).join("\n")}`, { idea: data.idea, scenes: list });
+    },
+  );
+
+  tool(
+    "copy_scene",
+    {
+      title: "Copy scene into a film",
+      description:
+        "Copy a scene, its pictures and its versions' videos into another film (made if new), as the studio's Save into film does. " +
+        'The original stays. Use it to move work from Create (run "create") into a film. Free.',
+      inputSchema: { run, id, to: z.string().describe("The film to copy into.") },
+      outputSchema: { film: z.string(), scene: z.object(Scene) },
+      annotations: LOCAL_WRITE,
+    },
+    async ({ run, id, to }) => {
+      if (to === SCRATCH_RUN) throw unknown("Choose a film to copy the scene into.", { field: "to" });
+      const scene = copyScene(run, id, to, { store: ctx().store });
+      return ok(`copied ${run} ${id} into ${to} as ${line(scene)}`, { film: to, scene: view(to, scene) });
     },
   );
 
@@ -184,7 +232,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     },
     async ({ run, id, job }) => {
       const saved = chooseVersion(run, id, job);
-      return ok(`${id} uses ${job}`, view(saved));
+      return ok(`${id} uses ${job}`, view(run, saved));
     },
   );
 

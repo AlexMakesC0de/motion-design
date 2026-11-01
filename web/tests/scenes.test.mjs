@@ -108,3 +108,59 @@ describe("scenes api", () => {
     assert.deepEqual(r.json.problems, ["tiny.png is 200×200; Seedance needs 300 to 6000px on each side. Use a bigger picture."]);
   });
 });
+
+describe("film steps", () => {
+  test("Home starts a film with its idea; the same name again is 409", async () => {
+    const r = await req(port, "/api/films/boat-at-dawn/idea", { method: "PUT", body: { idea: { text: "A boat at dawn", ratio: "9:16", lengthS: 20 }, create: true } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.idea, { text: "A boat at dawn", ratio: "9:16", lengthS: 20 });
+    const again = await req(port, "/api/films/boat-at-dawn/idea", { method: "PUT", body: { idea: { text: "Again" }, create: true } });
+    assert.equal(again.status, 409);
+    assert.equal(again.json.error.exists, true);
+    const p = await req(port, "/api/films/boat-at-dawn/progress");
+    assert.equal(p.json.step, "idea");
+    assert.deepEqual(p.json.next, { text: "Plan the scenes", step: "idea" });
+  });
+
+  test("a scene list from the idea moves the film on to Scenes", async () => {
+    const r = await req(port, "/api/films/boat-at-dawn/idea", { method: "PUT", body: { idea: { text: "A boat at dawn", ratio: "9:16" }, scenes: [{ title: "Harbour", durationS: 6 }] } });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.scenes.map((s) => [s.id, s.title, s.ratio]), [["s1", "Harbour", "9:16"]]);
+    const p = await req(port, "/api/films/boat-at-dawn/progress");
+    assert.deepEqual(p.json.steps, { idea: "done", references: "done", scenes: "current", finish: "todo" });
+    assert.deepEqual(p.json.next, { text: "Draft scene 1", step: "scenes" });
+  });
+
+  test("a mentioned item with no sheet holds References, naming it", async () => {
+    await req(port, "/api/films/boat-at-dawn/scenes/s1", { method: "PUT", body: { title: "Harbour", durationS: 6, ratio: "9:16", refs: [], cards: { goal: "@library:skipper waves.", scene: "", stages: [], style: "", audio: "" } } });
+    const p = await req(port, "/api/films/boat-at-dawn/progress");
+    assert.equal(p.json.step, "references");
+    assert.deepEqual(p.json.next, { text: "Make the sheet for skipper", step: "references" });
+  });
+
+  test("Create has no idea of its own", async () => {
+    const r = await req(port, "/api/films/create/idea", { method: "PUT", body: { idea: { text: "x" } } });
+    assert.equal(r.status, 400);
+  });
+
+  test("Save into film copies Create's scene and its videos; the film counts what they cost and shows them", async () => {
+    const from = (await req(port, "/api/films/create/scenes")).json.scenes[0];
+    const r = await req(port, `/api/films/create/scenes/${from.id}/copy`, { method: "POST", body: { to: "saved-film" } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.film, "saved-film");
+    assert.equal(r.json.scene.id, "s1");
+    assert.equal(r.json.scene.chosen, from.chosen);
+    const v = r.json.scene.versions.find((x) => x.file);
+    assert.match(v.media, /^\/media\/runs\/saved-film\/s1-draft/);
+    assert.ok(existsSync(join(RUNS, "saved-film", v.file)));
+    const list = (await req(port, "/api/films")).json;
+    const card = list.find((f) => f.run === "saved-film");
+    assert.ok(card, "the film is in Projects");
+    assert.equal(card.progress.legacy, false);
+    assert.equal(card.progress.counts.scenes, 1);
+    assert.ok(card.progress.spentUsd > 0, "the copied versions' jobs are counted");
+    assert.equal(card.cover.kind, "video");
+    assert.equal(list.some((f) => f.run === "create"), false, "Create stays out of Projects");
+    assert.equal((await req(port, `/api/films/create/scenes/${from.id}/copy`, { method: "POST", body: { to: "create" } })).status, 400);
+  });
+});

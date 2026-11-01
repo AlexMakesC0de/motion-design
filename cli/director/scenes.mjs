@@ -1,7 +1,9 @@
 // A film's scenes: runs/<film>/scenes.json, written under the film lock.
 // One scene is one Seedance 2.5 reference-to-video generation.
+import { mkdirSync, rmSync } from "node:fs";
 import { readFilmJson, withFilmLock, writeFilmJson } from "./files.mjs";
-import { unknown } from "../lib/errors.mjs";
+import { RUNS_DIR, runDir } from "../lib/run.mjs";
+import { unknown, usage } from "../lib/errors.mjs";
 import { MAX_REFS, emptyCards } from "./mentions.mjs";
 import { RATIOS, DURATION } from "./scene-shape.mjs";
 export { emptyCards, parseDanPrompt } from "./mentions.mjs";
@@ -64,6 +66,12 @@ const find = (data, id) => {
   return s;
 };
 
+const nextId = (data) => {
+  let n = 1;
+  while (data.scenes.some((x) => x.id === `s${n}`)) n += 1;
+  return `s${n}`;
+};
+
 export function saveScene(film, input) {
   const tidy = clean(input);
   return update(film, (data) => {
@@ -73,9 +81,7 @@ export function saveScene(film, input) {
       data.scenes[i] = { id: input.id, ...tidy, versions: data.scenes[i].versions, chosen: data.scenes[i].chosen };
       return data.scenes[i];
     }
-    let n = 1;
-    while (data.scenes.some((x) => x.id === `s${n}`)) n += 1;
-    const scene = { id: `s${n}`, ...tidy, versions: [], chosen: null };
+    const scene = { id: nextId(data), ...tidy, versions: [], chosen: null };
     data.scenes.push(scene);
     return scene;
   });
@@ -111,4 +117,72 @@ export function chooseVersion(film, id, job) {
     s.chosen = job;
     return s;
   });
+}
+
+/**
+ * A whole scene from elsewhere (Create's "Save into film"), versions and
+ * chosen included. `make(id)` builds it once its new id is known, under the
+ * film lock, so files it copies can carry that id.
+ */
+export function insertScene(film, make) {
+  return update(film, (data) => {
+    const id = nextId(data);
+    const { versions = [], chosen = null, ...rest } = make(id);
+    const scene = { id, ...clean(rest), versions, chosen: versions.some((v) => v.job === chosen) ? chosen : null };
+    data.scenes.push(scene);
+    return scene;
+  });
+}
+
+/** Check an idea: its words, and the ratio and total length it aims for (either may be left out). */
+function cleanIdea(idea) {
+  if (!idea || typeof idea !== "object") throw bad("idea", "Send the idea as { text, ratio, lengthS }.");
+  const t = text(idea.text, "text").trim();
+  if (!t) throw bad("text", "Say what the film is about.");
+  if (t.length > 4000) throw bad("text", "Keep the idea under 4000 characters; the scenes hold the detail.");
+  const ratio = idea.ratio ?? null;
+  if (ratio !== null && !RATIOS.includes(ratio)) throw bad("ratio", `ratio must be one of ${RATIOS.join(", ")}.`);
+  const lengthS = idea.lengthS ?? null;
+  if (lengthS !== null && (!Number.isInteger(lengthS) || lengthS < 1 || lengthS > 600)) throw bad("lengthS", "lengthS is whole seconds, 1 to 600.");
+  return { text: t, ratio, lengthS };
+}
+
+/**
+ * Save a film's idea, and optionally a scene list: an entry with an id renames
+ * or re-times that scene (the length only when it has no stages), one without
+ * adds a scene at the idea's ratio. Scenes not listed are left alone.
+ * With `create`, runs/<film> must not exist yet (refused with `exists: true`).
+ */
+export function saveIdea(film, input, { scenes = null, create = false } = {}) {
+  const idea = cleanIdea(input);
+  if (scenes !== null && !Array.isArray(scenes)) throw bad("scenes", "scenes must be a list of { id?, title, durationS }.");
+  if (create) {
+    const dir = runDir(film, { create: false });
+    mkdirSync(RUNS_DIR, { recursive: true });
+    try {
+      mkdirSync(dir); // not recursive: fails if anything is already at runs/<film>
+    } catch (err) {
+      if (err.code === "EEXIST") throw usage(`runs/${film} already exists; a new film needs a name of its own.`, { exists: true });
+      throw err;
+    }
+  }
+  try {
+    return update(film, (data) => {
+      data.idea = idea;
+      for (const entry of scenes ?? []) {
+        if (!entry || typeof entry !== "object") throw bad("scenes", "Each scene is { id?, title, durationS }.");
+        if (entry.id) {
+          const s = find(data, entry.id);
+          const durationS = s.cards.stages.length ? s.durationS : (entry.durationS ?? s.durationS);
+          Object.assign(s, clean({ ...s, title: entry.title ?? s.title, durationS }));
+        } else {
+          data.scenes.push({ id: nextId(data), ...clean({ title: entry.title, durationS: entry.durationS, ratio: idea.ratio ?? "16:9" }), versions: [], chosen: null });
+        }
+      }
+      return data;
+    });
+  } catch (err) {
+    if (create) rmSync(runDir(film, { create: false }), { recursive: true, force: true }); // the folder made just now, so the next try can have the name
+    throw err;
+  }
 }
