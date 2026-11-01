@@ -176,7 +176,7 @@ A warm brown-black neutral ramp with one neon green accent and two state hues tu
 - **Done** (`ok`, which is `text`): done tool steps, a configured provider key, passing doctor checks. A check mark in `text` colour, never a green that could read as the accent.
 
 ### Named Rules
-**The One Green Rule.** Neon green appears only on Generate, the spend meter and costs. Never on decoration, never on an inactive or hover state, never on headings or links. If a screen has no money on it (Settings, chat), it has no green.
+**The One Green Rule.** Neon green appears only on Generate, the spend meter, costs and linked mentions in a prompt (`@image2` with a picture, `@library:name` with a sheet). A missing mention is `bad` red with a wavy underline. Never on decoration, never on an inactive or hover state, never on headings or links. If a screen has no money on it (Settings, chat), it has no green.
 
 **The Footage Is Brightest Rule.** No chrome surface goes above `surface-3`. Light belongs to the media.
 

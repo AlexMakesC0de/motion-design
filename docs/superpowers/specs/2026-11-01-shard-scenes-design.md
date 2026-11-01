@@ -50,7 +50,7 @@ These changes update `DESIGN.md` and the tokens in `web/src/theme/`.
 
 - **Name:** Shard. It shows in the browser tab, the rail and the top bar.
 - **Logo:** Alex's neon-lime play shape with the split-off piece. He copies `Neon Lime Play Logo.png` into the project as `web/public/logo.png`; macOS blocks agents from reading `~/Downloads`. Once it is there, it is traced to `web/public/logo.svg` and used for the favicon and the rail.
-- **Accent:** `accent` becomes `#84F80A`, with `accent-ink` `#0B1400` for text on it. The accent is used only for money figures and the one main button on each screen, as amber was.
+- **Accent:** `accent` becomes `#84F80A`, with `accent-ink` `#0B1400` for text on it. The accent is used only for money figures, the one main button on each screen, and linked mentions in a prompt (Alex's call, 2026-11-01: green means "this reference is there", red `bad` means "it is missing").
 - **State colour:** the `ok` green is dropped, so "done" cannot be confused with the accent. Done states show a check mark with `text` colour. Warning and error hues stay.
 - **Fonts:** two, each with one job.
   - IBM Plex Sans is used for everything you read: the prompt, headings, buttons and labels.
@@ -165,6 +165,15 @@ The screen follows `library-v2.html`.
   - `@imageN` is stored as `@{r2}`, a token bound to the ref's id. The editor shows it as `@imageN` from the ref's current position.
   - So removing or reordering refs renumbers every mention, and nothing points at the wrong picture.
 - **Adding refs by mention:** typing `@library:<name>` attaches the item when it is not attached yet.
+- **Pasted prompts:** you can paste a whole prompt and fill in its references afterwards, as in Higgsfield.
+  - Recognised forms: `@image2`, `[@image2]`, `@Image 2`, `<<<image_2>>>` and `[@library:name]`. They are normalised to `@image2` and `@library:name`.
+  - Pasting a mention of image N with fewer than N refs adds **empty slots** up to N: `{ "id": "r3", "source": null }`. Each mention is bound to its slot at once, so the numbers you pasted stay as they are while you fill the slots in.
+  - Clicking a mention of an empty slot opens "Choose a picture for @image3": the Library (search, cards with sheets first), Upload, or paste (⌘V). The choice fills the slot, and every mention of it changes state together.
+  - An `@library:name` with no such item offers "Make @library:name", which opens the sheet maker with the name filled in, or "Pick another item", which rewrites the mention. An item with no sheet yet offers "Make its sheet".
+  - An empty slot nobody mentions shows as "image 2 · empty" in "In this scene", with Remove.
+- **Mention states:**
+  - **Linked** (the slot has a picture, or the Library item has a sheet): Mono text in `--accent` green. Hovering or focusing shows the thumbnail and name.
+  - **Missing** (empty slot, unknown item, or an item with no sheet): Mono text in `--bad` red with a wavy underline, so the state does not rest on colour alone. It is a button labelled "image 3, no picture yet, choose one".
 - **Removing refs:** removing a ref that is still mentioned asks first, and then turns its mentions into plain text.
 - **Stage times:** they must run from 0 to `durationS` with no gaps or overlaps. The editor keeps them that way when a stage is added, removed or resized.
 
@@ -206,6 +215,7 @@ Keep every person, product and place exactly as in their reference images in eve
 - **Refusals:** each one names the item and what to do.
   - A mention or ref of a Library item with no sheet: "@library:alexandros has no sheet yet. Make one in the Library."
   - A mention of an image number that is not attached.
+  - An empty slot: "image 3 is empty. Choose a picture or remove it."
   - Stages that don't add up to the length.
 - **Prompt preview:** "Prompt sent" on each version shows the exact compiled text. The text is kept next to the file as `s1-draft-1-prompt.txt`.
 
@@ -370,6 +380,9 @@ Each phase leaves a working studio:
   - typing `@` opens the menu;
   - choosing inserts a token;
   - removing a mentioned ref asks first;
+  - pasting `[@image2]`, `@Image 2` and `<<<image_2>>>` gives bound mentions and empty slots up to 2;
+  - a missing mention is red with a wavy underline and opens the chooser; filling the slot turns every mention of it green;
+  - `@library:` with no item offers "Make @library:name";
   - the stage bar keeps times contiguous.
 - **Generate:**
   - with a fake submit, a draft sends `draft=true` and 480p plus the refs in order;
