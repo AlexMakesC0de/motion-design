@@ -1,3 +1,4 @@
+import type { Ref, Cards } from "../../../cli/director/mentions.mjs";
 export type JobState =
   | "reserved" | "sending" | "submitted" | "uncertain" | "succeeded"
   | "failed-charged" | "failed-unconfirmed" | "failed-confirmed-free" | "refused";
@@ -493,3 +494,10 @@ export interface ReviewFrames {
   firstUrl: string;
   lastUrl: string;
 }
+
+// Scenes. The mention types come from the module the server shares, so the
+// page and generation agree on what a ref, a stage and a mention are.
+export type { Ref, Cards, Stage, Span } from "../../../cli/director/mentions.mjs";
+export interface SceneVersion { job: string; kind: "draft" | "final"; resolution: string; prompt: string; createdAt: string; state: string | null; media: string | null; estimateUsd: number | null; actualUsd: number | null }
+export interface Scene { id: string; title: string; durationS: number; ratio: string; refs: Ref[]; cards: Cards; versions: SceneVersion[]; chosen: string | null }
+export interface ScenePreview { prompt: string; refs: { source: string; role: string }[]; problems: string[]; prices: Record<"draft" | "final720" | "final1080", { usd: number | null; basis: string | null } | null> }
