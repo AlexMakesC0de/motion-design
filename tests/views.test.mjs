@@ -90,6 +90,11 @@ describe("status and runs", () => {
     assert.equal(run.jobs.length, 1);
     assert.throws(() => views.getRun("nope", { store }), { code: EXIT.UNKNOWN });
   });
+
+  test("the Create scratch run is not listed as a film", () => {
+    mkdirSync(join(tmp, "runs", "create"), { recursive: true });
+    assert.ok(!views.listRuns().some((r) => r.run === "create"));
+  });
 });
 
 describe("doctor", () => {

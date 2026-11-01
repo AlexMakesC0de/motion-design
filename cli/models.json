@@ -520,7 +520,13 @@
     "seedance-2-5": {
       "capability": "video",
       "goodFor": {"cinematic": "S", "reference-images": "S", "lip-sync": "S", "text-to-video": "A", "video-edit": "A", "animation": "A"},
-      "promptProfile": {"family": "seedance", "maxChars": 6000, "audioOff": {"param": "generate_audio", "value": false}},
+      "promptProfile": {
+        "family": "seedance",
+        "maxChars": 6000,
+        "audioOff": {"param": "generate_audio", "value": false},
+        "refToken": "[Image {n}]",
+        "refTokenSource": "kie's Seedance 2.5 docs name no token (docs.kie.ai/market/bytedance/seedance-2-5.md, read 2026-11-01). ByteDance's API is reported to use [Image 1] in send order (github.com/paperfoot/seedance-cli; vercel.com/ai-gateway/models/seedance-2.0-fast). Unverified by a paid run."
+      },
       "durationsS": [
         4,
         5,
@@ -597,7 +603,7 @@
               "output_format",
               "return_last_frame"
             ],
-            "note": "Price not captured and no command uses it yet. Source: docs.kie.ai/market/bytedance/seedance-2-5-draft.md, read 2026-10-30."
+            "note": "Price not captured and no command uses it yet. Source: docs.kie.ai/market/bytedance/seedance-2-5-draft.md, read 2026-10-30. kie.ai/seedance-2-5 shows no price for it (read 2026-11-01); the studio re-runs at 720p/1080p instead."
           },
           "input": {
             "required": [

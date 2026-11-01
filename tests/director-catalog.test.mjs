@@ -54,6 +54,10 @@ describe("prompt profiles", () => {
     }
   });
 
+  test("Seedance 2.5 names its references [Image N]", () => {
+    assert.equal(catalog.models["seedance-2-5"].promptProfile.refToken, "[Image {n}]");
+  });
+
   test("an audio-off switch names a param the route declares", () => {
     for (const m of catalog.list.filter((x) => x.promptProfile?.audioOff)) {
       const { param } = m.promptProfile.audioOff;

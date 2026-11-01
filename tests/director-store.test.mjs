@@ -106,6 +106,13 @@ for (let i = 0; i < 40; i += 1) saveReview("f7", "${shot}", { verdict: "pass", c
   });
 });
 
+describe("scenes.json", () => {
+  test("scenes.json is a film file", () => {
+    writeFilmJson("scene-film", "scenes.json", { version: 1, idea: null, scenes: [] });
+    assert.deepEqual(readFilmJson("scene-film", "scenes.json").scenes, []);
+  });
+});
+
 describe("the brief", () => {
   test("a sound brief has no problems; every bad field is named", () => {
     assert.deepEqual(validateBrief(brief), []);

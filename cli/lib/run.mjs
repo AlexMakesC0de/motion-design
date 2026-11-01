@@ -18,6 +18,9 @@ export function isInside(path, root) {
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
+/** Create's own run: one-off scenes that belong to no film. Hidden from film lists. */
+export const SCRATCH_RUN = "create";
+
 /**
  * Every generation is scoped to a run directory. There is no such thing as a
  * loose output: production.md requires a reproducible record per film, and the
