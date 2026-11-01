@@ -1,0 +1,30 @@
+/* The scene editor. Tokens only; nothing under 12px. */
+
+/* A textarea with transparent text over a mirror that draws the same text, so
+   mentions can be coloured. Both must wrap identically: same font, padding,
+   border and scrollbar gutter. */
+.mention-field { position: relative; }
+.mention-field__box { position: relative; }
+.mention-field__mirror, .mention-field__input {
+  display: block; box-sizing: border-box; margin: 0;
+  font: 400 var(--text-lg)/1.6 var(--font-sans); padding: 10px 12px;
+  white-space: pre-wrap; overflow-wrap: break-word; scrollbar-gutter: stable;
+}
+.mention-field__mirror { position: absolute; inset: 0; color: var(--text); pointer-events: none; overflow: hidden; border: 1px solid transparent; }
+.mention-field__input { position: relative; width: 100%; color: transparent; caret-color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); resize: vertical; overflow-y: auto; }
+.mention-field__input::selection { background: var(--selection); color: transparent; }
+.mention-field__input:focus-visible { outline: 1px solid var(--text-2); outline-offset: 0; }
+/* Colour and underline only: another font would change the glyph widths and the caret would drift. */
+.mention { background: none; font: inherit; }
+.mention[data-state="linked"] { color: var(--accent); }
+.mention[data-state="missing"] { color: var(--bad); text-decoration: underline wavy var(--bad); text-underline-offset: 3px; }
+.mention-field__status { min-height: 18px; margin-top: var(--space-1); display: flex; gap: var(--space-2); flex-wrap: wrap; color: var(--text-3); font: 400 var(--text-sm) var(--font-mono); }
+.mention-field__fix { background: none; border: 0; padding: 0; color: var(--bad-ink); text-decoration: underline; cursor: pointer; font: inherit; }
+.mention-field__menu {
+  position: absolute; left: 0; top: 100%; z-index: 5; min-width: 240px; max-width: 100%; max-height: 220px; overflow-y: auto;
+  margin: var(--space-1) 0 0; padding: var(--space-1); list-style: none;
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  font: 400 var(--text-sm) var(--font-mono);
+}
+.mention-field__option { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); color: var(--text-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mention-field__option[aria-selected="true"] { background: var(--surface-1); color: var(--text); }
