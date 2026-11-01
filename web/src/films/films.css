@@ -1,5 +1,5 @@
 /* A film page with shots and outputs (the film's Finish step). Tokens only.
-   Amber is for costs only here. */
+   Green is for costs only here. */
 
 .film { display: flex; flex-direction: column; gap: var(--space-4); }
 .film__prompt { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }

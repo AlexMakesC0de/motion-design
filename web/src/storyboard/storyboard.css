@@ -1,5 +1,5 @@
 /* Storyboard, layout A: brief, timeline, the still strip beside the shot inspector, the go bar.
-   Tokens only (theme/tokens.css). Amber is for the spending buttons and costs, nothing else. */
+   Tokens only (theme/tokens.css). Green is for the spending buttons and costs, nothing else. */
 
 .board { --frame: 16 / 9; display: flex; flex-direction: column; gap: var(--space-3); overflow-y: auto; min-height: 0; padding-right: var(--space-1); }
 .board__empty, .board__error { color: var(--text-2); margin: var(--space-6) 0; max-width: 60ch; }

@@ -1,4 +1,4 @@
-/* Projection room, engine showing. The footage is the brightest thing on screen. */
+/* Shard. A dark projection room; the footage is the brightest thing on screen, the neon green is for money and the main button. */
 :root {
   --bg: #0e0d0c;
   --surface-1: #161412;
@@ -8,23 +8,25 @@
   --text: #ece7df;
   --text-2: #b9b0a3;
   --text-3: #988f83; /* ≥4.5:1 on every surface, including --surface-3 */
-  --accent: #e8a33d; /* Generate, the spend meter and costs only */
-  --accent-ink: #1a1206;
-  --ok: #8fc79a;
-  --warn: #ef8a47; /* orange, so it reads apart from the amber accent */
+  --accent: #84f80a; /* Shard's neon green: money and the one main button per screen, nothing else */
+  --accent-ink: #0b1400;
+  --ok: var(--text); /* done is a check mark in bright text, never a green that could read as the accent */
+  --warn: #ef8a47;
   --bad: #e2725b;
   --bad-surface: #2b1a14;
   --bad-ink: #f3c8b8;
-  --selection: rgb(232 163 61 / 0.32);
+  --selection: rgb(132 248 10 / 0.28);
 
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --text-xs: 11px; /* floor for any functional text */
-  --text-sm: 12px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
+  /* Type scale. Nothing on screen is smaller than --text-xs. */
+  --text-xs: 12px; /* section labels (uppercase) */
+  --text-sm: 13px; /* fine print: hints, times, kinds, data */
+  --text-md: 14px; /* interface: buttons, menus, inputs */
+  --text-title: 15px; /* card headings */
+  --text-lg: 16px; /* prompt text and anything read at length */
+  --text-xl: 22px; /* page and scene titles */
 
   --space-1: 4px;
   --space-2: 8px;

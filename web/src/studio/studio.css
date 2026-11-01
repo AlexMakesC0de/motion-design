@@ -1,5 +1,5 @@
 /* Create: the takes feed, with the prompt bar at the bottom. The chat is the drawer (chat/chat.css).
-   Tokens only (theme/tokens.css). Amber is for Generate and costs, nothing else. */
+   Tokens only (theme/tokens.css). Green is for Generate and costs, nothing else. */
 
 .studio { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); height: 100%; }
 .studio__main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-3); min-height: 0; }

@@ -22,7 +22,7 @@
 .save-asset__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
 .save-asset__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 
-/* The amber primary button: Generate, New film. Amber is for this and costs, nothing else. */
+/* The neon green primary button: one per screen, with its price inside when it spends. */
 .generate {
   display: inline-flex; align-items: center; gap: var(--space-2);
   padding: var(--space-2) var(--space-4); border: 0; border-radius: var(--radius-md);

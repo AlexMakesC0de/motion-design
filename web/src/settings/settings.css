@@ -1,4 +1,4 @@
-/* Settings: limits, provider keys, kie doctor, and the chat place. Tokens only; no amber here. */
+/* Settings: limits, provider keys, kie doctor, and the chat place. Tokens only; no green accent here. */
 
 .settings { display: flex; flex-direction: column; gap: var(--space-4); max-width: 760px; }
 .settings__head h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
