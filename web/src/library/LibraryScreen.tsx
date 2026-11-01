@@ -3,16 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { AssetDetail, AssetSummary } from "../api/types";
+import { replaceHash } from "../app/route";
 import { onStudioEvent } from "../app/useStudio";
 import { KIND_ORDER, KIND_PLURAL, kindLabel } from "./kinds";
 import { SheetMaker } from "./SheetMaker";
 import "./library.css";
 
-type Open = { mode: "new" } | { mode: "edit"; asset: AssetDetail } | null;
+type Open = { mode: "new"; name?: string } | { mode: "edit"; asset: AssetDetail } | null;
 
 const films = (n: number) => (n ? `in ${n} film${n === 1 ? "" : "s"}` : "not used yet");
 
-export function LibraryScreen() {
+/** `newName` and `item` come from the hash: a mention that is not in the Library yet, or has no sheet. */
+export function LibraryScreen({ newName, item }: { newName?: string; item?: string } = {}) {
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [kind, setKind] = useState<string>("all");
   const [open, setOpen] = useState<Open>(null);
@@ -24,10 +26,23 @@ export function LibraryScreen() {
   // The event carries core's list without covers, so read the full list again.
   useEffect(() => onStudioEvent((e) => e.event === "library" && load()), [load]);
 
-  const edit = (name: string) =>
-    api<AssetDetail>(`/api/library/${encodeURIComponent(name)}`)
-      .then((asset) => setOpen({ mode: "edit", asset }))
-      .catch(() => {});
+  const edit = useCallback(
+    (name: string) =>
+      api<AssetDetail>(`/api/library/${encodeURIComponent(name)}`)
+        .then((asset) => setOpen({ mode: "edit", asset }))
+        .catch(() => {}),
+    [],
+  );
+
+  useEffect(() => {
+    if (newName) setOpen({ mode: "new", name: newName });
+    else if (item) edit(item);
+  }, [newName, item, edit]);
+
+  // Leave the deep link behind, or choosing the same mention again changes nothing.
+  const settle = () => {
+    if (newName || item) replaceHash("#/library");
+  };
 
   const count = (k: string) => assets.filter((a) => a.kind === k).length;
   const shown = kind === "all" ? assets : assets.filter((a) => a.kind === kind);
@@ -76,13 +91,18 @@ export function LibraryScreen() {
 
       {open && (
         <SheetMaker
-          key={open.mode === "edit" ? open.asset.name : "new"}
+          key={open.mode === "edit" ? open.asset.name : `new-${open.name ?? ""}`}
           asset={open.mode === "edit" ? open.asset : null}
+          initialName={open.mode === "new" ? open.name : undefined}
           onSaved={(asset) => {
             load();
             setOpen({ mode: "edit", asset });
+            settle();
           }}
-          onClose={() => setOpen(null)}
+          onClose={() => {
+            setOpen(null);
+            settle();
+          }}
         />
       )}
     </div>

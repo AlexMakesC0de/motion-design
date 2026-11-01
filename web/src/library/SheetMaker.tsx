@@ -11,16 +11,18 @@ interface Props {
   asset: AssetDetail | null;
   onSaved: (asset: AssetDetail) => void;
   onClose: () => void;
+  /** Fills the Name of a new item, when the mention that sent you here named it. */
+  initialName?: string;
 }
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 const upload = (file: File) => api<IncomingFile>("/api/library/incoming", { file: { data: file, name: file.name } });
 
-export function SheetMaker({ asset, onSaved, onClose }: Props) {
+export function SheetMaker({ asset, onSaved, onClose, initialName = "" }: Props) {
   const id = useId();
   const editing = asset !== null;
   const [kind, setKind] = useState(asset?.kind ?? "character");
-  const [name, setName] = useState(asset?.name ?? "");
+  const [name, setName] = useState(asset?.name ?? initialName);
   const [description, setDescription] = useState(asset?.description ?? "");
   const [outfit, setOutfit] = useState("");
   const [view, setView] = useState("");

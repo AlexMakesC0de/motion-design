@@ -5,7 +5,12 @@ import type { FilmStep } from "../api/types";
 
 export type RailId = "home" | "projects" | "create" | "library" | "presets" | "spend" | "settings";
 export type Screen = RailId | "film";
-export type Route = { screen: Exclude<Screen, "film"> } | { screen: "film"; slug: string; step: FilmStep | null } | { redirect: string };
+// The Library can open straight to the sheet maker for a name (#/library/new/<name>) or to one item (#/library/item/<name>).
+export type Route =
+  | { screen: Exclude<Screen, "film" | "library"> }
+  | { screen: "library"; newName?: string; item?: string }
+  | { screen: "film"; slug: string; step: FilmStep | null }
+  | { redirect: string };
 export type Place = Exclude<Route, { redirect: string }>;
 
 export const STEPS: { id: FilmStep; label: string }[] = [
@@ -47,13 +52,19 @@ export function parseRoute(hash: string): Route {
     const step = STEPS.find((s) => s.id === rest[1])?.id ?? null;
     return { screen: "film", slug: decoded(rest[0]), step };
   }
+  if (first === "library" && rest[1] && (rest[0] === "new" || rest[0] === "item")) {
+    return rest[0] === "new" ? { screen: "library", newName: decoded(rest[1]) } : { screen: "library", item: decoded(rest[1]) };
+  }
   if (Object.hasOwn(REDIRECTS, first)) return { redirect: REDIRECTS[first] };
-  if (RAIL_IDS.has(first)) return { screen: first as Exclude<Screen, "film"> };
+  if (RAIL_IDS.has(first)) return { screen: first as Exclude<Screen, "film" | "library"> };
   return { screen: "home" };
 }
 
 /** The rail item lit for a place: inside a film, Projects. */
 export const railItemFor = (place: Place): RailId => (place.screen === "film" ? "projects" : place.screen);
+
+export const libraryNewHref = (name: string) => `#/library/new/${encodeURIComponent(name)}`;
+export const libraryItemHref = (name: string) => `#/library/item/${encodeURIComponent(name)}`;
 
 export const filmHref = (slug: string, step?: FilmStep) => `#/films/${encodeURIComponent(slug)}${step ? `/${step}` : ""}`;
 

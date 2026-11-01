@@ -27,6 +27,12 @@ describe("parseRoute", () => {
     expect(parseRoute("#/films/50%25-off")).toEqual({ screen: "film", slug: "50%-off", step: null });
     expect(parseRoute("#/films/bad%")).toEqual({ screen: "film", slug: "bad%", step: null });
   });
+  test("the Library can open the sheet maker for a name, or an item", () => {
+    expect(parseRoute("#/library/new/maya")).toEqual({ screen: "library", newName: "maya" });
+    expect(parseRoute("#/library/new/a%20b")).toEqual({ screen: "library", newName: "a b" });
+    expect(parseRoute("#/library/item/maya")).toEqual({ screen: "library", item: "maya" });
+    expect(parseRoute("#/library/new")).toEqual({ screen: "library" });
+  });
   test("old hashes redirect", () => {
     expect(parseRoute("#/studio")).toEqual({ redirect: "#/create" });
     expect(parseRoute("#/films")).toEqual({ redirect: "#/projects" });

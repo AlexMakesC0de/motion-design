@@ -36,7 +36,7 @@ function Screen({ place }: { place: Place }) {
     case "create":
       return <StudioScreen />;
     case "library":
-      return <LibraryScreen />;
+      return <LibraryScreen newName={place.newName} item={place.item} />;
     case "presets":
       return <PresetsScreen />;
     case "spend":

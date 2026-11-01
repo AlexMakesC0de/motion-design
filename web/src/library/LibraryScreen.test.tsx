@@ -54,4 +54,15 @@ describe("LibraryScreen", () => {
     fireEvent.click(await screen.findByRole("button", { name: /@library:alexandros/ }));
     expect(await screen.findByRole("region", { name: "@library:alexandros" })).toBeInTheDocument();
   });
+
+  test("newName opens New sheet with the Name filled in", async () => {
+    render(<LibraryScreen newName="maya" />);
+    expect(await screen.findByRole("region", { name: "New sheet" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("maya");
+  });
+
+  test("item opens that item's sheet", async () => {
+    render(<LibraryScreen item="alexandros" />);
+    expect(await screen.findByRole("region", { name: "@library:alexandros" })).toBeInTheDocument();
+  });
 });

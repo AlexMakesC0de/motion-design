@@ -28,3 +28,19 @@
 }
 .mention-field__option { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); color: var(--text-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mention-field__option[aria-selected="true"] { background: var(--surface-1); color: var(--text); }
+
+/* Choose a picture for a slot. */
+.ref-chooser__backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgb(0 0 0 / 0.55); }
+.ref-chooser { width: min(640px, calc(100vw - var(--space-5))); max-height: calc(100vh - var(--space-6)); overflow-y: auto; display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.ref-chooser__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.ref-chooser__title { margin: 0; font: 600 var(--text-title) var(--font-sans); }
+.ref-chooser__search { width: 100%; }
+.ref-chooser__cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); }
+.ref-chooser__card { width: 100%; display: grid; gap: var(--space-1); padding: var(--space-2); text-align: left; background: var(--surface-1); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-md); cursor: pointer; font: inherit; }
+.ref-chooser__card:hover:not(:disabled) { border-color: var(--text-3); }
+.ref-chooser__card:disabled { cursor: not-allowed; color: var(--text-3); }
+.ref-chooser__card img, .ref-chooser__blank { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-3); }
+.ref-chooser__name { font-size: var(--text-sm); overflow-wrap: anywhere; }
+.ref-chooser__meta, .ref-chooser__hint, .ref-chooser__empty { color: var(--text-3); font-size: var(--text-sm); margin: 0; }
+.ref-chooser__upload { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-md); }
+.ref-chooser__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
