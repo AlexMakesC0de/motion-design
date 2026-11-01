@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RUNS_DIR } from "./run.mjs";
+import { localDay, systemTimeZone } from "../core/jobs.mjs";
 
 export const LEDGER_PATH = join(RUNS_DIR, ".ledger.jsonl");
 
@@ -100,12 +101,13 @@ export function summarise(entries) {
   };
 }
 
-export function filter(entries, { run, since, today } = {}) {
+/** `today` is the local day, the same day the daily cap counts. */
+export function filter(entries, { run, since, today, now = new Date(), timeZone = systemTimeZone() } = {}) {
   let out = entries;
   if (run) out = out.filter((e) => e.run === run);
   if (today) {
-    const d = new Date().toISOString().slice(0, 10);
-    out = out.filter((e) => (e.at ?? "").slice(0, 10) === d);
+    const d = localDay(now, timeZone);
+    out = out.filter((e) => e.at && !Number.isNaN(Date.parse(e.at)) && localDay(new Date(e.at), timeZone) === d);
   }
   if (since) out = out.filter((e) => (e.at ?? "") >= since);
   return out;
