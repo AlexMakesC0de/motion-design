@@ -23,6 +23,14 @@ export const TOOL_TIMEOUT_MS = 30 * 60_000;
 /** What the model and the page read when a call's answer never came: it may have done its work. */
 export const UNCERTAIN_CALL = "may have been submitted; check the feed / call status before doing anything else";
 
+/**
+ * MCP tools the chat is never given. A scene's draft and final are buttons
+ * Alex presses in the Scene editor; the chat reads and writes scenes only.
+ */
+export const CHAT_HIDDEN = new Set(["draft_scene", "final_scene"]);
+const HIDDEN_TEXT = (name) =>
+  `Error 1: ${name} is not available in the chat. Drafts and finals are made with the Draft and Make final buttons in the Scene editor; ask the user to press one.`;
+
 // McpError codes for a request whose answer was lost: timed out, or the connection closed under it.
 const LOST = new Set([-32001, -32000]);
 const lost = (err) => LOST.has(err?.code) || err?.name === "AbortError";
@@ -45,7 +53,7 @@ export function createTools({ deps = {}, catalog, timeoutMs = TOOL_TIMEOUT_MS } 
     /** The tools as Responses API function tools. */
     async functions() {
       const { tools } = await (await open()).client.listTools();
-      return tools.map((t) => ({ type: "function", name: t.name, description: t.description ?? "", parameters: functionSchema(t.inputSchema), strict: false }));
+      return tools.filter((t) => !CHAT_HIDDEN.has(t.name)).map((t) => ({ type: "function", name: t.name, description: t.description ?? "", parameters: functionSchema(t.inputSchema), strict: false }));
     },
     /**
      * A tool's result; a call the SDK itself rejects (an unknown tool, bad
@@ -55,6 +63,7 @@ export function createTools({ deps = {}, catalog, timeoutMs = TOOL_TIMEOUT_MS } 
      * may still be running it, so it must not be retried blind.
      */
     async call(name, args, { signal } = {}) {
+      if (CHAT_HIDDEN.has(name)) return { isError: true, content: [{ type: "text", text: HIDDEN_TEXT(name) }], _meta: { error: { code: 1 } } };
       const { client } = await open();
       try {
         return await client.callTool({ name, arguments: args ?? {} }, undefined, { signal, timeout: timeoutMs });

@@ -52,7 +52,8 @@ describe("system prompt", () => {
     assert.match(p, /^You are the chat in the motion-design studio, working in the film "zed"\. Use run "zed"/);
     assert.ok(p.includes("Motion-design studio over kie.ai. Look first."));
     assert.match(p, /go ahead without asking for confirmation/);
-    assert.match(p, /Film shots \(film_shot, film_all\), make scene drafts or finals \(draft_scene, final_scene\) and save a redo verdict \(save_review\) only when the user asked for that in this conversation/);
+    assert.match(p, /Film shots \(film_shot, film_all\) and save a redo verdict \(save_review\) only when the user asked for that in this conversation/);
+    assert.match(p, /their drafts and finals are buttons the user presses/);
     assert.match(p, /film_all's max_usd is the total the user stated in this conversation: never invent one/);
     const which = section(routing, "Which model for which job");
     assert.match(which, /^## Which model for which job\n/);
@@ -65,9 +66,9 @@ describe("tools over the in-process MCP client", () => {
   const tools = createTools({ deps });
   after(() => tools.close());
 
-  test("offers the 46 MCP tools as function tools, without the schema keywords the Responses API rejects", async () => {
+  test("offers the MCP tools as function tools, without the schema keywords the Responses API rejects", async () => {
     const fns = await tools.functions();
-    assert.equal(fns.length, 46);
+    assert.equal(fns.length, 44);
     const video = fns.find((f) => f.name === "generate_video");
     assert.equal(video.type, "function");
     assert.equal(video.strict, false);
@@ -79,6 +80,15 @@ describe("tools over the in-process MCP client", () => {
       type: "object",
       properties: { p: { type: "object" } },
     });
+  });
+
+  test("scene drafts and finals are buttons the user presses: the chat is not offered them and cannot call them", async () => {
+    const names = (await tools.functions()).map((f) => f.name);
+    assert.ok(names.includes("save_scene") && names.includes("get_scene_prompt"));
+    assert.ok(!names.includes("draft_scene") && !names.includes("final_scene"));
+    const r = await tools.call("draft_scene", { run: "x", id: "s1" });
+    assert.equal(r.isError, true);
+    assert.match(r.content[0].text, /Draft and Make final buttons/);
   });
 
   test("the instructions are the MCP server's own", async () => {
