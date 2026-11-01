@@ -8,18 +8,21 @@ describe("sheetPrompt", () => {
     assert.match(p, /^A three-panel character reference sheet composed as one horizontal image/);
     assert.match(p, /CHARACTER: A man with dark curly hair and a full beard/);
     assert.match(p, /OUTFIT: neon green jumpsuit, black boots/);
-    assert.match(p, /LEFT PANEL: full-body front view/);
-    assert.match(p, /CENTER PANEL: full-body back view/);
-    assert.match(p, /RIGHT PANEL: tight chest-up close-up of the face/);
-    assert.match(p, /18% neutral gray/);
-    assert.match(p, /No text, no labels, no numbering/);
+    assert.match(p, /LEFT PANEL — full body front view\. The figure stands squared to the camera, framed from above the head down to the shoes, arms relaxed at the sides, weight even on both feet\. The full outfit is clearly readable\./);
+    assert.match(p, /CENTER PANEL — full body back view\. .* Hair, back of the outfit and shoes are clearly readable\./);
+    assert.match(p, /RIGHT PANEL — tight chest-up face close-up\. .* neutral relaxed expression, lips closed\. Maximum facial detail\./);
+    assert.match(p, /Skin tone is identical in every panel, never darker or tanned on the back view\./);
+    assert.match(p, /one flat 18% neutral gray field, identical in all three panels, with no gradient, no floor, no wall and no vignette\./);
+    assert.match(p, /Realistic skin with fine soft pore texture and a matte finish, real hair strands, real fabric texture, never plastic, never CGI\./);
+    assert.match(p, /Even sharpness everywhere, no blur\. Photographed on a 50mm prime, soft natural film grain\. Photographed not generated\.$/);
+    assert.match(p, /No text, no labels, no numbering anywhere in the image\./);
     assert.doesNotMatch(p, /attached reference/);
   });
 
   test("with source photos the prompt starts from them and the face must match", () => {
     const p = sheetPrompt({ kind: "character", description: "Alex", photos: 3 });
     assert.match(p, /^Generate the final image based on my attached reference photos\./);
-    assert.match(p, /The face comes from the attached reference and must match it exactly in every panel\./);
+    assert.match(p, /The face comes from the attached reference and must match it exactly in every panel: same face shape, bone structure, eyes, brows, nose, lips, skin tone and hair\./);
     assert.match(sheetPrompt({ kind: "character", description: "Alex", photos: 1 }), /^Generate the final image based on my attached reference photo\./);
   });
 
