@@ -63,4 +63,32 @@ describe("RefChooser", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("That is not a picture.");
     expect(onPick).not.toHaveBeenCalled();
   });
+
+  test("an item with no sheet offers Make its sheet: it opens the item and closes the chooser", () => {
+    const onClose = vi.fn();
+    const onPick = vi.fn();
+    render(<RefChooser n={1} library={library} onPick={onPick} onUpload={vi.fn()} onClose={onClose} />);
+    // Only the item without a sheet has one.
+    const fix = screen.getByRole("button", { name: "Make its sheet" });
+    expect(screen.getAllByRole("button", { name: "Make its sheet" })).toHaveLength(1);
+    expect(fix).toHaveAccessibleDescription("@library:maya");
+    fireEvent.click(fix);
+    expect(window.location.hash).toBe("#/library/item/maya");
+    expect(onClose).toHaveBeenCalled();
+    expect(onPick).not.toHaveBeenCalled();
+    window.location.hash = "";
+  });
+
+  test("the upload input is hidden but focusable and labelled, inside a button-styled label", () => {
+    render(<RefChooser n={1} library={[]} onPick={vi.fn()} onUpload={vi.fn()} onClose={() => {}} />);
+    const input = screen.getByLabelText("Upload a picture");
+    expect(input).toHaveAttribute("type", "file");
+    expect(input).toHaveClass("sr-only");
+    expect(input).not.toBeDisabled();
+    expect(input).not.toHaveAttribute("tabindex");
+    expect(input.closest("label")).toHaveClass("button");
+    input.focus();
+    expect(input).toHaveFocus();
+    expect(screen.queryByText("No file chosen")).toBeNull();
+  });
 });

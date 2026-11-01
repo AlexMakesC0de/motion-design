@@ -254,8 +254,57 @@ describe("SceneScreen", () => {
     fireEvent.change(screen.getByLabelText("Upload"), { target: { files: [new File(["x"], "door.png", { type: "image/png" })] } });
     const rows = await screen.findByRole("list", { name: "In this scene" });
     expect(await within(rows).findByText("door.png")).toBeInTheDocument();
-    expect(within(rows).getByText("image1")).toBeInTheDocument();
+    expect(within(rows).getByText("image 1")).toBeInTheDocument();
     expect(rows.querySelector("img")).toHaveAttribute("src", "/media/runs/create/refs/door.png");
+  });
+
+  test("every row says \"image n\", with \" · empty\" when it has no picture, and a long name keeps its full text in title", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }, { id: "r2", source: null }, { id: "r3", source: "file:refs/a-very-long-file-name-for-a-door.png" }] })] });
+    render(<SceneScreen run="create" />);
+    const rows = await screen.findByRole("list", { name: "In this scene" });
+    const tags = [...rows.querySelectorAll(".scene-ref__tag")];
+    expect(tags.map((t) => t.textContent)).toEqual(["image 1", "image 2 · empty", "image 3"]);
+    for (const t of tags) expect(t).toHaveClass("mono");
+    expect(within(rows).getByText("@library:alexandros")).toHaveAttribute("title", "@library:alexandros");
+    expect(within(rows).getByText("a-very-long-file-name-for-a-door.png")).toHaveAttribute("title", "a-very-long-file-name-for-a-door.png");
+    // Choose only on the empty slot; Remove, Up and Down keep their names.
+    expect(within(rows).getAllByRole("button", { name: /^Choose a picture/ })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Move image 2 up" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move image 2 down" })).toBeInTheDocument();
+  });
+
+  test("a Library ref that is not in the Library offers Make it, which opens the sheet maker", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:sky-over-alps" }] })] });
+    render(<SceneScreen run="create" />);
+    const rows = await screen.findByRole("list", { name: "In this scene" });
+    expect(within(rows).getByText("not in the Library")).toBeInTheDocument();
+    const fix = within(rows).getByRole("button", { name: "Make @library:sky-over-alps" });
+    expect(fix).toHaveTextContent("Make it");
+    fireEvent.click(fix);
+    expect(window.location.hash).toBe("#/library/new/sky-over-alps");
+    window.location.hash = "";
+  });
+
+  test("a Library ref with no sheet offers Make its sheet, which opens the item", async () => {
+    const maya = { ...alexandros, name: "maya", hasSheet: false, cover: null };
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:maya" }] })], more: { "/api/library": () => [maya] } });
+    render(<SceneScreen run="create" />);
+    const rows = await screen.findByRole("list", { name: "In this scene" });
+    const fix = await within(rows).findByRole("button", { name: "Make the sheet for @library:maya" });
+    expect(within(rows).getByText("no sheet yet")).toBeInTheDocument();
+    expect(fix).toHaveTextContent("Make its sheet");
+    fireEvent.click(fix);
+    expect(window.location.hash).toBe("#/library/item/maya");
+    window.location.hash = "";
+  });
+
+  test("a Library ref that is fine has no fix button", async () => {
+    stub({ scenes: [scene({ refs: [{ id: "r1", source: "library:alexandros" }] })] });
+    render(<SceneScreen run="create" />);
+    const rows = await screen.findByRole("list", { name: "In this scene" });
+    await screen.findByRole("textbox", { name: "Goal" });
+    await waitFor(() => expect(rows.querySelector("img")).toHaveAttribute("src", "/media/library/alexandros/2.png"));
+    expect(within(rows).queryByRole("button", { name: /^Make / })).toBeNull();
   });
 
   test("Add stage keeps the length, and the stage bar shows each stage's seconds", async () => {

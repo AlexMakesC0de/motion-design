@@ -40,9 +40,17 @@
 .ref-chooser__card:hover:not(:disabled) { border-color: var(--text-3); }
 .ref-chooser__card:disabled { cursor: not-allowed; color: var(--text-3); }
 .ref-chooser__card img, .ref-chooser__blank { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-3); }
+.ref-chooser__item { display: grid; gap: var(--space-1); align-content: start; }
+.ref-chooser__fix { justify-self: start; padding: 0 var(--space-1); border: 0; background: none; color: var(--text-2); font: 400 var(--text-sm) var(--font-sans); text-decoration: underline; cursor: pointer; }
+.ref-chooser__fix:hover { color: var(--text); }
+.ref-chooser__fix:focus-visible { outline: 1px solid var(--text-2); outline-offset: 2px; }
 .ref-chooser__name { font-size: var(--text-sm); overflow-wrap: anywhere; }
 .ref-chooser__meta, .ref-chooser__hint, .ref-chooser__empty { color: var(--text-3); font-size: var(--text-sm); margin: 0; }
 .ref-chooser__upload { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-md); }
+/* The upload button is a label around a hidden input: it rings when the input has focus. */
+.ref-chooser__file { position: relative; }
+.ref-chooser__file:focus-within { outline: 1px solid var(--text-2); outline-offset: 2px; }
+.ref-chooser__file[data-disabled] { color: var(--text-3); cursor: not-allowed; }
 .ref-chooser__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
 
 /* The Scene screen: three columns that scroll on their own; the page does not scroll. */
@@ -97,21 +105,26 @@
 /* Left column: In this scene. */
 .scene-refs { display: grid; gap: var(--space-3); }
 .scene-refs__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-.scene-ref { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.scene-ref { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--space-2) var(--space-3); padding: var(--space-2); background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .scene-ref[data-empty] { border-style: dashed; background: transparent; }
 .scene-ref__thumb { display: block; width: 56px; height: 56px; border-radius: var(--radius-sm); background: var(--surface-3); object-fit: cover; }
 .scene-ref__text { display: grid; gap: 2px; min-width: 0; }
-.scene-ref__tag { color: var(--text-3); font: 500 var(--text-xs) var(--font-mono); }
-.scene-ref__name { color: var(--text); font: 500 var(--text-md) var(--font-sans); overflow-wrap: anywhere; }
+.scene-ref__tag { color: var(--text-3); font: 400 var(--text-sm) var(--font-mono); font-feature-settings: "tnum"; }
+.scene-ref__name { display: block; min-width: 0; color: var(--text); font: 500 var(--text-md) var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scene-ref__name.mono { font-family: var(--font-mono); }
-.scene-ref__name--empty { color: var(--text-3); }
+.scene-ref__trouble { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--space-2); }
 .scene-ref__problem { color: var(--bad-ink); font-size: var(--text-sm); }
+.scene-ref__fix { padding: 0; border: 0; background: none; color: var(--text-2); font: 400 var(--text-sm) var(--font-sans); text-decoration: underline; cursor: pointer; }
+.scene-ref__fix:hover { color: var(--text); }
+.scene-ref__fix:focus-visible { outline: 1px solid var(--text-2); outline-offset: 2px; }
 .scene-ref__keep { width: 100%; margin-top: 2px; padding: 2px 0; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--text-2); font: 400 var(--text-sm)/1.4 var(--font-sans); }
 .scene-ref__keep::placeholder { color: var(--text-3); }
 .scene-ref__keep:hover { border-bottom-color: var(--line); }
 .scene-ref__keep:focus-visible { outline: none; border-bottom-color: var(--text-3); color: var(--text); }
-.scene-ref__actions { display: flex; flex-wrap: wrap; gap: 2px var(--space-1); margin-top: var(--space-1); }
-.scene-ref__actions .button { padding: 2px var(--space-2); }
+/* One line under the thumbnail and text, the whole width of the row; Up and Down sit at the right. */
+.scene-ref__actions { grid-column: 1 / -1; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-1); }
+.scene-ref__actions .button { padding: 2px 6px; white-space: nowrap; }
+.scene-ref__up { margin-left: auto; }
 .scene-refs__add { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .scene-refs__upload { position: relative; }
 .scene-refs__upload:focus-within { outline: 1px solid var(--text-2); }
@@ -134,11 +147,12 @@
 .scene-version__chosen { color: var(--text); font-size: var(--text-sm); white-space: nowrap; }
 .scene-version__choose { opacity: 0; }
 .scene-version:hover .scene-version__choose, .scene-version__choose:focus-visible { opacity: 1; }
-.scene-make { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); align-items: stretch; }
-.scene-make__draft { justify-content: center; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--text-md); }
+/* Two rows: New draft at full width, then the resolution and Make final filling the rest. */
+.scene-make { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); align-items: stretch; }
+.scene-make__draft { justify-content: center; white-space: nowrap; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--text-md); }
 .scene-make__final { display: flex; gap: var(--space-1); min-width: 0; }
-.scene-make__final .generate { flex: 1; justify-content: center; padding: var(--space-2) var(--space-3); }
-.scene-make__res { font-family: var(--font-mono); font-size: var(--text-sm); padding: 0 var(--space-1); }
+.scene-make__final .generate { flex: 1; min-width: 0; justify-content: center; white-space: nowrap; padding: var(--space-2) var(--space-3); }
+.scene-make__res { flex: none; font-family: var(--font-mono); font-size: var(--text-sm); padding: 0 var(--space-1); }
 .scene-price { color: var(--accent); font-size: var(--text-sm); }
 .scene-make__draft:disabled .scene-price { color: var(--text-3); }
 .generate .mono { font-size: var(--text-sm); }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, KeyboardEvent } from "react";
 import type { AssetSummary } from "../api/types";
+import { libraryItemHref } from "../app/route";
 import { kindLabel } from "../library/kinds";
 import "./scene.css";
 
@@ -56,6 +57,12 @@ export function RefChooser({ n, library, onPick, onUpload, onClose }: RefChooser
     void upload(file);
   };
 
+  /** An item with no sheet cannot be picked yet: go to its page in the Library, and leave the chooser. */
+  const makeSheet = (name: string) => {
+    window.location.hash = libraryItemHref(name);
+    onClose();
+  };
+
   const keys = (e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
     e.stopPropagation();
@@ -73,21 +80,29 @@ export function RefChooser({ n, library, onPick, onUpload, onClose }: RefChooser
         <input ref={searchBox} type="search" className="field ref-chooser__search" aria-label="Search the Library" placeholder="Search the Library" value={search} onChange={(e) => setSearch(e.target.value)} />
 
         <ul className="ref-chooser__cards" aria-label="Library">
-          {shown.map((a) => (
-            <li key={a.name}>
+          {shown.map((a, i) => (
+            <li key={a.name} className="ref-chooser__item">
               <button type="button" className="ref-chooser__card" disabled={!a.hasSheet} onClick={() => onPick(`library:${a.name}`)}>
                 {a.hasSheet && a.cover ? <img src={a.cover} alt="" loading="lazy" /> : <span className="ref-chooser__blank" aria-hidden="true" />}
-                <span className="ref-chooser__name mono">@library:{a.name}</span>
+                <span id={`${id}-name-${i}`} className="ref-chooser__name mono">@library:{a.name}</span>
                 <span className="ref-chooser__meta">{kindLabel(a.kind)}{a.hasSheet ? "" : " · no sheet yet"}</span>
               </button>
+              {!a.hasSheet && (
+                <button type="button" className="ref-chooser__fix" aria-describedby={`${id}-name-${i}`} onClick={() => makeSheet(a.name)}>
+                  Make its sheet
+                </button>
+              )}
             </li>
           ))}
         </ul>
         {!shown.length && <p className="ref-chooser__empty">{library.length ? "Nothing in the Library matches." : "The Library is empty. Upload a picture instead."}</p>}
 
         <div className="ref-chooser__upload">
-          <label htmlFor={`${id}-file`}>Upload a picture</label>
-          <input id={`${id}-file`} type="file" accept="image/*" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
+          {/* The real input is hidden but stays focusable; the label is the button, and rings when the input has focus. */}
+          <label className="button ref-chooser__file" data-disabled={busy ? "true" : undefined}>
+            Upload a picture
+            <input type="file" accept="image/*" className="sr-only" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
+          </label>
           <span className="ref-chooser__hint">or paste one (⌘V)</span>
         </div>
         {error && <p role="alert" className="ref-chooser__error">{error}</p>}

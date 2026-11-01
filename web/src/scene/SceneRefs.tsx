@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { MAX_REFS, refLabel } from "../../../cli/director/mentions.mjs";
 import type { AssetSummary, Ref } from "../api/types";
+import { libraryItemHref, libraryNewHref } from "../app/route";
 import { LooseInput } from "./SceneCards";
 import "./scene.css";
 
@@ -26,12 +27,14 @@ function thumbOf(ref: Ref, run: string, library: SceneRefsProps["library"]) {
   return `/media/runs/${encodeURIComponent(run)}/${ref.source.slice("file:".length)}`;
 }
 
-/** What is wrong with a filled ref, said under its name; null when it is fine. */
+/** What is wrong with a filled ref, said under its name, and the way to fix it; null when it is fine. */
 function trouble(ref: Ref, library: SceneRefsProps["library"]) {
   if (!ref.source?.startsWith("library:")) return null;
-  const item = library.get(refLabel(ref));
-  if (!item) return "not in the Library";
-  return item.hasSheet ? null : "no sheet yet";
+  const name = refLabel(ref);
+  const item = library.get(name);
+  if (!item) return { text: "not in the Library", fix: "Make it", fixLabel: `Make @library:${name}`, href: libraryNewHref(name) };
+  if (!item.hasSheet) return { text: "no sheet yet", fix: "Make its sheet", fixLabel: `Make the sheet for @library:${name}`, href: libraryItemHref(name) };
+  return null;
 }
 
 /** The left column, "In this scene": each attached image in order, with its keep line. */
@@ -66,15 +69,22 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
               <li key={ref.id} className="scene-ref" data-empty={ref.source ? undefined : "true"}>
                 {thumb ? <img className="scene-ref__thumb" src={thumb} alt="" loading="lazy" /> : <span className="scene-ref__thumb" aria-hidden="true" />}
                 <div className="scene-ref__text">
-                  {ref.source ? (
+                  <span className="scene-ref__tag mono">{ref.source ? `image ${n}` : `image ${n} · empty`}</span>
+                  {ref.source && (
                     <>
-                      <span className="scene-ref__tag mono">image{n}</span>
                       {ref.source.startsWith("library:") ? (
-                        <span className="scene-ref__name mono">@library:{refLabel(ref)}</span>
+                        <span className="scene-ref__name mono" title={`@library:${refLabel(ref)}`}>@library:{refLabel(ref)}</span>
                       ) : (
-                        <span className="scene-ref__name">{refLabel(ref)}</span>
+                        <span className="scene-ref__name" title={refLabel(ref)}>{refLabel(ref)}</span>
                       )}
-                      {problem && <span className="scene-ref__problem">{problem}</span>}
+                      {problem && (
+                        <span className="scene-ref__trouble">
+                          <span className="scene-ref__problem">{problem.text}</span>
+                          <button type="button" className="scene-ref__fix" aria-label={problem.fixLabel} onClick={() => (window.location.hash = problem.href)}>
+                            {problem.fix}
+                          </button>
+                        </span>
+                      )}
                       <LooseInput
                         className="scene-ref__keep"
                         aria-label={`Keep for image ${n}`}
@@ -83,25 +93,23 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
                         onValue={(v) => onKeep(ref.id, v)}
                       />
                     </>
-                  ) : (
-                    <span className="scene-ref__name scene-ref__name--empty mono">image {n} · empty</span>
                   )}
-                  <div className="scene-ref__actions">
-                    {!ref.source && (
-                      <button type="button" className="button" aria-label={`Choose a picture for image ${n}`} onClick={() => onChoose(ref.id)}>
-                        Choose
-                      </button>
-                    )}
-                    <button type="button" className="button button--quiet" aria-label={`Remove image ${n}`} onClick={() => onRemove(ref.id)}>
-                      Remove
+                </div>
+                <div className="scene-ref__actions">
+                  {!ref.source && (
+                    <button type="button" className="button" aria-label={`Choose a picture for image ${n}`} onClick={() => onChoose(ref.id)}>
+                      Choose
                     </button>
-                    <button type="button" className="button button--quiet" aria-label={`Move image ${n} up`} disabled={i === 0} onClick={() => onMove(i, -1)}>
-                      Up
-                    </button>
-                    <button type="button" className="button button--quiet" aria-label={`Move image ${n} down`} disabled={i === refs.length - 1} onClick={() => onMove(i, 1)}>
-                      Down
-                    </button>
-                  </div>
+                  )}
+                  <button type="button" className="button button--quiet" aria-label={`Remove image ${n}`} onClick={() => onRemove(ref.id)}>
+                    Remove
+                  </button>
+                  <button type="button" className="button button--quiet scene-ref__up" aria-label={`Move image ${n} up`} disabled={i === 0} onClick={() => onMove(i, -1)}>
+                    Up
+                  </button>
+                  <button type="button" className="button button--quiet" aria-label={`Move image ${n} down`} disabled={i === refs.length - 1} onClick={() => onMove(i, 1)}>
+                    Down
+                  </button>
                 </div>
               </li>
             );
