@@ -2,13 +2,14 @@
 // The one bar across the top: the logo, the making pages (Image, Video, MCP),
 // each opening a menu the moment the pointer reaches it, a divider, the
 // studio's places, and on the right running jobs, today's spend and Settings.
-import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { ModelInfo, SpendView } from "../api/types";
 import { fitToModel, getDraft, setDraft } from "../studio/promptStore";
 import { Mark } from "./brands";
 import { Icon } from "./icons";
 import { Logo } from "./Logo";
+import { AIM_REST_MS, aimingAt, tipOf } from "./menuAim";
 import { modelBadge, modelBlurb, modelName, sortModels } from "./modelMeta";
 import { NAV, navHref, type NavId } from "./route";
 import { SpendMeter } from "./SpendMeter";
@@ -174,7 +175,59 @@ export function TopBar({ current, spend, children }: { current: NavId; spend: Sp
     timer.current = window.setTimeout(() => setMenu(null), 140);
   };
   const stay = () => window.clearTimeout(timer.current);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // Menu aim: where the pointer has been lately, and what it last hovered while
+  // heading for the open panel. That hover waits until the pointer stops aiming.
+  const trail = useRef<{ x: number; y: number; t: number }[]>([]);
+  const pending = useRef<MenuId | "close" | null>(null);
+  const aimTimer = useRef<number | undefined>(undefined);
+  const aiming = () => {
+    const panel = bar.current?.querySelector(".menu-shell");
+    const now = trail.current[trail.current.length - 1];
+    if (!panel || !now) return false;
+    return aimingAt(tipOf(trail.current, now.t), now, panel.getBoundingClientRect());
+  };
+  const settle = () => {
+    window.clearTimeout(aimTimer.current);
+    const target = pending.current;
+    pending.current = null;
+    if (target === "close") shut();
+    else if (target) open(target);
+  };
+  /** Hovering a link: open its menu (or close the menu), unless the pointer is on its way into the open panel. */
+  const intent = (target: MenuId | "close") => {
+    window.clearTimeout(aimTimer.current);
+    if (menu && target !== menu.id && aiming()) {
+      pending.current = target;
+      aimTimer.current = window.setTimeout(settle, AIM_REST_MS);
+      return;
+    }
+    pending.current = null;
+    if (target === "close") shut();
+    else open(target);
+  };
+  const track = (e: MouseEvent) => {
+    const t = performance.now();
+    trail.current = [...trail.current.filter((p) => t - p.t < 200), { x: e.clientX, y: e.clientY, t }].slice(-8);
+    if (!pending.current) return;
+    const panel = bar.current?.querySelector(".menu-shell");
+    if (panel?.contains(e.target as Node)) {
+      // Made it into the panel: the links it crossed never count.
+      window.clearTimeout(aimTimer.current);
+      pending.current = null;
+    } else if (!aiming()) settle();
+    else {
+      window.clearTimeout(aimTimer.current);
+      aimTimer.current = window.setTimeout(settle, AIM_REST_MS);
+    }
+  };
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      window.clearTimeout(aimTimer.current);
+    },
+    [],
+  );
 
   // A new page closes the menu, even with the pointer still over the link.
   useEffect(() => {
@@ -216,14 +269,14 @@ export function TopBar({ current, spend, children }: { current: NavId; spend: Sp
 
   const running = spend?.unsettled ?? 0;
   return (
-    <header className="topbar" ref={bar} onMouseLeave={later} onMouseEnter={stay} onBlur={blur} onKeyDown={keys}>
-      <a className="topbar__brand" href="#/" aria-label="Shard home" onMouseEnter={shut}>
+    <header className="topbar" ref={bar} onMouseLeave={later} onMouseEnter={stay} onMouseMove={track} onBlur={blur} onKeyDown={keys}>
+      <a className="topbar__brand" href="#/" aria-label="Shard home" onMouseEnter={() => intent("close")}>
         <Logo size={30} />
       </a>
       <nav className="topnav" aria-label="Shard">
         {NAV.main.map((n) =>
           n.id === "image" || n.id === "video" || n.id === "mcp" ? (
-            <div key={n.id} className="topnav__menu" onMouseEnter={() => open(n.id as MenuId)}>
+            <div key={n.id} className="topnav__menu" onMouseEnter={() => intent(n.id as MenuId)}>
               <a
                 ref={(el) => {
                   links.current[n.id as MenuId] = el;
@@ -239,14 +292,14 @@ export function TopBar({ current, spend, children }: { current: NavId; spend: Sp
               </a>
             </div>
           ) : (
-            <a key={n.id} className="topnav__link" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={shut} onFocus={shut}>
+            <a key={n.id} className="topnav__link" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={() => intent("close")} onFocus={shut}>
               {n.label}
             </a>
           ),
         )}
         <span className="topnav__divider" aria-hidden="true" />
         {NAV.studio.map((n) => (
-          <a key={n.id} className="topnav__link topnav__link--studio" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={shut} onFocus={shut}>
+          <a key={n.id} className="topnav__link topnav__link--studio" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={() => intent("close")} onFocus={shut}>
             {n.label}
             {n.badge && <span className="topnav__badge">{n.badge}</span>}
           </a>
@@ -254,7 +307,7 @@ export function TopBar({ current, spend, children }: { current: NavId; spend: Sp
       </nav>
       {menu && <MenuShell id={menu.id} from={menu.from} anchor={links.current[menu.id] ?? null} models={models} close={shut} />}
       {children && <div className="topbar__where">{children}</div>}
-      <div className="topbar__end" onMouseEnter={shut}>
+      <div className="topbar__end" onMouseEnter={() => intent("close")}>
         {running > 0 && (
           <a className="topbar__jobs" href="#/spend">
             {running === 1 ? "1 job running" : `${running} jobs running`}

@@ -77,6 +77,38 @@ describe("App", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  test("menu aim: crossing Video on the way down into the Image menu keeps Image; resting on Video switches", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(String(url).includes("/api/models") ? "[]" : "null", { status: 200, headers: { "content-type": "application/json" } })));
+    render(<App />);
+    const image = screen.getByRole("link", { name: "Image" });
+    const video = screen.getByRole("link", { name: "Video" });
+    fireEvent.mouseMove(image, { clientX: 150, clientY: 20 });
+    fireEvent.mouseEnter(image.parentElement!);
+    const shell = document.querySelector(".menu-shell")!;
+    shell.getBoundingClientRect = () => ({ left: 100, right: 700, top: 60, bottom: 500, width: 600, height: 440, x: 100, y: 60, toJSON: () => ({}) });
+    // Down and to the right, toward the panel, passing over Video.
+    fireEvent.mouseMove(video, { clientX: 180, clientY: 34 });
+    fireEvent.mouseEnter(video.parentElement!);
+    expect(screen.getByRole("menu", { name: "Image" })).toBeInTheDocument();
+    // Reaching the panel cancels the switch for good.
+    fireEvent.mouseMove(shell, { clientX: 200, clientY: 80 });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getByRole("menu", { name: "Image" })).toBeInTheDocument();
+
+    // Back up on the bar, then resting on Video: after a beat, Video wins.
+    fireEvent.mouseMove(image, { clientX: 150, clientY: 20 });
+    fireEvent.mouseMove(video, { clientX: 180, clientY: 34 });
+    fireEvent.mouseEnter(video.parentElement!);
+    expect(screen.getByRole("menu", { name: "Image" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menu", { name: "Video" })).toBeInTheDocument());
+
+    // Sliding sideways along the bar is not aiming: MCP takes over at once.
+    const mcp = screen.getByRole("link", { name: "MCP" });
+    fireEvent.mouseMove(mcp, { clientX: 260, clientY: 34 });
+    fireEvent.mouseEnter(mcp.parentElement!);
+    expect(screen.getByRole("menu", { name: "MCP" })).toBeInTheDocument();
+  });
+
   test("old hashes redirect: #/create to Video, #/films to Films", async () => {
     pending();
     window.location.hash = "#/create";
