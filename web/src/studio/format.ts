@@ -1,6 +1,7 @@
 import type { Estimate, JobView } from "../api/types";
 
-export const usd = (n: number) => `$${n.toFixed(2)}`;
+/** Dollars to the cent; a price with part of a cent in it (Seedream's $0.035) keeps that digit. */
+export const usd = (n: number) => `$${Math.abs(n * 100 - Math.round(n * 100)) > 1e-6 ? n.toFixed(3) : n.toFixed(2)}`;
 
 /** A positive gap in dollars, never shown as $0.00. */
 const gap = (a: number, b: number) => usd(Math.max(0.01, a - b));
@@ -118,4 +119,26 @@ export function frameRatio(aspectRatio: string | null): number {
   const m = aspectRatio?.match(/^(\d+):(\d+)$/);
   const [w, h] = m ? [Number(m[1]), Number(m[2])] : [0, 0];
   return w > 0 && h > 0 ? Math.round((w / h) * 10_000) / 10_000 : 1;
+}
+
+/** How long a model usually takes: the median of its last few finished takes, else a fair guess for its kind. */
+export function typicalSeconds(jobs: JobView[], model: string, capability: JobView["capability"]): number {
+  const times = jobs
+    .filter((j) => j.model === model && j.state === "succeeded")
+    .slice(0, 7)
+    .map((j) => (Date.parse(j.updatedAt) - Date.parse(j.createdAt)) / 1000)
+    .filter((s) => Number.isFinite(s) && s > 1 && s < 3600)
+    .sort((a, b) => a - b);
+  if (times.length) return times[Math.floor(times.length / 2)];
+  return capability === "video" ? 150 : 45;
+}
+
+/**
+ * A rough share done, 0 to 0.97: quick at first, slowing as it nears the usual
+ * time (86% there), and never reaching the end before the take does.
+ */
+export function progressOf(createdAt: string, now: number, expectedS: number): number {
+  const t = Math.max(0, (now - Date.parse(createdAt)) / 1000);
+  if (!Number.isFinite(t) || expectedS <= 0) return 0;
+  return Math.min(0.97, 1 - Math.exp((-2 * t) / expectedS));
 }

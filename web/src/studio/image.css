@@ -1,10 +1,8 @@
 /* Image: the takes (or the hero before the first one) fill the page; the prompt dock floats at the bottom.
    Tokens only (theme/tokens.css). Green is for Generate, the model's name in the hero, and costs. */
 
-.image-page { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-3); height: 100%; min-height: 0; }
-.image-page__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.image-page { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--space-3); height: 100%; min-height: 0; }
 .image-page__body { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
-.image-page__feed { padding-bottom: var(--space-4); }
 
 /* The hero: four tilted pictures, the model's name in capitals, one line under it. */
 .image-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: var(--space-6) var(--space-4) var(--space-5); text-align: center; }
@@ -151,4 +149,31 @@
 @media (prefers-reduced-motion: reduce) {
   .attach__panel, .attach__library { animation: none; }
   .attach__button .icon { transition: none; }
+}
+
+/* The thread: one turn per Generate, oldest at the top, as wide as the dock. The prompt is a bubble on the right with
+   what it went out with; the picture answers on the left at its own shape, no taller than --answer-h. */
+.thread { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; max-width: 960px; margin: 0 auto; padding: var(--space-5) 0 var(--space-4); list-style: none; }
+.turn { display: flex; flex-direction: column; gap: var(--space-3); scroll-margin-bottom: var(--space-4); }
+.turn__ask {
+  align-self: flex-end; max-width: min(70%, 560px); padding: 12px 16px; border-radius: 18px 18px 6px 18px;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.turn__prompt { margin: 0; color: var(--text); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn__none { color: var(--text-3); }
+.turn__cost { color: var(--accent); }
+.turn__meta { margin: 6px 0 0; color: var(--text-3); font-size: var(--text-xs); text-align: right; }
+.turn__answer { --answer-h: 420px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.turn__answer .take { flex: none; width: min(100%, calc(var(--answer-h) * var(--r))); max-width: none; }
+.turn__actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.turn__action {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--text-2); font: inherit; font-size: var(--text-sm); text-decoration: none; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.turn__action:hover { background: var(--surface-2); color: var(--text); }
+.turn__action:focus-visible { outline: 2px solid var(--text-3); outline-offset: 2px; }
+@media (max-width: 900px) {
+  .turn__ask { max-width: 88%; }
+  .turn__answer { --answer-h: 300px; }
 }

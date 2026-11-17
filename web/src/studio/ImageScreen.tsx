@@ -1,16 +1,17 @@
-// Image: the film's image takes (or, before the first one, a hero naming the
-// model), with a floating prompt dock at the bottom: the prompt, a reference,
-// model, aspect ratio and resolution chips, and the tall Generate block.
-import { useState, type DragEvent } from "react";
+// Image: a conversation of image takes (or, before the first one, a hero naming
+// the model), with a floating prompt dock at the bottom: the prompt, a
+// reference, model, aspect ratio and resolution chips, and the tall Generate
+// block. Each Generate is a turn in the thread; sending empties the box. New
+// pictures and uploads are kept in the studio's scratch folder, runs/create/.
+import { useRef, useState, type DragEvent } from "react";
 import { ApiError } from "../api/client";
 import type { JobView } from "../api/types";
 import { Icon } from "../app/icons";
 import { modelName } from "../app/modelMeta";
-import { FilmPicker } from "./FilmPicker";
 import { AttachMenu, attachFile } from "./AttachMenu";
 import { GenerateMessages, PresetNote, RefChips, SelectChip } from "./controls";
-import { setDraft, setRun, useRun } from "./promptStore";
-import { TakeTile } from "./TakeTile";
+import { ImageThread } from "./ImageThread";
+import { setDraft } from "./promptStore";
 import { TakeViewer } from "./TakeViewer";
 import { useGenerate } from "./useGenerate";
 import { useJobs, useNow } from "./useJobs";
@@ -18,19 +19,29 @@ import { useStudioData } from "./useStudioData";
 import "./studio.css";
 import "./image.css";
 
+/** Where the Image page files new pictures (SCRATCH_RUN in cli/lib/run.mjs, which the page cannot import). */
+export const IMAGE_RUN = "create";
+
 export function ImageScreen() {
-  const run = useRun();
-  const { runs, models, assets, vocab, looks, loadRuns } = useStudioData();
-  const { jobs, error, reload } = useJobs(run);
+  const run = IMAGE_RUN;
+  const { models, assets, vocab, looks, loadRuns } = useStudioData();
+  // Every film's image takes, not only the scratch folder's.
+  const { jobs, error, reload } = useJobs("");
   const now = useNow();
   const [attachError, setAttachError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const prompt = useRef<HTMLTextAreaElement>(null);
   const settled = () => {
     loadRuns();
     reload();
   };
-  const g = useGenerate({ models, capability: "image", roles: vocab.roles, run, onSubmitted: settled, onUncertain: settled });
+  // Sent: the prompt and its pictures are in the thread now, so the box starts the next turn empty.
+  const sent = () => {
+    setDraft({ prompt: "", refs: [], preset: null, budgetUsd: null });
+    settled();
+  };
+  const g = useGenerate({ models, capability: "image", roles: vocab.roles, run, onSubmitted: sent, onUncertain: settled });
   const { draft, model } = g;
 
   // A picture dropped on the dock is uploaded like "Upload from your computer", as the first role.
@@ -41,7 +52,6 @@ export function ImageScreen() {
     setDropping(false);
     const file = [...e.dataTransfer.files].find((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
     if (!file) return setAttachError("Drop a PNG, JPG or WebP picture.");
-    if (!run) return setAttachError("Pick a film to work in first; uploads are kept in its folder.");
     setAttachError(null);
     try {
       await attachFile(run, file, attachRoles[0] ?? "identity");
@@ -60,20 +70,10 @@ export function ImageScreen() {
 
   return (
     <div className="image-page">
-      <div className="image-page__head">
-        <FilmPicker runs={runs} run={run} onChange={setRun} />
-      </div>
-
       <div className="image-page__body">
         {error && <p className="feed__error">{error}</p>}
         {!error && takes.length > 0 ? (
-          <section className="feed image-page__feed" aria-label="Takes">
-            <div className="feed__grid">
-              {takes.map((j) => (
-                <TakeTile key={j.id} job={j} now={now} onOpen={(job) => setOpenId(job.id)} />
-              ))}
-            </div>
-          </section>
+          <ImageThread takes={takes} allJobs={jobs} now={now} roles={attachRoles} onOpen={(job) => setOpenId(job.id)} focusPrompt={() => prompt.current?.focus()} />
         ) : (
           <div className="image-hero">
             <div className="image-hero__cards" aria-hidden="true">
@@ -109,7 +109,7 @@ export function ImageScreen() {
         <div className="dock__main">
           <GenerateMessages g={g} reasonId="image-generate-reason" />
           <PresetNote preset={draft.preset} title={looks.find((l) => l.id === draft.preset)?.title} />
-          <textarea className="dock__text" aria-label="Prompt" placeholder="Describe the image…" rows={2} value={draft.prompt} onChange={(e) => setDraft({ prompt: e.target.value })} />
+          <textarea ref={prompt} className="dock__text" aria-label="Prompt" placeholder="Describe the image…" rows={2} value={draft.prompt} onChange={(e) => setDraft({ prompt: e.target.value })} />
           {attachError && (
             <p className="gen-msg gen-msg--failure" role="alert">
               {attachError}

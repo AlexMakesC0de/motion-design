@@ -23,6 +23,9 @@ const paths: Record<string, string> = {
   more: "M5 10h.01M10 10h.01M15 10h.01",
   play: "M6.5 4.5v11l9-5.5z",
   upload: "M10 13V4M6 8l4-4 4 4M4 13v3h12v-3",
+  download: "M10 4v9M6 9l4 4 4-4M4 13v3h12v-3",
+  edit: "M12.5 5.5l2 2M4.5 15.5l.5-3 8-8 2.5 2.5-8 8z",
+  vary: "M15.5 8A6 6 0 1 0 16 12M15.5 3.5V8H11",
   close: "M5 5l10 10M15 5L5 15",
   up: "M6 12l4-4 4 4",
   // Top-bar menu icons, same 20px line style.

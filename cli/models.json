@@ -947,7 +947,8 @@
             },
             "refFields": {}
           },
-          "priceNote": "kie.ai/seedream-5-0-pro, read 2026-10-30: 7 credits ($0.035) at 1K, 14 ($0.07) at 2K; input images after the first 0.5 credits each. The measured basic 1:1 job was 7 credits; priceUsd assumes 2K because whether quality \"high\" means 2K is unconfirmed."
+          "priceNote": "kie.ai/seedream-5-0-pro, read 2026-10-30: 7 credits ($0.035) at 1K, 14 ($0.07) at 2K; input images after the first 0.5 credits each. The measured basic 1:1 job was 7 credits; priceUsd assumes 2K because whether quality \"high\" means 2K is unconfirmed.",
+          "pricing": {"per": "image", "by": "quality", "usd": {"basic": 0.035, "high": 0.07}}
         },
         {
           "provider": "wavespeed",
@@ -1011,6 +1012,7 @@
           "i2vModel": "gpt-image-2-5-sunburst-image-to-image",
           "priceUsd": 0.05,
           "priceNote": "6 credits at 1K, 10 at 2K, 16 at 4K, image-to-image included (kie.ai/gpt-image-2-5, read 2026-10-24).",
+          "pricing": {"per": "image", "by": "resolution", "usd": {"1K": 0.03, "2K": 0.05, "4K": 0.08}},
           "verified": true,
           "measuredCredits": 10,
           "measuredNote": "image-to-image, 2K, background transparent, 1-2 input_urls: 10 credits, 34-65s, 2048x2048 RGBA PNG (run zethus-hero-ink, 2026-10-24).",
@@ -1080,6 +1082,7 @@
           "schemaVerified": true,
           "schemaSource": "docs.kie.ai/market/google/nanobanana2, read 2026-10-31. The model id is nano-banana-2; the earlier google/nanobanana2 was a guess.",
           "priceNote": "kie.ai/nano-banana-2, read 2026-10-30: 8/12/18 credits ($0.04/$0.06/$0.09) at 1K/2K/4K. priceUsd assumes 2K.",
+          "pricing": {"per": "image", "by": "resolution", "usd": {"1K": 0.04, "2K": 0.06, "4K": 0.09}},
           "input": {
             "required": [
               "prompt"

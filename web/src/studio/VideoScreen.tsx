@@ -11,6 +11,7 @@ import { FilmPicker } from "./FilmPicker";
 import { GenerateMessages, ModelMenu, PresetNote, RefChips, RefPicker, SelectCard } from "./controls";
 import { isVideo } from "./format";
 import { setDraft, setRun, useRun } from "./promptStore";
+import { typicalSeconds } from "./format";
 import { TakeTile } from "./TakeTile";
 import { TakeViewer } from "./TakeViewer";
 import { useGenerate } from "./useGenerate";
@@ -176,7 +177,7 @@ function CreateVideo() {
             {takes.length > 0 && (
               <div className="feed__grid">
                 {takes.map((j) => (
-                  <TakeTile key={j.id} job={j} now={now} onOpen={(job) => setOpenId(job.id)} />
+                  <TakeTile key={j.id} job={j} now={now} expectedS={typicalSeconds(jobs, j.model, j.capability)} onOpen={(job) => setOpenId(job.id)} />
                 ))}
               </div>
             )}

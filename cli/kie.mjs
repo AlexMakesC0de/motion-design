@@ -306,7 +306,7 @@ function cmdPreflight(catalog, args) {
   say(`routes:`);
   const priced = routes.map((r) => ({
     ...r,
-    estimate: estimateUsd(r, { durationS: num(args.duration), resolution: args.resolution }),
+    estimate: estimateUsd(r, { durationS: num(args.duration), resolution: args.resolution, quality: args.quality }),
   }));
   for (const r of priced) {
     const verdict = !r.usable

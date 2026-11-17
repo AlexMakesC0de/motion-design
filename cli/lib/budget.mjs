@@ -7,8 +7,9 @@ import { budget as budgetError } from "./errors.mjs";
  * draft by 4x and understates a 30s film by 5x -- and the budget cap is only as
  * honest as this number. Routes without per-second pricing keep `priceUsd`.
  */
-export function estimateUsd(route, { durationS, resolution } = {}) {
+export function estimateUsd(route, { durationS, resolution, quality } = {}) {
   const pricing = route.pricing;
+  if (pricing?.per === "image") return imagePrice(route, { resolution, quality });
   if (pricing?.per !== "second") return { usd: route.priceUsd ?? 0, basis: "per-job" };
 
   const res = resolution ?? route.input?.defaults?.resolution;
@@ -33,8 +34,26 @@ export function estimateUsd(route, { durationS, resolution } = {}) {
   };
 }
 
+/**
+ * Image routes that bill by the picture's resolution (GPT Image 2.5, Nano Banana 2)
+ * or by a quality setting (Seedream). `pricing.by` names the input field and
+ * `pricing.usd` its price per value. A value with no listed price is charged at
+ * the dearest one, so the cap never undercounts.
+ */
+function imagePrice(route, { resolution, quality }) {
+  const { by, usd: table = {} } = route.pricing;
+  const asked = by === "quality" ? quality : resolution;
+  const value = asked ?? route.input?.defaults?.[by];
+  const key = Object.keys(table).find((k) => k.toLowerCase() === String(value ?? "").toLowerCase());
+  if (key) return { usd: table[key], basis: `per image at ${by} ${key}` };
+  const top = Math.max(...Object.values(table).filter(Number.isFinite));
+  if (!Number.isFinite(top)) return { usd: route.priceUsd ?? 0, basis: "per-job" };
+  return { usd: top, basis: `per image (highest rate; ${by} ${value ?? "unknown"})` };
+}
+
 /** How `kie models` and `kie preflight` show a route's price. */
 export function priceLabel(route) {
+  if (route.pricing?.per === "image") return Object.entries(route.pricing.usd ?? {}).map(([k, usd]) => `${k} $${usd}`).join(" ");
   const rates = route.pricing?.per === "second" ? Object.entries(route.pricing.usdPerSecond ?? {}) : [];
   if (!rates.length) return `$${route.priceUsd}`;
   return rates.map(([res, usd]) => `${res} $${usd}/s`).join(" ");
@@ -55,9 +74,9 @@ export function priceLabel(route) {
 export async function preflight(
   catalog,
   route,
-  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution } = {},
+  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution, quality } = {},
 ) {
-  const { usd, basis } = estimateUsd(route, { durationS, resolution });
+  const { usd, basis } = estimateUsd(route, { durationS, resolution, quality });
   const estimatedUsd = usd * quantity;
   const cap = budgetUsd ?? catalog.defaultBudgetUsd?.[capability] ?? null;
 

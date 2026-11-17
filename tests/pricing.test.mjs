@@ -77,3 +77,43 @@ describe("prices are labelled in the unit they bill in", () => {
     assert.equal(priceLabel({ priceUsd: 0.06 }), "$0.06");
   });
 });
+
+describe("an image route is priced per picture at the size or quality asked for", () => {
+  const byRes = {
+    model: "img",
+    priceUsd: 0.05,
+    pricing: { per: "image", by: "resolution", usd: { "1K": 0.03, "2K": 0.05, "4K": 0.08 } },
+    input: { defaults: { resolution: "2K" } },
+    prov: { label: "Test", credits: null },
+  };
+  const byQuality = { ...byRes, pricing: { per: "image", by: "quality", usd: { basic: 0.035, high: 0.07 } }, input: { defaults: { quality: "basic" } } };
+
+  test("each resolution has its own price, so a 1K picture is not quoted at the 2K rate", () => {
+    assert.deepEqual(estimateUsd(byRes, { resolution: "1K" }), { usd: 0.03, basis: "per image at resolution 1K" });
+    assert.equal(estimateUsd(byRes, { resolution: "4k" }).usd, 0.08);
+  });
+
+  test("no resolution asked for: the route's default is priced", () => {
+    assert.equal(estimateUsd(byRes, {}).usd, 0.05);
+  });
+
+  test("a value with no listed price is charged at the dearest, so the cap never undercounts", () => {
+    const e = estimateUsd(byRes, { resolution: "8K" });
+    assert.equal(e.usd, 0.08);
+    assert.match(e.basis, /highest rate/);
+  });
+
+  test("a quality-priced route reads the quality, not the resolution", () => {
+    assert.equal(estimateUsd(byQuality, {}).usd, 0.035);
+    assert.equal(estimateUsd(byQuality, { quality: "high", resolution: "1K" }).usd, 0.07);
+  });
+
+  test("the budget check uses the picture's own price", async () => {
+    const r = await preflight({}, byRes, { budgetUsd: 0.04, resolution: "1K" });
+    assert.equal(r.estimatedUsd, 0.03);
+  });
+
+  test("the label lists every price", () => {
+    assert.equal(priceLabel(byRes), "1K $0.03 2K $0.05 4K $0.08");
+  });
+});

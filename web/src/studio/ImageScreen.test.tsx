@@ -45,21 +45,57 @@ describe("Image", () => {
     expect(screen.getByRole("combobox", { name: "Resolution" })).toHaveValue("1K");
   });
 
+  test("there is no film picker: pictures are kept in the scratch folder", async () => {
+    page();
+    await screen.findByRole("button", { name: "Generate $0.04" });
+    expect(screen.queryByText("Working in")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Working in" })).toBeNull();
+  });
+
   test("Generate posts to the image endpoint with no duration", async () => {
     const fetchMock = page([], { "/api/generate/image": () => ({ localJobId: "j-1", job: still }) });
     fireEvent.click(await screen.findByRole("button", { name: "Generate $0.04" }));
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/generate/image")).toBe(true));
     const body = JSON.parse(fetchMock.mock.calls.find((c) => c[0] === "/api/generate/image")![1]!.body as string);
-    expect(body).toMatchObject({ run: "zed", prompt: "A red chair.", model: "gpt-image-2-5", aspect_ratio: "1:1" });
+    expect(body).toMatchObject({ run: "create", prompt: "A red chair.", model: "gpt-image-2-5", aspect_ratio: "1:1" });
     expect(body).not.toHaveProperty("duration_s");
   });
 
   test("with image takes, the takes replace the hero; video takes stay on the Video page", async () => {
     page([still, job()]);
-    const feed = await screen.findByRole("region", { name: "Takes" });
+    const feed = await screen.findByRole("list", { name: "Takes" });
     const opens = await within(feed).findAllByRole("button", { name: /^Open / });
     expect(opens).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: /Start creating/ })).toBeNull();
+  });
+
+  test("the takes read as a conversation: oldest first, each prompt with its model, shape, size and price", async () => {
+    const older = job({ ...still, id: "j-20261031-aaaaaa", prompt: "A burger shop front.", model: "gpt-image-2-5", resolution: "1K", actualUsd: 0.03, createdAt: "2026-10-31T10:00:00Z" });
+    const newer = job({ ...still, id: "j-20261031-bbbbbb", prompt: "The same shop at night.", createdAt: "2026-10-31T11:00:00Z" });
+    page([newer, older]);
+    const turns = within(await screen.findByRole("list", { name: "Takes" })).getAllByRole("listitem");
+    expect(turns.map((t) => t.querySelector(".turn__prompt")?.textContent)).toEqual(["A burger shop front.", "The same shop at night."]);
+    expect(turns[0].querySelector(".turn__meta")?.textContent).toBe("GPT Image 2.5 · 1:1 · 1K · $0.03");
+  });
+
+  test("Edit attaches the picture to the next prompt; Use as style attaches it as a style; Vary brings its prompt back", async () => {
+    page([still]);
+    const turn = within(await screen.findByRole("list", { name: "Takes" })).getByRole("listitem");
+    fireEvent.click(within(turn).getByRole("button", { name: /Edit/ }));
+    expect(getDraft().refs).toContainEqual({ source: "zed/still.png", role: "identity" });
+    expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveFocus();
+    fireEvent.click(within(turn).getByRole("button", { name: /Use as style/ }));
+    expect(getDraft().refs).toContainEqual({ source: "zed/still.png", role: "style" });
+    fireEvent.click(within(turn).getByRole("button", { name: /Vary/ }));
+    expect(getDraft()).toMatchObject({ prompt: "A still.", model: "nano-banana-2", refs: [] });
+    expect(within(turn).getByRole("link", { name: /Download/ })).toHaveAttribute("href", "/media/runs/zed/still.png");
+  });
+
+  test("sending empties the box for the next turn, keeping the model and shape", async () => {
+    page([], { "/api/generate/image": () => ({ localJobId: "j-1", job: still }) });
+    fireEvent.click(await screen.findByRole("button", { name: "Generate $0.04" }));
+    await waitFor(() => expect(getDraft().prompt).toBe(""));
+    expect(getDraft()).toMatchObject({ refs: [], model: "gpt-image-2-5", aspectRatio: "1:1" });
   });
 
   test("the + menu opens upward: pick a role, then a Library item", async () => {
@@ -94,24 +130,24 @@ describe("Image", () => {
   });
 
   test("Upload from your computer saves the picture into the film's refs and adds it with the chosen role", async () => {
-    const fetchMock = page([], { "/api/films/zed/refs": () => ({ source: "file:refs/chair.png" }) });
+    const fetchMock = page([], { "/api/films/create/refs": () => ({ source: "file:refs/chair.png" }) });
     await screen.findByRole("button", { name: "Generate $0.04" });
     fireEvent.click(screen.getByRole("button", { name: "Add a reference" }));
     const file = new File(["png"], "chair.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText("Picture to upload"), { target: { files: [file] } });
-    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "zed/refs/chair.png", role: "identity" }));
-    const call = fetchMock.mock.calls.find(([url]) => String(url).startsWith("/api/films/zed/refs"));
+    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "create/refs/chair.png", role: "identity" }));
+    const call = fetchMock.mock.calls.find(([url]) => String(url).startsWith("/api/films/create/refs"));
     expect(String(call?.[0])).toContain("name=chair.png");
     const chip = screen.getByRole("button", { name: "Remove chair.png identity" }).closest("li")!;
-    expect(chip.querySelector("img")).toHaveAttribute("src", "/media/runs/zed/refs/chair.png");
+    expect(chip.querySelector("img")).toHaveAttribute("src", "/media/runs/create/refs/chair.png");
   });
 
   test("a picture dropped on the dock is uploaded the same way", async () => {
-    page([], { "/api/films/zed/refs": () => ({ source: "file:refs/drop.png" }) });
+    page([], { "/api/films/create/refs": () => ({ source: "file:refs/drop.png" }) });
     await screen.findByRole("button", { name: "Generate $0.04" });
     const dock = screen.getByRole("region", { name: "Prompt" });
     const file = new File(["png"], "drop.png", { type: "image/png" });
     fireEvent.drop(dock, { dataTransfer: { types: ["Files"], files: [file] } });
-    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "zed/refs/drop.png", role: "identity" }));
+    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "create/refs/drop.png", role: "identity" }));
   });
 });

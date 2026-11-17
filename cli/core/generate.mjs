@@ -116,6 +116,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       capability,
       durationS: built.input.duration,
       resolution: built.input.resolution,
+      quality: built.input.quality,
     });
     const plan = {
       route: { provider: route.provider, family: route.family, model: callRoute.model },

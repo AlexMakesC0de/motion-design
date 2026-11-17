@@ -39,6 +39,28 @@
   background-size: 200% 100%; animation: take-wait 1.6s linear infinite;
 }
 @keyframes take-wait { to { background-position: -200% 0; } }
+
+/* A take being made: Snake on a dot grid, with a progress bar along the bottom. */
+.take__frame--making { cursor: default; }
+.snake {
+  --snake-dot: rgb(255 255 255 / 0.13); --snake-body: var(--text); --snake-food: var(--accent);
+  position: relative; width: 100%; height: 100%; background: var(--surface-1); outline: none;
+}
+.snake:focus-visible { box-shadow: inset 0 0 0 2px var(--text-3); }
+.snake__board { position: absolute; inset: 0; width: 100%; height: 100%; }
+.snake__score { position: absolute; top: 10px; left: 12px; color: var(--text); font-size: var(--text-sm); }
+.snake__hint {
+  position: absolute; top: 10px; right: 12px; color: var(--text-3); font-size: var(--text-xs);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out);
+}
+.snake:hover .snake__hint, .snake:focus-visible .snake__hint { opacity: 1; }
+.snake__progress {
+  position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; align-items: center; gap: 10px;
+}
+.snake__bar { flex: 1; height: 4px; border-radius: 999px; background: rgb(255 255 255 / 0.1); overflow: hidden; }
+.snake__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--text); transition: width 1s linear; }
+.snake__pct { color: var(--text-2); font-size: var(--text-xs); min-width: 3ch; text-align: right; }
+@media (prefers-reduced-motion: reduce) { .snake__bar > span { transition: none; } }
 .take[data-state="failed"] .take__frame { border-color: var(--bad); }
 .take[data-state="failed"] .take__empty { background: var(--bad-surface); }
 .take[data-state="uncertain"] .take__frame { border-color: var(--warn); border-style: dashed; }
