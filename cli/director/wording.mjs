@@ -1,5 +1,6 @@
 import { resolveModel } from "../lib/models.mjs";
 import { loadMenu, entry } from "./menu.mjs";
+import { cameraWords, framingWords } from "./picks.mjs";
 
 /** "the camera slowly pushes in" -> "The camera slowly pushes in." */
 const sentence = (s) => {
@@ -22,8 +23,8 @@ export function shotWording(catalog, plan, shot, { menu = loadMenu(), assets = [
   const pick = (group, id) => entry(menu, group, id);
 
   const move = pick("moves", shot.move.type);
-  const camera = shot.move.type === "static" ? "the camera holds still" : `the camera ${pick("speeds", shot.move.speed).words} ${move.words}`;
-  const framing = [pick("sizes", shot.size).words, pick("angles", shot.angle).words, pick("lenses", shot.lens).words, pick("depths", shot.depth).words].join(", ");
+  const camera = cameraWords(move, shot.move.type === "static" ? null : pick("speeds", shot.move.speed));
+  const framing = framingWords([pick("sizes", shot.size), pick("angles", shot.angle), pick("lenses", shot.lens), pick("depths", shot.depth)]);
   const described = (shot.cast ?? []).map((name) => assets.find((a) => a.name === name)?.description).filter(Boolean);
   const subjectLine = described.length ? `Subject: ${described.map((d) => d.trim().replace(/[.\s]+$/, "")).join("; ")}.` : "";
   const keySide = shot.keyLightSide ?? look.keyLightSide;

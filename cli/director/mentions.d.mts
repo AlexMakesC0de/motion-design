@@ -1,6 +1,8 @@
 export type Ref = { id: string; source: string | null; keep?: string };
-export type Stage = { title: string; seconds: number; camera: string; action: string; end: string };
-export type Cards = { goal: string; scene: string; stages: Stage[]; style: string; audio: string };
+export type StagePicks = { move?: string; speed?: string; size?: string; angle?: string };
+export type ScenePicks = { lens?: string; light?: string };
+export type Stage = { title: string; seconds: number; camera: string; action: string; end: string; picks?: StagePicks };
+export type Cards = { goal: string; scene: string; stages: Stage[]; style: string; audio: string; picks?: ScenePicks };
 export type Span = {
   start: number; end: number; kind: "image" | "library"; n?: number; name?: string; refId: string | null;
   state: "linked" | "missing"; reason: string | null; label: string;

@@ -1,0 +1,11 @@
+import type { Cards, ScenePicks, StagePicks } from "./mentions.mjs";
+export type MenuEntry = { id: string; label: string; words: string; when: string; hailuo?: string };
+type Maybe = MenuEntry | null | undefined | false | "";
+export const STAGE_PICKS: Record<keyof StagePicks, string>;
+export const SCENE_PICKS: Record<keyof ScenePicks, string>;
+export function framingWords(entries: Maybe[]): string;
+export function cameraWords(move: MenuEntry | null | undefined, speed?: MenuEntry | null): string;
+export function stageWords(picks: StagePicks | null | undefined, pick: (group: string, id: string) => MenuEntry): string;
+export function pickSentence(entry: MenuEntry | null | undefined): string;
+export function setPick<P extends StagePicks | ScenePicks>(picks: P | undefined, key: keyof P & string, id: string | undefined): P | undefined;
+export function hasPicks(cards: Cards): boolean;
