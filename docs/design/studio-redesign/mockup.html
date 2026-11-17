@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Shard studio redesign — mockups</title>
+<style>
+/* Shard tokens, unchanged, plus four stage "gels" (new). */
+:root {
+  --bg:#0e0d0c; --surface-1:#161412; --surface-2:#1b1917; --surface-3:#2a2724; --line:#2c2926;
+  --text:#ece7df; --text-2:#b9b0a3; --text-3:#988f83;
+  --accent:#84f80a; --accent-ink:#0b1400; --warn:#ef8a47; --bad:#e2725b;
+  --gel-1:#9d8cff; --gel-2:#56c2f0; --gel-3:#f27ab0; --gel-4:#d9c79a;
+  --sans:"IBM Plex Sans", system-ui, sans-serif; --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#050505; font-family:var(--sans); color:var(--text); font-size:14px; line-height:1.45; padding:40px; display:flex; flex-direction:column; gap:60px; }
+h1, h2 { line-height:1.3; }
+.mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.screen { width:1440px; height:900px; background:var(--bg); display:grid; grid-template-columns:72px 1fr; grid-template-rows:52px 1fr; overflow:hidden; border-radius:12px; position:relative; }
+
+/* Rail */
+.rail { grid-row:1/3; background:var(--bg); border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:center; padding:14px 0; gap:6px; }
+.logo { width:32px; height:32px; display:grid; place-items:center; margin-bottom:14px; }
+.rail a { width:56px; padding:8px 0 6px; border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-2); font-size:12px; text-decoration:none; }
+.rail a svg { display:block; }
+.rail a.on { background:var(--surface-3); color:var(--text); }
+.rail .grow { flex:1; }
+
+/* Top bar */
+.top { display:flex; align-items:center; gap:16px; padding:0 24px; border-bottom:1px solid var(--line); }
+.crumb { color:var(--text-2); font-size:14px; }
+.crumb b { color:var(--text); font-weight:600; }
+.top .grow { flex:1; }
+.meter { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text-2); }
+.meter .track { width:96px; height:6px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
+.meter .fill { height:100%; width:22%; background:var(--accent); }
+.meter .money { color:var(--accent); }
+
+.main { overflow:hidden; position:relative; }
+.btn { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; line-height:20px; border-radius:10px; background:var(--surface-2); color:var(--text); font-size:14px; font-weight:500; border:1px solid var(--line); white-space:nowrap; }
+.btn.quiet { background:transparent; border-color:transparent; color:var(--text-2); }
+.btn.light { background:var(--text); color:#141210; border-color:var(--text); font-weight:600; }
+.btn.go { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; padding:12px 18px; border-radius:12px; font-size:15px; }
+.btn .price { font-family:var(--mono); font-size:13px; }
+.btn .price.green { color:var(--accent); }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; line-height:19px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); color:var(--text); font-size:13.5px; white-space:nowrap; }
+.chip .k { color:var(--text-3); }
+.chip.dashed { border-style:dashed; color:var(--text-2); background:transparent; }
+.label { font-size:14px; font-weight:600; color:var(--text); }
+.label .n { font-weight:400; color:var(--text-3); font-family:var(--mono); font-size:13px; margin-left:6px; }
+svg.i { flex:none; display:block; }
+.swatch { width:10px; height:10px; border-radius:3px; flex:none; display:inline-block; }
+.ph { background:linear-gradient(135deg,#2a2724,#1b1917); }
+img.cover { width:100%; height:100%; object-fit:cover; display:block; }
+
+/* ---------- 1. HOME ---------- */
+.home { padding:40px 64px 0; display:flex; flex-direction:column; align-items:center; gap:0; height:100%; overflow:hidden; }
+.home h1 { font-size:40px; font-weight:600; letter-spacing:-.02em; text-align:center; }
+.home .sub { color:var(--text-2); font-size:16px; margin-top:8px; text-align:center; }
+.prompt { width:820px; margin-top:28px; background:var(--surface-1); border:1px solid var(--line); border-radius:18px; padding:18px 18px 14px; }
+.prompt .text { font-size:18px; line-height:1.55; color:var(--text); min-height:58px; }
+.prompt .text .caret { display:inline-block; width:2px; height:22px; background:var(--text); vertical-align:-4px; margin-left:1px; }
+.prompt .row { display:flex; align-items:center; gap:8px; margin-top:14px; }
+.prompt .row .grow { flex:1; }
+.look-pill { display:inline-flex; align-items:center; gap:8px; padding:3px 12px 3px 4px; border-radius:99px; background:var(--surface-2); border:1px solid var(--line); font-size:13.5px; }
+.look-pill img { width:24px; height:24px; border-radius:99px; object-fit:cover; }
+.ideas { display:flex; gap:8px; margin-top:14px; justify-content:center; width:960px; }
+.idea { padding:7px 14px; line-height:18px; border-radius:99px; border:1px solid var(--line); color:var(--text-2); font-size:13.5px; display:inline-flex; align-items:center; gap:8px; }
+.section-head { width:100%; display:flex; align-items:baseline; justify-content:space-between; margin-top:30px; margin-bottom:14px; }
+.section-head h2 { font-size:18px; font-weight:600; }
+.section-head a { color:var(--text-2); font-size:13.5px; }
+.looks { width:100%; display:flex; gap:14px; }
+.look { flex:0 0 172px; }
+.look .thumb { height:100px; border-radius:12px; overflow:hidden; position:relative; border:1px solid var(--line); }
+.look.on .thumb { outline:2px solid var(--text); outline-offset:2px; }
+.look .name { font-size:14px; font-weight:600; margin-top:8px; }
+.look .tag { font-size:12.5px; color:var(--text-3); }
+.films { width:100%; display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.film { background:var(--surface-1); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+.film .thumb { height:118px; position:relative; }
+.film .thumb .badge { position:absolute; left:10px; top:10px; background:rgba(14,13,12,.78); border-radius:99px; padding:3px 10px; font-size:12px; color:var(--text); }
+.film .body { padding:12px 14px 14px; }
+.film .t { display:flex; justify-content:space-between; align-items:baseline; }
+.film .t b { font-size:15px; font-weight:600; }
+.film .t span { font-size:13px; color:var(--accent); }
+.steps4 { display:flex; gap:4px; margin:10px 0 8px; }
+.steps4 i { flex:1; height:4px; border-radius:99px; background:var(--surface-3); }
+.steps4 i.done { background:var(--text-2); }
+.steps4 i.now { background:var(--text); }
+.film .next { font-size:13px; color:var(--text-2); }
+.film .next b { color:var(--text); font-weight:500; }
+
+/* ---------- 2. SCENE EDITOR ---------- */
+.film-top { gap:20px; }
+.stepper { display:flex; align-items:center; gap:0; }
+.stepper .st { display:flex; align-items:center; gap:8px; height:32px; padding:0 12px; border-radius:99px; color:var(--text-2); font-size:13.5px; }
+.stepper .st .n { width:20px; height:20px; border-radius:99px; border:1.5px solid var(--text-3); display:grid; place-items:center; font-size:12px; font-family:var(--mono); }
+.stepper .st.done .n { background:var(--text-2); border-color:var(--text-2); color:var(--bg); }
+.stepper .st.on { background:var(--surface-3); color:var(--text); }
+.stepper .st.on .n { border-color:var(--text); }
+.stepper .bar { width:20px; height:1.5px; background:var(--line); }
+
+.editor { display:grid; grid-template-columns:200px 1fr 400px; height:100%; }
+.strip { border-right:1px solid var(--line); padding:16px 12px; display:flex; flex-direction:column; gap:10px; }
+.sc { border-radius:12px; padding:6px; border:1px solid transparent; }
+.sc.on { background:var(--surface-2); border-color:var(--line); }
+.sc .thumb { height:96px; border-radius:8px; overflow:hidden; position:relative; }
+.sc .thumb .n { position:absolute; left:6px; top:6px; width:22px; height:22px; border-radius:7px; background:rgba(14,13,12,.8); display:grid; place-items:center; font-size:12px; font-family:var(--mono); }
+.sc .thumb .len { position:absolute; right:6px; bottom:6px; background:rgba(14,13,12,.8); border-radius:6px; padding:1px 6px; font-size:12px; font-family:var(--mono); }
+.sc .meta { padding:7px 2px 2px; }
+.sc .meta b { font-size:13.5px; font-weight:600; display:block; }
+.sc .meta span { font-size:12px; color:var(--text-3); }
+.sc .gels { display:flex; gap:2px; margin-top:6px; height:3px; }
+.sc .gels i { border-radius:2px; }
+.addsc { padding:12px; border:1.5px dashed var(--line); border-radius:12px; display:grid; place-items:center; color:var(--text-2); font-size:13.5px; }
+
+.stage { display:flex; flex-direction:column; padding:20px 24px 0; gap:14px; min-width:0; }
+.stage-head { display:flex; align-items:center; gap:12px; }
+.stage-head h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
+.stage-head .grow { flex:1; }
+.player { height:388px; border-radius:14px; overflow:hidden; position:relative; background:#000; }
+.player .ctrl { position:absolute; left:0; right:0; bottom:0; padding:14px 16px; display:flex; align-items:center; gap:12px; background:linear-gradient(transparent, rgba(0,0,0,.7)); font-size:12.5px; }
+.player .play { width:34px; height:34px; border-radius:99px; background:var(--text); display:grid; place-items:center; color:#000; }
+.player .scrub { flex:1; height:4px; border-radius:99px; background:rgba(255,255,255,.25); position:relative; }
+.player .scrub i { position:absolute; left:0; top:0; bottom:0; width:38%; background:var(--text); border-radius:99px; }
+.player .tag { position:absolute; left:14px; top:14px; background:rgba(14,13,12,.8); border-radius:99px; padding:4px 10px 4px 8px; font-size:12.5px; display:flex; gap:6px; align-items:center; }
+.player .tag .star { color:var(--text); }
+
+.timeline { display:flex; gap:4px; height:58px; }
+.seg { border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; color:#141210; }
+.seg b { font-size:13px; font-weight:600; }
+.seg span { font-size:12px; font-family:var(--mono); opacity:.75; }
+.seg.on { box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.seg .handle { position:absolute; right:3px; top:16px; bottom:16px; width:3px; border-radius:2px; background:rgba(20,18,16,.45); }
+.seg.add { background:transparent; border:1.5px dashed var(--line); color:var(--text-2); width:58px; flex:none; align-items:center; justify-content:center; }
+.ticks { display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--text-3); margin-top:-8px; padding:0 2px; }
+
+.takes { display:flex; gap:10px; align-items:stretch; }
+.take { width:132px; }
+.take .thumb { height:74px; border-radius:9px; overflow:hidden; position:relative; border:1px solid var(--line); }
+.take.on .thumb { outline:2px solid var(--text); outline-offset:2px; }
+.take .thumb .k { position:absolute; left:5px; bottom:5px; background:rgba(14,13,12,.82); border-radius:6px; padding:1px 6px; font-size:12px; }
+.take .cap { display:flex; justify-content:space-between; font-size:12px; color:var(--text-3); margin-top:6px; }
+.take .cap .money { color:var(--accent); font-family:var(--mono); }
+.take.busy .thumb { display:flex; flex-direction:column; justify-content:center; gap:8px; padding:0 12px; background:var(--surface-2); color:var(--text-2); font-size:12.5px; }
+.take.busy .prog { height:3px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
+.take.busy .prog i { display:block; height:100%; width:45%; background:var(--text-2); }
+
+.dock { position:absolute; left:200px; right:400px; bottom:0; padding:14px 24px; border-top:1px solid var(--line); background:var(--bg); display:flex; align-items:center; gap:8px; }
+.dock .grow { flex:1; }
+
+.notes { border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column; gap:16px; overflow:hidden; background:var(--surface-1); }
+.notes .hd { display:flex; justify-content:space-between; align-items:center; }
+.cast { display:flex; gap:10px; }
+.member { width:74px; text-align:center; }
+.member .face { width:64px; height:64px; border-radius:14px; overflow:hidden; margin:0 auto; border:1px solid var(--line); position:relative; }
+.member .face .warn { position:absolute; right:-1px; bottom:-1px; width:18px; height:18px; border-radius:99px; background:var(--warn); border:2px solid var(--surface-1); }
+.member b { display:block; font-size:12.5px; font-weight:500; margin-top:6px; }
+.member span { display:block; font-size:12px; color:var(--text-3); }
+.member.add .face, .member .face.empty { border:1.5px dashed var(--line); display:grid; place-items:center; color:var(--text-2); background:transparent; }
+.box { background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+.box .lb { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.box p { font-size:15px; line-height:1.55; color:var(--text); }
+.mention { color:var(--accent); font-weight:500; }
+.stagehead { display:flex; align-items:center; gap:8px; }
+.stagehead b { font-size:14px; font-weight:600; }
+.stagehead .t { color:var(--text-3); font-size:13px; font-family:var(--mono); }
+.stagehead .grow { flex:1; }
+.kv { display:grid; grid-template-columns:62px 1fr; gap:6px 10px; font-size:14.5px; line-height:1.5; }
+.kv dt { color:var(--text-3); font-size:12.5px; padding-top:2px; }
+.more { display:flex; gap:8px; }
+.more .chip { background:transparent; }
+.askchat { margin-top:auto; display:flex; gap:8px; align-items:center; border:1px solid var(--line); border-radius:12px; padding:8px 8px 8px 14px; color:var(--text-3); font-size:14px; background:var(--bg); }
+.askchat .grow { flex:1; }
+
+/* ---------- 3. IDEA ---------- */
+.idea-wrap { padding:40px 0 0; display:flex; flex-direction:column; align-items:center; }
+.idea-col { width:960px; }
+.idea-col h1 { font-size:30px; font-weight:600; letter-spacing:-.01em; }
+.idea-col .sub { color:var(--text-2); font-size:15px; margin-top:6px; }
+.idea-col .prompt { width:100%; }
+.budget { display:flex; align-items:center; gap:14px; margin-top:34px; }
+.budget h2 { font-size:18px; font-weight:600; }
+.budget .grow { flex:1; }
+.over { color:var(--warn); font-size:13.5px; display:flex; align-items:center; gap:6px; }
+.over i { width:8px; height:8px; border-radius:99px; background:var(--warn); }
+.ruler { position:relative; margin-top:14px; }
+.lane { display:flex; gap:8px; height:210px; }
+.blk { border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; color:var(--text); position:relative; background:color-mix(in srgb, var(--g) 16%, var(--surface-1)); border:1px solid color-mix(in srgb, var(--g) 45%, transparent); }
+.blk .what { color:var(--text-2); font-size:14px; line-height:1.5; flex:1; }
+.blk .hd { display:flex; align-items:center; gap:8px; }
+.blk .num { font-family:var(--mono); font-size:13px; color:var(--g); }
+.blk b { font-size:16px; font-weight:600; line-height:1.3; }
+.blk .bt { display:flex; justify-content:space-between; align-items:center; }
+.stepper-s { display:inline-flex; align-items:center; border-radius:99px; background:var(--surface-3); height:30px; }
+.stepper-s em { font-style:normal; width:28px; display:grid; place-items:center; color:var(--text-2); }
+.stepper-s span { font-family:var(--mono); font-size:13px; padding:0 2px; }
+.blk .open { font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+.blk.add { background:transparent; border:1.5px dashed var(--line); color:var(--text-2); flex:0 0 120px; flex-direction:row; align-items:center; justify-content:center; font-size:14px; gap:6px; }
+.limit { position:absolute; top:-10px; bottom:-10px; width:0; border-left:2px dashed var(--warn); }
+.limit span { position:absolute; top:-24px; background:var(--bg); left:-30px; width:60px; text-align:center; color:var(--warn); font-size:12px; font-family:var(--mono); }
+.ticks2 { display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--text-3); margin-top:8px; }
+.hintline { margin-top:26px; display:flex; gap:12px; align-items:center; }
+.hintline .grow { flex:1; }
+.tip { color:var(--text-3); font-size:13.5px; }
+</style>
+</head>
+<body>
+
+<!-- ======================= 1. HOME ======================= -->
+<section class="screen" id="home" data-name="01 Home">
+  <nav class="rail">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 L74 46 L26 70 Z M44 74 L72 61 L62 86 Z" fill="#84f80a" stroke="#84f80a" stroke-width="9" stroke-linejoin="round"/></svg></div>
+    <a class="on"><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1z"/></svg>Home</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg>Films</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg>Create</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h3v14H4zM9 3h3v14H9zM14 4l3 .8-3.2 12.6-3-.8z"/></svg>Library</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h10v14l-5-3.5L5 17z"/></svg>Looks</a>
+    <div class="grow"></div>
+    <a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3z"/></svg>Chat</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 3v8m-2.5-6h3.5a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 0 0 0 3h3.5"/></svg>Spend</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h3M10 5h7M6 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 10h8M15 10h2M11 10a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 15h1M8 15h9M4 15a2 2 0 1 0 4 0 2 2 0 0 0-4 0z"/></svg>Settings</a>
+  </nav>
+  <header class="top"><span class="crumb"><b>Home</b></span><div class="grow"></div>
+    <div class="meter">Today <span class="track"><span class="fill"></span></span><span class="mono"><span class="money">$2.20</span> of $10</span></div></header>
+  <main class="main"><div class="home">
+    <h1>What are we making?</h1>
+    <p class="sub">Say it in a sentence. You'll get a scene plan before anything costs money.</p>
+    <div class="prompt">
+      <div class="text">A guy gets woken up at 3am by a pizza he never ordered. Dry comedy, shot like a thriller<span class="caret"></span></div>
+      <div class="row">
+        <span class="chip"><span class="k">Shape</span> 16:9 <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span>
+        <span class="chip"><span class="k">Length</span> 15s <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span>
+        <span class="look-pill"><img src="img/preset-footage-overlays.jpg" alt="">Footage + graphics <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span>
+        <div class="grow"></div>
+        <span class="btn light">Plan my film <svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
+      </div>
+    </div>
+    <div class="ideas">
+      <span class="idea">Pizza at 3am</span>
+      <span class="idea">Launch film for my app</span>
+      <span class="idea">Rainy café, seamless loop</span>
+      <span class="idea">First skydive, POV</span>
+      <span class="idea">Surprise me</span>
+    </div>
+
+    <div class="section-head"><h2>Pick a look</h2><a>All 10 looks</a></div>
+    <div class="looks">
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-kinetic-typography.jpg" alt=""></div><div class="name">Kinetic type</div><div class="tag">Words do the moving</div></div>
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-glass-ui-launch.jpg" alt=""></div><div class="name">Glass UI launch</div><div class="tag">A workflow as a story</div></div>
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-product-hyper-motion.jpg" alt=""></div><div class="name">Hyper-motion</div><div class="tag">The product reveal</div></div>
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-exploded-product.jpg" alt=""></div><div class="name">Exploded product</div><div class="tag">What makes it work</div></div>
+      <div class="look on"><div class="thumb"><img class="cover" src="img/preset-footage-overlays.jpg" alt=""></div><div class="name">Footage + graphics</div><div class="tag">Explain it on top</div></div>
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-editorial-collage.jpg" alt=""></div><div class="name">Editorial collage</div><div class="tag">Make an idea tangible</div></div>
+      <div class="look"><div class="thumb"><img class="cover" src="img/preset-tropical-product.jpg" alt=""></div><div class="name">Tropical product</div><div class="tag">A place you can feel</div></div>
+    </div>
+
+    <div class="section-head"><h2>Keep going</h2><a>All films</a></div>
+    <div class="films">
+      <div class="film"><div class="thumb"><img class="cover" src="img/pizza-night-s2-draft.jpg" alt=""><span class="badge">2 versions to pick</span></div><div class="body">
+        <div class="t"><b>Pizza night</b><span class="mono">$6.44</span></div>
+        <div class="steps4"><i class="done"></i><i class="done"></i><i class="now"></i><i></i></div>
+        <div class="next">Next: <b>pick a version of scene 1</b></div></div></div>
+      <div class="film"><div class="thumb"><img class="cover" src="img/rainy-coffee-s1-take.jpg" alt=""><span class="badge">Ready to finish</span></div><div class="body">
+        <div class="t"><b>Rainy coffee</b><span class="mono">$0.12</span></div>
+        <div class="steps4"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i></div>
+        <div class="next">Next: <b>add captions & export</b></div></div></div>
+      <div class="film"><div class="thumb"><img class="cover" src="img/skydive-s1-take.jpg" alt=""></div><div class="body">
+        <div class="t"><b>Skydive</b><span class="mono">$0.30</span></div>
+        <div class="steps4"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i></div>
+        <div class="next">Next: <b>assemble the film</b></div></div></div>
+      <div class="film"><div class="thumb"><img class="cover" src="img/boat-s1-take.jpg" alt=""></div><div class="body">
+        <div class="t"><b>Boat</b><span class="mono">$0.30</span></div>
+        <div class="steps4"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i></div>
+        <div class="next">Finished · 1 Nov</div></div></div>
+    </div>
+  </div></main>
+</section>
+
+<!-- ======================= 2. SCENE EDITOR ======================= -->
+<section class="screen" id="scene" data-name="02 Scene editor">
+  <nav class="rail">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 L74 46 L26 70 Z M44 74 L72 61 L62 86 Z" fill="#84f80a" stroke="#84f80a" stroke-width="9" stroke-linejoin="round"/></svg></div>
+    <a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1z"/></svg>Home</a><a class="on"><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg>Films</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg>Create</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h3v14H4zM9 3h3v14H9zM14 4l3 .8-3.2 12.6-3-.8z"/></svg>Library</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h10v14l-5-3.5L5 17z"/></svg>Looks</a>
+    <div class="grow"></div>
+    <a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3z"/></svg>Chat</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 3v8m-2.5-6h3.5a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 0 0 0 3h3.5"/></svg>Spend</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h3M10 5h7M6 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 10h8M15 10h2M11 10a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 15h1M8 15h9M4 15a2 2 0 1 0 4 0 2 2 0 0 0-4 0z"/></svg>Settings</a>
+  </nav>
+  <header class="top film-top"><span class="crumb">Films / <b>Pizza night</b></span>
+    <div class="stepper">
+      <span class="st done"><span class="n"><svg class="i" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg></span>Idea</span><span class="bar"></span>
+      <span class="st done"><span class="n"><svg class="i" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg></span>Cast</span><span class="bar"></span>
+      <span class="st on"><span class="n">3</span>Scenes</span><span class="bar"></span>
+      <span class="st"><span class="n">4</span>Finish</span>
+    </div>
+    <div class="grow"></div>
+    <div class="meter">Today <span class="track"><span class="fill"></span></span><span class="mono"><span class="money">$2.20</span> of $10</span></div></header>
+  <main class="main"><div class="editor">
+    <aside class="strip">
+      <div class="label">Scenes<span class="n">23s</span></div>
+      <div class="sc on"><div class="thumb"><img class="cover" src="img/pizza-night-s1-draft-2.jpg" alt=""><span class="n">1</span><span class="len">11s</span></div>
+        <div class="meta"><b>Wake up</b><span>2 versions · picked</span><div class="gels"><i style="flex:3;background:var(--gel-1)"></i><i style="flex:3;background:var(--gel-2)"></i><i style="flex:3;background:var(--gel-3)"></i><i style="flex:2;background:var(--gel-4)"></i></div></div></div>
+      <div class="sc"><div class="thumb"><img class="cover" src="img/pizza-night-s2-draft.jpg" alt=""><span class="n">2</span><span class="len">12s</span></div>
+        <div class="meta"><b>Your loss</b><span>2 versions · pick one</span><div class="gels"><i style="flex:5;background:var(--gel-1)"></i><i style="flex:7;background:var(--gel-2)"></i></div></div></div>
+      <div class="addsc"><span style="display:flex;gap:6px;align-items:center"><svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New scene</span></div>
+    </aside>
+
+    <section class="stage">
+      <div class="stage-head"><h1>Wake up</h1><span class="chip"><span class="k">Shape</span> 16:9</span><span class="chip mono">11s</span><div class="grow"></div><span class="btn quiet" aria-label="More"><svg class="i" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01"/></svg></span></div>
+      <div class="player"><img class="cover" src="img/pizza-night-s1-draft-2.jpg" alt="">
+        <span class="tag"><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg>Draft 2 is in the film</span>
+        <div class="ctrl"><span class="play"><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.5v11l9-5.5z"/></svg></span><span class="mono">0:04</span><span class="scrub"><i></i></span><span class="mono">0:11</span></div></div>
+
+      <div class="timeline">
+        <div class="seg" style="flex:3;background:var(--gel-1)"><b>Doorbell</b><span>0–3s</span><i class="handle"></i></div>
+        <div class="seg on" style="flex:3;background:var(--gel-2)"><b>Slippers</b><span>3–6s</span><i class="handle"></i></div>
+        <div class="seg" style="flex:3;background:var(--gel-3)"><b>Hallway</b><span>6–9s</span><i class="handle"></i></div>
+        <div class="seg" style="flex:2;background:var(--gel-4)"><b>Door</b><span>9–11s</span></div>
+        <div class="seg add" aria-label="Add stage"><svg class="i" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></div>
+      </div>
+
+      <div>
+        <div class="label" style="margin-bottom:8px">Versions<span class="n">3</span></div>
+        <div class="takes">
+          <div class="take"><div class="thumb"><img class="cover" src="img/pizza-night-s1-draft.jpg" alt=""><span class="k">Draft 1</span></div><div class="cap"><span>480p</span><span class="money">$1.54</span></div></div>
+          <div class="take on"><div class="thumb"><img class="cover" src="img/pizza-night-s1-draft-2.jpg" alt=""><span class="k" style="display:flex;gap:4px;align-items:center"><svg class="i" width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8"/></svg>Draft 2</span></div><div class="cap"><span>480p</span><span class="money">$1.54</span></div></div>
+          <div class="take busy"><div class="thumb"><span>Filming · 0:40</span><span class="prog"><i></i></span></div><div class="cap"><span>Final · 1080p</span><span class="money">$8.69</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="notes">
+      <div class="hd"><span class="label">Cast & props<span class="n">3 of 9</span></span></div>
+      <div class="cast">
+        <div class="member"><div class="face"><img class="cover" src="img/ref-man-draft1.jpg" alt=""></div><b>Alex</b><span>Library</span></div>
+        <div class="member"><div class="face"><img class="cover" src="img/ref-driver-draft1.jpg" alt=""></div><b>Driver</b><span>Library</span></div>
+        <div class="member"><div class="face empty"><svg class="i" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13V4M6 8l4-4 4 4M4 13v3h12v-3"/></svg></div><b>Pizza box</b><span style="color:var(--warn)">Make sheet</span></div>
+        <div class="member add"><div class="face"><svg class="i" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></div><b>Add</b><span>or drop</span></div>
+      </div>
+
+      <div class="box"><div class="lb"><span class="label">Goal</span></div>
+        <p><span class="mention">Alex</span> is woken at night by a pizza delivery he didn't order. Photoreal dry comedy, natural acting.</p></div>
+
+      <div class="box"><div class="lb stagehead"><span class="swatch" style="background:var(--gel-2)"></span><b>Slippers</b><span class="t">3–6s</span><span class="grow"></span><span class="tip">Stage 2 of 4</span></div>
+        <dl class="kv"><dt>Camera</dt><dd>Low, tracking his feet into slippers</dd><dt>Action</dt><dd>He shuffles out, rubbing his eyes</dd><dt>Ends on</dt><dd>His hand on the hallway light switch</dd></dl></div>
+
+      <div class="more"><span class="chip"><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Style</span><span class="chip"><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Sound</span><span class="chip"><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Setting</span></div>
+
+      <div class="askchat"><svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3z"/></svg><span class="grow">Ask chat to rewrite this stage…</span><span class="btn" style="padding:5px 12px">Send</span></div>
+    </aside>
+
+    <div class="dock">
+      <span class="tip">Edits save as you go.</span>
+      <div class="grow"></div>
+      <span class="btn" style="padding:12px 16px;border-radius:12px">New draft · 480p <span class="price green">$1.54</span></span>
+      <span class="chip">1080p <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span>
+      <span class="btn go">Make final <span class="price">$8.69</span></span>
+    </div>
+  </div></main>
+</section>
+
+<!-- ======================= 3. IDEA ======================= -->
+<section class="screen" id="idea" data-name="03 Film idea">
+  <nav class="rail">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true"><path d="M24 22 L74 46 L26 70 Z M44 74 L72 61 L62 86 Z" fill="#84f80a" stroke="#84f80a" stroke-width="9" stroke-linejoin="round"/></svg></div>
+    <a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 10 4l7 6.5V17a1 1 0 0 1-1 1h-4v-5H8v5H4a1 1 0 0 1-1-1z"/></svg>Home</a><a class="on"><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z"/></svg>Films</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg>Create</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3h3v14H4zM9 3h3v14H9zM14 4l3 .8-3.2 12.6-3-.8z"/></svg>Library</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h10v14l-5-3.5L5 17z"/></svg>Looks</a>
+    <div class="grow"></div>
+    <a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3z"/></svg>Chat</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 3v8m-2.5-6h3.5a1.5 1.5 0 0 1 0 3H9a1.5 1.5 0 0 0 0 3h3.5"/></svg>Spend</a><a><svg class="i" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h3M10 5h7M6 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 10h8M15 10h2M11 10a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 15h1M8 15h9M4 15a2 2 0 1 0 4 0 2 2 0 0 0-4 0z"/></svg>Settings</a>
+  </nav>
+  <header class="top film-top"><span class="crumb">Films / <b>Pizza night</b></span>
+    <div class="stepper">
+      <span class="st on"><span class="n">1</span>Idea</span><span class="bar"></span>
+      <span class="st"><span class="n">2</span>Cast</span><span class="bar"></span>
+      <span class="st"><span class="n">3</span>Scenes</span><span class="bar"></span>
+      <span class="st"><span class="n">4</span>Finish</span>
+    </div>
+    <div class="grow"></div>
+    <div class="meter">Today <span class="track"><span class="fill"></span></span><span class="mono"><span class="money">$2.20</span> of $10</span></div></header>
+  <main class="main"><div class="idea-wrap"><div class="idea-col">
+    <h1>What's the film?</h1>
+    <p class="sub">Who, where, what happens. Then split it into scenes.</p>
+    <div class="prompt">
+      <div class="text"><span class="mention">Alex</span> gets woken at 3am by a pizza he never ordered. He refuses it. The driver eats it on the doorstep, slowly, staring at him.</div>
+      <div class="row"><span class="chip"><span class="k">Shape</span> 16:9 <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span><span class="chip"><span class="k">Length</span> 15s <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></span><div class="grow"></div><span class="btn"><svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14v9H8l-4 3v-3H3z"/></svg>Plan scenes with chat</span></div>
+    </div>
+
+    <div class="budget"><h2>Scenes</h2><span class="mono" style="color:var(--text-2)">23s planned</span><div class="grow"></div><span class="over"><i></i>8s longer than the 15s you set</span><span class="btn quiet">Make it 23s</span></div>
+    <div class="ruler">
+      <div class="lane">
+        <div class="blk" style="flex:11;--g:var(--gel-1)"><span class="hd"><span class="num">1</span><b>Wake up</b></span><span class="what">The doorbell drags him out of bed, down the hall, to the door.</span><div class="bt"><span class="stepper-s"><em><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12"/></svg></em><span>11s</span><em><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></em></span><span class="open">Open <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span></div></div>
+        <div class="blk" style="flex:12;--g:var(--gel-3)"><span class="hd"><span class="num">2</span><b>Your loss</b></span><span class="what">He refuses. The driver sits on the step and eats it, staring.</span><div class="bt"><span class="stepper-s"><em><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12"/></svg></em><span>12s</span><em><svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></em></span><span class="open">Open <svg class="i" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span></div></div>
+        <div class="blk add"><svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Scene</div>
+      </div>
+      <span class="limit" style="left:calc((100% - 126px) * 15 / 23)"><span>15s</span></span>
+    </div>
+    <div class="ticks2"><span>0s</span><span>5s</span><span>10s</span><span>15s</span><span>20s</span><span>23s</span></div>
+
+    <div class="hintline"><span class="tip">Drag a scene to reorder it. Nothing here costs money.</span><div class="grow"></div><span class="btn light">Next: cast <svg class="i" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span></div>
+  </div></div></main>
+</section>
+
+</body>
+</html>

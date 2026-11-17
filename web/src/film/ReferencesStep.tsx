@@ -41,7 +41,7 @@ export function ReferencesStep({ slug }: { slug: string }) {
   return (
     <section className="refs-step" aria-labelledby="refs-h">
       <div className="refs-step__head">
-        <h2 id="refs-h">References</h2>
+        <h2 id="refs-h">Cast &amp; props</h2>
         <p className="refs-step__summary">
           {items.length === 0
             ? "No scene uses a Library item yet. Mention one as @library:name in a scene's cards."
@@ -78,7 +78,7 @@ export function ReferencesStep({ slug }: { slug: string }) {
                   <span aria-hidden="true">✓</span> Sheet
                 </span>
               ) : (
-                <button type="button" className="button" onClick={() => leaveFor(asset ? libraryItemHref(name) : libraryNewHref(name), "References")}>
+                <button type="button" className="button" onClick={() => leaveFor(asset ? libraryItemHref(name) : libraryNewHref(name), "Cast")}>
                   {asset ? "Make its sheet" : `Make @library:${name}`}
                 </button>
               )}

@@ -3,7 +3,6 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ChatDrawer } from "./ChatDrawer";
 import { getChat, openChat, resetChatForTests } from "./chatStore";
-import { Rail } from "../app/Rail";
 import { TakeViewer } from "../studio/TakeViewer";
 import { chatSettings, job, routes } from "../test-fixtures";
 
@@ -38,21 +37,6 @@ describe("ChatDrawer", () => {
     escape();
     expect(getChat().open).toBe(false);
     expect(opener).toHaveFocus();
-  });
-
-  test("restored open after a reload: it does not take focus, and closing focuses the rail's Chat button", async () => {
-    localStorage.setItem("studio.chatOpen", "1");
-    resetChatForTests();
-    render(
-      <>
-        <Rail current="home" />
-        <ChatDrawer film="zed" />
-      </>,
-    );
-    expect(await screen.findByRole("textbox", { name: "Message" })).not.toHaveFocus();
-    escape();
-    expect(getChat().open).toBe(false);
-    expect(screen.getByRole("button", { name: "Chat" })).toHaveFocus();
   });
 
   test("with the take viewer open over it, one Escape closes only the viewer", async () => {

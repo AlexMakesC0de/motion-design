@@ -13,6 +13,17 @@ process.env.KIE_LIBRARY_DIR = join(tmp, "library");
 process.env.KIE_LIMITS_FILE = join(tmp, "limits.json");
 process.env.KIE_API_KEY = "test-key-not-real";
 mkdirSync(RUNS, { recursive: true });
+// The skill library: one fixture skill with a reference file, and a fake home whose
+// .claude exists, so linking is exercised without touching the real ~/.claude/skills.
+process.env.KIE_SKILLS_DIR = join(tmp, "skills");
+process.env.KIE_SKILLS_HOME = join(tmp, "home");
+mkdirSync(join(tmp, "skills", "test-prompter", "references"), { recursive: true });
+mkdirSync(join(tmp, "home", ".claude"), { recursive: true });
+writeFileSync(
+  join(tmp, "skills", "test-prompter", "SKILL.md"),
+  "---\nname: test-prompter\ndescription: \"Write a Seedance prompt from a one-line idea.\"\n---\n\n# Test prompter\n\nRead [the guide](references/guide.md), then write the prompt.\n",
+);
+writeFileSync(join(tmp, "skills", "test-prompter", "references", "guide.md"), "Name the camera move first.\n");
 // Belt and braces: a real key file may exist on this machine, so any code path that
 // slips past the injected deps must fail loudly instead of reaching a provider.
 globalThis.fetch = () => {

@@ -3,6 +3,7 @@ import { MAX_REFS, refLabel } from "../../../cli/director/mentions.mjs";
 import type { AssetSummary, Ref } from "../api/types";
 import { leaveFor } from "../app/back";
 import { libraryItemHref, libraryNewHref } from "../app/route";
+import { Icon } from "../app/icons";
 import { LooseInput } from "./SceneCards";
 import "./scene.css";
 
@@ -38,7 +39,7 @@ function trouble(ref: Ref, library: SceneRefsProps["library"]) {
   return null;
 }
 
-/** The left column, "In this scene": each attached image in order, with its keep line. */
+/** Cast & props: each attached image in order, with its face, its @ name and its keep line. */
 export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoose, onAdd, onUpload }: SceneRefsProps) {
   const id = useId();
   const [busy, setBusy] = useState(false);
@@ -58,7 +59,9 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
 
   return (
     <section className="scene-refs" aria-labelledby={`${id}-head`}>
-      <h2 id={`${id}-head`} className="scene-label">In this scene</h2>
+      <h2 id={`${id}-head`} className="scene-head">
+        Cast &amp; props <span className="scene-head__n">{refs.length} of {MAX_REFS}</span>
+      </h2>
       {refs.length > 0 && (
         <ol className="scene-refs__list" aria-label="In this scene">
           {refs.map((ref, i) => {
@@ -69,7 +72,20 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
             const inherited = item?.keep || item?.description || "";
             return (
               <li key={ref.id} className="scene-ref" data-empty={ref.source ? undefined : "true"}>
-                {thumb ? <img className="scene-ref__thumb" src={thumb} alt="" loading="lazy" /> : <span className="scene-ref__thumb" aria-hidden="true" />}
+                {thumb && item?.kind === "character" ? (
+                  // A character's cover is a front/side/back sheet: show the front view's head and shoulders.
+                  <span className="scene-ref__thumb scene-ref__thumb--sheet">
+                    <img src={thumb} alt="" loading="lazy" />
+                  </span>
+                ) : thumb ? (
+                  <img className="scene-ref__thumb" src={thumb} alt="" loading="lazy" />
+                ) : ref.source ? (
+                  <span className="scene-ref__thumb" aria-hidden="true" />
+                ) : (
+                  <button type="button" className="scene-ref__thumb scene-ref__thumb--empty" aria-label={`Choose a picture for image ${n}`} onClick={() => onChoose(ref.id)}>
+                    <Icon name="plus" size={18} />
+                  </button>
+                )}
                 <div className="scene-ref__text">
                   <span className="scene-ref__tag mono">{ref.source ? `image ${n}` : `image ${n} · empty`}</span>
                   {ref.source && (
@@ -95,24 +111,19 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
                         onValue={(v) => onKeep(ref.id, v)}
                       />
                       {/* The Library's keep, used while the line above is empty: shown whole, as a placeholder would cut it off. */}
-                      {inherited && !ref.keep?.trim() && <span className="scene-ref__inherited">Keeps {inherited}</span>}
+                      {inherited && !ref.keep?.trim() && <span className="scene-ref__inherited" title={`Keeps ${inherited}`}>Keeps {inherited}</span>}
                     </>
                   )}
                 </div>
                 <div className="scene-ref__actions">
-                  {!ref.source && (
-                    <button type="button" className="button" aria-label={`Choose a picture for image ${n}`} onClick={() => onChoose(ref.id)}>
-                      Choose
-                    </button>
-                  )}
-                  <button type="button" className="button button--quiet" aria-label={`Remove image ${n}`} onClick={() => onRemove(ref.id)}>
-                    Remove
+                  <button type="button" className="icon-button" aria-label={`Move image ${n} up`} title="Move earlier" disabled={i === 0} onClick={() => onMove(i, -1)}>
+                    <Icon name="up" size={16} />
                   </button>
-                  <button type="button" className="button button--quiet scene-ref__up" aria-label={`Move image ${n} up`} disabled={i === 0} onClick={() => onMove(i, -1)}>
-                    Up
+                  <button type="button" className="icon-button" aria-label={`Move image ${n} down`} title="Move later" disabled={i === refs.length - 1} onClick={() => onMove(i, 1)}>
+                    <Icon name="down" size={16} />
                   </button>
-                  <button type="button" className="button button--quiet" aria-label={`Move image ${n} down`} disabled={i === refs.length - 1} onClick={() => onMove(i, 1)}>
-                    Down
+                  <button type="button" className="icon-button" aria-label={`Remove image ${n}`} title="Remove" onClick={() => onRemove(ref.id)}>
+                    <Icon name="close" size={16} />
                   </button>
                 </div>
               </li>
@@ -122,14 +133,16 @@ export function SceneRefs({ run, refs, library, onMove, onRemove, onKeep, onChoo
       )}
       <div className="scene-refs__add">
         <button type="button" className="button" disabled={full} onClick={onAdd}>
-          + Add from Library
+          <Icon name="plus" size={16} />
+          Add from Library
         </button>
         <label className="button scene-refs__upload" data-disabled={full || busy ? "true" : undefined}>
+          <Icon name="upload" size={16} />
           {busy ? "Uploading…" : "Upload"}
           <input type="file" accept="image/*" className="sr-only" aria-label="Upload" disabled={full || busy} onChange={(e) => void upload(e.currentTarget)} />
         </label>
       </div>
-      <p className="scene-hint">Type @ in any card. Up to {MAX_REFS} images.</p>
+      <p className="scene-hint">Type @ in any card to put someone or something in the shot.</p>
     </section>
   );
 }

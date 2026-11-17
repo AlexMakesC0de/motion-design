@@ -1,22 +1,13 @@
 import { useState } from "react";
-import type { SyntheticEvent } from "react";
 import { ApiError } from "../api/client";
 import type { Scene, ScenePreview, SceneVersion } from "../api/types";
+import { Icon } from "../app/icons";
 import { usd } from "../studio/format";
 import { useNow } from "../studio/useJobs";
 import "./scene.css";
 
-const FINALS = ["1080p", "720p"] as const;
-type Final = (typeof FINALS)[number];
-
-export interface VersionsProps {
-  scene: Scene;
-  /** The prompt preview for this scene: prices and problems. Null until it arrives. */
-  preview: ScenePreview | null;
-  onDraft(): Promise<{ scene: Scene }>;
-  onFinal(resolution: Final): Promise<{ scene: Scene }>;
-  onChoose(job: string): Promise<unknown>;
-}
+export const FINALS = ["1080p", "720p"] as const;
+export type Final = (typeof FINALS)[number];
 
 const RUNNING = new Set(["reserved", "sending", "submitted"]);
 
@@ -28,6 +19,8 @@ function stateWord(v: SceneVersion) {
   if (v.state) return "failed";
   return "record missing";
 }
+
+const isRunning = (v: SceneVersion) => Boolean(v.state && RUNNING.has(v.state));
 
 /** What a version's frame says when it has nothing to play. */
 const emptyText = (v: SceneVersion) => (v.state === "succeeded" ? "The video file is missing." : `This version is ${stateWord(v)}.`);
@@ -41,36 +34,45 @@ function ago(iso: string, now: number) {
   return new Date(iso).toLocaleDateString();
 }
 
+/** How long a running version has been filming, as m:ss. */
+function elapsed(iso: string, now: number) {
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  return Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : "";
+}
+
 /** "Draft 2", "Final 1": numbered within their kind, in the order they were made. */
-function names(versions: SceneVersion[]) {
+export function versionNames(versions: SceneVersion[]) {
   const count = { draft: 0, final: 0 };
   return versions.map((v) => `${v.kind === "final" ? "Final" : "Draft"} ${(count[v.kind] += 1)}`);
 }
 
-/** One video plays at a time: starting one pauses the others in its list. */
-const pauseOthers = (e: SyntheticEvent<HTMLVideoElement>) => {
-  for (const v of e.currentTarget.closest("ol")?.querySelectorAll("video") ?? []) if (v !== e.currentTarget) v.pause();
-};
-
 const priceText = (p: { usd: number | null } | null | undefined) => (p?.usd != null ? usd(p.usd) : "no price");
+const cost = (v: SceneVersion) => v.actualUsd ?? v.estimateUsd;
 
-/** The right column: every version with its own player and Choose, then New draft and Make final. */
-export function Versions({ scene, preview, onDraft, onFinal, onChoose }: VersionsProps) {
-  const now = useNow(30_000);
+/** The version the player shows: the one picked in the list, else the chosen one, else the newest that has a video. */
+export function shownVersion(scene: Scene, picked: string | null) {
+  const by = (job: string | null) => (job ? scene.versions.find((v) => v.job === job) : undefined);
+  return by(picked) ?? by(scene.chosen) ?? [...scene.versions].reverse().find((v) => v.media) ?? scene.versions.at(-1) ?? null;
+}
+
+/**
+ * The two spending buttons' state: one request at a time, and a code-5 answer
+ * (kie may have the job) holds everything until it is checked.
+ */
+export function useMaking({ preview, onDraft, onFinal, onChoose }: {
+  preview: ScenePreview | null;
+  onDraft(): Promise<{ scene: Scene }>;
+  onFinal(resolution: Final): Promise<{ scene: Scene }>;
+  onChoose(job: string): Promise<unknown>;
+}) {
   const [final, setFinal] = useState<Final>("1080p");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [unsure, setUnsure] = useState<string | null>(null);
 
-  const versions = scene.versions;
-  const labels = names(versions);
-
   const problems = preview?.problems ?? [];
-  const draftPrice = preview?.prices.draft;
-  const finalPrice = preview?.prices[final === "720p" ? "final720" : "final1080"];
   const held = busy || Boolean(unsure) || !preview || problems.length > 0;
 
-  // One request at a time; a code-5 answer means kie may have the job, so nothing more is sent until it is checked.
   const make = async (go: () => Promise<{ scene: Scene }>) => {
     setBusy(true);
     setFailure(null);
@@ -93,72 +95,129 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
     }
   };
 
-  return (
-    <section className="scene-versions" aria-label="Versions and making">
-      {versions.length === 0 ? (
-        <div className="scene-version__frame" style={{ aspectRatio: scene.ratio.replace(":", " / ") }}>
-          <p className="scene-version__empty">No versions yet. A draft is a quick 480p try.</p>
-        </div>
-      ) : (
-        <>
-          <h2 className="scene-label">
-            Versions <span className="mono scene-versions__count">{versions.length}</span>
-          </h2>
-          <ol className="scene-versions__list" aria-label="Versions">
-            {versions
-              .map((v, i) => ({ v, name: labels[i] }))
-              .reverse()
-              .map(({ v, name }) => {
-                const word = stateWord(v);
-                const chosen = scene.chosen === v.job;
-                return (
-                  <li key={v.job} className="scene-version" aria-label={`${name}${chosen ? ", chosen" : ""}`} data-chosen={chosen ? "true" : undefined} data-state={word ? v.state ?? "missing" : undefined}>
-                    <div className="scene-version__frame" style={{ aspectRatio: scene.ratio.replace(":", " / ") }}>
-                      {v.media ? (
-                        <video src={v.media} controls playsInline preload="metadata" onPlay={pauseOthers} aria-label={`${name} of ${scene.title || "this scene"}`} />
-                      ) : (
-                        <p className="scene-version__empty">{emptyText(v)}</p>
-                      )}
-                    </div>
-                    <div className="scene-version__bar">
-                      <span className="scene-version__what">{name}</span>
-                      <span className="mono scene-version__when">
-                        {v.resolution} · {word ?? ago(v.createdAt, now)}
-                      </span>
-                      {chosen ? (
-                        <span className="scene-version__chosen">★ Chosen</span>
-                      ) : (
-                        v.state === "succeeded" && (
-                          <button type="button" className="button scene-version__choose" aria-label={`Choose ${name.toLowerCase()}`} onClick={() => void choose(v.job)}>
-                            Choose
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-          </ol>
-        </>
-      )}
+  return {
+    final, setFinal, problems, failure, unsure, held,
+    draftPrice: preview?.prices.draft,
+    finalPrice: preview?.prices[final === "720p" ? "final720" : "final1080"],
+    draft: () => make(onDraft),
+    makeFinal: () => make(() => onFinal(final)),
+    choose,
+    dismissUnsure: () => setUnsure(null),
+  };
+}
+export type Making = ReturnType<typeof useMaking>;
 
-      <div className="scene-make">
-        <button type="button" className="button scene-make__draft" disabled={held || draftPrice?.usd == null} aria-label={`New draft at 480p, ${priceText(draftPrice)}`} onClick={() => void make(onDraft)}>
-          New draft <span className="mono scene-price">{priceText(draftPrice)}</span>
-        </button>
-        <div className="scene-make__final">
-          <select className="scene-input scene-make__res" aria-label="Final resolution" value={final} onChange={(e) => setFinal(e.target.value as Final)}>
-            {FINALS.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <button type="button" className="generate" disabled={held || finalPrice?.usd == null} aria-label={`Make final at ${final}, ${priceText(finalPrice)}`} onClick={() => void make(() => onFinal(final))}>
-            Make final <span className="mono">{priceText(finalPrice)}</span>
-          </button>
-        </div>
+/** The big player: the shown version, with whether it is the one in the film. */
+export function Player({ scene, version, name, onChoose }: { scene: Scene; version: SceneVersion | null; name: string; onChoose(job: string): void }) {
+  const ratio = scene.ratio.replace(":", " / ");
+  if (!version) {
+    return (
+      <div className="scene-player scene-player--empty" style={{ aspectRatio: ratio }}>
+        <p className="scene-player__empty">No versions yet. A draft is a quick 480p try, so you can see the motion before paying for a final.</p>
       </div>
-      <p className="scene-hint">The final re-runs this prompt at {final}, so the motion will differ from the draft.</p>
+    );
+  }
+  const chosen = scene.chosen === version.job;
+  return (
+    <div className="scene-player" style={{ aspectRatio: ratio }}>
+      {version.media ? (
+        <video key={version.job} src={version.media} controls playsInline preload="metadata" aria-label={`Player: ${name} of ${scene.title || "this scene"}`} />
+      ) : (
+        <p className="scene-player__empty">{emptyText(version)}</p>
+      )}
+      <div className="scene-player__tag">
+        {chosen ? (
+          <>
+            <Icon name="check" size={14} />
+            <span>{name} is in the film</span>
+          </>
+        ) : (
+          <>
+            <span>{name}</span>
+            {version.state === "succeeded" && (
+              <button type="button" className="scene-player__use" onClick={() => onChoose(version.job)}>
+                Use in film
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
+/** Every version, newest first, as a small frame: pick one to watch it, Choose to put it in the film. */
+export function VersionList({ scene, shown, onShow, onChoose }: { scene: Scene; shown: string | null; onShow(job: string): void; onChoose(job: string): void }) {
+  const now = useNow(1000);
+  const labels = versionNames(scene.versions);
+  if (scene.versions.length === 0) return null;
+  return (
+    <section className="scene-versions" aria-label="Versions">
+      <h2 className="scene-head">
+        Versions <span className="scene-head__n">{scene.versions.length}</span>
+      </h2>
+      <ol className="scene-versions__list" aria-label="Versions">
+        {scene.versions
+          .map((v, i) => ({ v, name: labels[i] }))
+          .reverse()
+          .map(({ v, name }) => {
+            const word = stateWord(v);
+            const chosen = scene.chosen === v.job;
+            const price = cost(v);
+            return (
+              <li
+                key={v.job}
+                className="scene-version"
+                aria-label={`${name}${chosen ? ", chosen" : ""}`}
+                data-chosen={chosen ? "true" : undefined}
+                data-shown={shown === v.job ? "true" : undefined}
+                data-state={word ? (v.state ?? "missing") : undefined}
+              >
+                <button type="button" className="scene-version__frame" aria-label={`Watch ${name.toLowerCase()}`} aria-pressed={shown === v.job} onClick={() => onShow(v.job)}>
+                  {v.media ? (
+                    <video src={`${v.media}#t=1`} muted playsInline preload="metadata" tabIndex={-1} aria-label={`${name} of ${scene.title || "this scene"}`} />
+                  ) : isRunning(v) ? (
+                    <span className="scene-version__running">
+                      <span>Filming · {elapsed(v.createdAt, now)}</span>
+                      <span className="scene-version__pulse" aria-hidden="true" />
+                      <span className="sr-only">{emptyText(v)}</span>
+                    </span>
+                  ) : (
+                    <span className="scene-version__empty">{emptyText(v)}</span>
+                  )}
+                  <span className="scene-version__name">
+                    {chosen && <Icon name="check" size={12} />}
+                    {name}
+                  </span>
+                </button>
+                <div className="scene-version__bar">
+                  <span className="mono scene-version__when">
+                    {v.resolution} · {word ?? ago(v.createdAt, now)}
+                  </span>
+                  {price != null && <span className="mono scene-price">{usd(price)}</span>}
+                </div>
+                {chosen ? (
+                  <span className="scene-version__chosen">In the film</span>
+                ) : (
+                  v.state === "succeeded" && (
+                    <button type="button" className="button button--quiet scene-version__choose" aria-label={`Choose ${name.toLowerCase()}`} onClick={() => onChoose(v.job)}>
+                      Choose
+                    </button>
+                  )
+                )}
+              </li>
+            );
+          })}
+      </ol>
+    </section>
+  );
+}
+
+/** What stops making, said above the bar. */
+export function MakeAlerts({ making }: { making: Making }) {
+  const { problems, failure, unsure, dismissUnsure } = making;
+  return (
+    <>
       {problems.length > 0 && (
         <ul className="scene-problems" role="alert" aria-label="Fix before generating">
           {problems.map((p) => (
@@ -174,11 +233,35 @@ export function Versions({ scene, preview, onDraft, onFinal, onChoose }: Version
       {unsure && (
         <div className="scene-failure" role="alert">
           <p>{unsure} Check Spend before trying again.</p>
-          <button type="button" className="button button--quiet" onClick={() => setUnsure(null)}>
+          <button type="button" className="button button--quiet" onClick={dismissUnsure}>
             Dismiss
           </button>
         </div>
       )}
-    </section>
+    </>
+  );
+}
+
+/** The bar along the bottom: New draft, the final's resolution, Make final. Every price is on its button. */
+export function MakeBar({ making }: { making: Making }) {
+  const { final, setFinal, held, draftPrice, finalPrice, draft, makeFinal } = making;
+  return (
+    <div className="scene-make">
+      <p className="scene-make__hint">The final re-runs this prompt at {final}, so the motion will differ from the draft.</p>
+      <button type="button" className="button button--lg scene-make__draft" disabled={held || draftPrice?.usd == null} aria-label={`New draft at 480p, ${priceText(draftPrice)}`} onClick={() => void draft()}>
+        New draft · 480p <span className="mono scene-price">{priceText(draftPrice)}</span>
+      </button>
+      <label className="chip-select scene-make__res">
+        <span className="sr-only">Final resolution</span>
+        <select aria-label="Final resolution" value={final} onChange={(e) => setFinal(e.target.value as Final)}>
+          {FINALS.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+      </label>
+      <button type="button" className="generate scene-make__final" disabled={held || finalPrice?.usd == null} aria-label={`Make final at ${final}, ${priceText(finalPrice)}`} onClick={() => void makeFinal()}>
+        Make final <span className="mono">{priceText(finalPrice)}</span>
+      </button>
+    </div>
   );
 }

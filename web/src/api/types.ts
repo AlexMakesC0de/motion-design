@@ -137,6 +137,23 @@ export interface PresetInfo {
   still: string | null;
 }
 
+export interface SkillInfo {
+  name: string;
+  description: string;
+  path: string;
+  /** Agent hosts (e.g. "Claude Code") where the skill is linked so it runs as /name. */
+  linked: string[];
+}
+
+export interface SkillDetail extends SkillInfo {
+  body: string;
+  files: string[];
+}
+
+export interface SkillAdded extends SkillDetail {
+  links: { host: string; state: "linked" | "ok" | "taken" | "no-host"; path?: string }[];
+}
+
 export interface PresetDetail extends PresetInfo {
   prompt: string | null;
 }

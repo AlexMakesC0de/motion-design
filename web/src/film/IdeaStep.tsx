@@ -5,18 +5,26 @@
 import { useEffect, useState } from "react";
 import { DURATION, RATIOS } from "../../../cli/director/scene-shape.mjs";
 import type { Idea, Scene } from "../api/types";
-import { filmHref, sceneHref } from "../app/route";
-import { sendToChat } from "../chat/chatStore";
+import { Icon } from "../app/icons";
+import { filmHref, sceneHref, STEPS } from "../app/route";
 import { LooseInput } from "../scene/SceneCards";
 import { useScenes } from "../scene/useScenes";
 
 const TARGETS = [8, 10, 15, 20, 30, 45, 60, 90, 120];
-const SECONDS = Array.from({ length: DURATION.max - DURATION.min + 1 }, (_, i) => DURATION.min + i);
+const GELS = ["--gel-1", "--gel-3", "--gel-2", "--gel-4"];
 
 /** The chat's request: the idea in the user's words, and the limits a scene list must keep. */
 export function planRequest(idea: Idea) {
   const aims = [idea.ratio, idea.lengthS ? `about ${idea.lengthS}s in total` : null].filter(Boolean).join(", ");
   return `Plan the scenes for this film and save them with save_idea (titles and lengths, ${DURATION.min} to ${DURATION.max} seconds each)${aims ? `, ${aims}` : ""}: ${idea.text}`;
+}
+
+/** 0s, then every 5s, then the total. */
+function ticks(total: number): number[] {
+  const out = [0];
+  for (let t = 5; t < total - 2; t += 5) out.push(t);
+  if (total > 0) out.push(total);
+  return out;
 }
 
 export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => void }) {
@@ -39,6 +47,9 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
   const changed = !idea || idea.text !== current.text || idea.ratio !== ratio || idea.lengthS !== lengthS;
   const total = scenes.reduce((n, s) => n + s.durationS, 0);
 
+  const over = total - lengthS;
+  const nextLabel = STEPS[STEPS.findIndex((x) => x.id === "idea") + 1]?.label ?? "";
+
   const run = (p: Promise<unknown>) =>
     p.then(() => onChange?.()).catch((e: Error) => setNote(e.message));
 
@@ -50,7 +61,12 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
 
   const plan = () => {
     if (!current.text) return;
-    run((changed ? saveIdea(current) : Promise.resolve()).then(() => sendToChat(planRequest(current))));
+    // No chat in the studio: the request goes to the clipboard, for Claude Code or Codex over MCP (save_idea).
+    run(
+      (changed ? saveIdea(current) : Promise.resolve())
+        .then(() => navigator.clipboard?.writeText(planRequest(current)))
+        .then(() => setNote("Copied. Paste it into Claude Code or Codex with Shard's MCP server connected; the scenes appear here.")),
+    );
   };
 
   const retitle = (s: Scene, title: string) => save({ ...s, title });
@@ -71,14 +87,15 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
 
   return (
     <section className="idea" aria-labelledby="idea-h">
+      <h2 id="idea-h" className="idea__title">What's the film?</h2>
+      <p className="idea__sub">Who, where, what happens. Then split it into scenes.</p>
       <form
-        className="idea__box"
+        className="idea__prompt"
         onSubmit={(e) => {
           e.preventDefault();
           keep();
         }}
       >
-        <h2 id="idea-h" className="idea__title">What are we making?</h2>
         <textarea
           className="idea__text"
           aria-label="What is the film about?"
@@ -91,23 +108,30 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
           }}
         />
         <div className="idea__chips">
-          <select aria-label="Ratio" value={ratio} onChange={(e) => (setRatio(e.target.value), setSaved(false))}>
-            {RATIOS.map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-          <select aria-label="Total length" value={lengthS} onChange={(e) => (setLengthS(Number(e.target.value)), setSaved(false))}>
-            {[...new Set([...TARGETS, lengthS])].sort((a, b) => a - b).map((s) => (
-              <option key={s} value={s}>
-                {s}s
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="button" disabled={!current.text || !changed}>
+          <label className="chip-select">
+            <span>Shape</span>
+            <select aria-label="Ratio" value={ratio} onChange={(e) => (setRatio(e.target.value), setSaved(false))}>
+              {RATIOS.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+          <label className="chip-select">
+            <span>Length</span>
+            <select aria-label="Total length" value={lengthS} onChange={(e) => (setLengthS(Number(e.target.value)), setSaved(false))}>
+              {[...new Set([...TARGETS, lengthS])].sort((a, b) => a - b).map((s) => (
+                <option key={s} value={s}>
+                  {s}s
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="button button--quiet" disabled={!current.text || !changed}>
             {saved && !changed ? "Saved" : "Save idea"}
           </button>
-          <button type="button" className="generate idea__plan" disabled={!current.text} onClick={plan}>
-            Plan scenes with chat
+          <button type="button" className="button idea__plan" disabled={!current.text} onClick={plan}>
+            <Icon name="terminal" size={16} />
+            Copy plan for Claude Code
           </button>
         </div>
       </form>
@@ -118,60 +142,94 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
         </p>
       )}
 
-      <div className="idea__scenes">
-        <div className="idea__scenes-head">
-          <h2 className="idea__subtitle">Scenes</h2>
-          <span className="mono idea__total" data-over={total > lengthS ? "true" : undefined}>
-            {total}s of {lengthS}s
-          </span>
-        </div>
-        {loading ? (
-          <p className="film-step__loading">Loading scenes…</p>
-        ) : scenes.length === 0 ? (
-          <p className="idea__empty">No scenes yet. Plan them with chat, or add one.</p>
-        ) : (
-          <ol className="idea__list" aria-label="Scenes">
-            {scenes.map((s, i) => (
-              <li key={s.id} className="idea__row">
-                <span className="mono idea__n">{i + 1}</span>
-                <LooseInput className="scene-input idea__name" aria-label={`Scene ${i + 1} title`} placeholder="Untitled" value={s.title} onValue={(t) => retitle(s, t)} />
-                {s.cards.stages.length ? (
-                  <span className="mono idea__secs" title="Set by its stages in the Scenes step">
-                    {s.durationS}s
-                  </span>
-                ) : (
-                  <select className="scene-input idea__secs" aria-label={`Scene ${i + 1} length`} value={s.durationS} onChange={(e) => retime(s, Number(e.target.value))}>
-                    {SECONDS.map((n) => (
-                      <option key={n} value={n}>
-                        {n}s
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <a className="button button--quiet" href={sceneHref(slug, s.id)}>
-                  Open
-                </a>
-                <button type="button" className="button button--quiet" aria-label={`Move scene ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)}>
-                  Up
-                </button>
-                <button type="button" className="button button--quiet" aria-label={`Move scene ${i + 1} down`} disabled={i === scenes.length - 1} onClick={() => move(i, 1)}>
-                  Down
-                </button>
-                <button type="button" className="button button--quiet" aria-label={`Delete scene ${i + 1}`} onClick={() => drop(s, i + 1)}>
-                  Delete
+      <div className="idea__budget">
+        <h2 className="idea__subtitle">Scenes</h2>
+        <span className="mono idea__total">{total}s planned</span>
+        {over > 0 && (
+          <>
+            <span className="idea__over">
+              <i aria-hidden="true" />
+              {over}s longer than the {lengthS}s you set
+            </span>
+            {TARGETS.includes(total) && (
+              <button type="button" className="button button--quiet" onClick={() => (setLengthS(total), setSaved(false))}>
+                Make it {total}s
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="film-step__loading">Loading scenes…</p>
+      ) : (
+        <>
+          {scenes.length === 0 && <p className="idea__empty">No scenes yet. Plan them in Claude Code, or add one.</p>}
+          <div className="idea__ruler" style={{ "--n": scenes.length } as React.CSSProperties}>
+            <ol className="idea__lane" aria-label="Scenes">
+              {scenes.map((s, i) => {
+                const staged = s.cards.stages.length > 0;
+                return (
+                  <li key={s.id} className="idea__blk" style={{ flexGrow: s.durationS, "--g": `var(${GELS[i % GELS.length]})` } as React.CSSProperties}>
+                    <div className="idea__hd">
+                      <span className="mono idea__n">{i + 1}</span>
+                      <LooseInput className="idea__name" aria-label={`Scene ${i + 1} title`} placeholder="Untitled" value={s.title} onValue={(t) => retitle(s, t)} />
+                    </div>
+                    <div className="idea__tools">
+                      <button type="button" className="idea__tool" aria-label={`Move scene ${i + 1} earlier`} disabled={i === 0} onClick={() => move(i, -1)}>
+                        <Icon name="up" size={14} />
+                      </button>
+                      <button type="button" className="idea__tool" aria-label={`Move scene ${i + 1} later`} disabled={i === scenes.length - 1} onClick={() => move(i, 1)}>
+                        <Icon name="down" size={14} />
+                      </button>
+                      <button type="button" className="idea__tool" aria-label={`Delete scene ${i + 1}`} onClick={() => drop(s, i + 1)}>
+                        <Icon name="close" size={14} />
+                      </button>
+                    </div>
+                    <div className="idea__bt">
+                      <span className="idea__stepper" title={staged ? "Set by its stages in the Scenes step" : undefined}>
+                        <button type="button" aria-label={`Shorter scene ${i + 1}`} disabled={staged || s.durationS <= DURATION.min} onClick={() => retime(s, s.durationS - 1)}>
+                          <Icon name="minus" size={14} />
+                        </button>
+                        <span className="mono" aria-label={`Scene ${i + 1} length`}>{s.durationS}s</span>
+                        <button type="button" aria-label={`Longer scene ${i + 1}`} disabled={staged || s.durationS >= DURATION.max} onClick={() => retime(s, s.durationS + 1)}>
+                          <Icon name="plus" size={14} />
+                        </button>
+                      </span>
+                      <a className="idea__open" href={sceneHref(slug, s.id)} aria-label={`Open scene ${i + 1}`}>
+                        Open <Icon name="arrow" size={14} />
+                      </a>
+                    </div>
+                  </li>
+                );
+              })}
+              <li className="idea__addcell">
+                <button type="button" className="idea__add" onClick={add}>
+                  <Icon name="plus" size={16} />
+                  Scene
                 </button>
               </li>
+            </ol>
+            {over > 0 && total > 0 && (
+              <span className="idea__limit" aria-hidden="true" style={{ left: `calc((100% - 120px - var(--n) * 8px) * ${lengthS / total})` }}>
+                <span>{lengthS}s</span>
+              </span>
+            )}
+          </div>
+          <div className="idea__ticks mono" aria-hidden="true">
+            {ticks(total).map((t) => (
+              <span key={t}>{t}s</span>
             ))}
-          </ol>
-        )}
-        <div className="idea__foot">
-          <button type="button" className="button" onClick={add}>
-            + Add a scene
-          </button>
-          <a className="idea__next" href={filmHref(slug, "references")}>
-            Next: References →
-          </a>
-        </div>
+          </div>
+        </>
+      )}
+
+      <div className="idea__foot">
+        <span className="idea__tip">Nothing here costs money.</span>
+        <a className="button button--light button--lg idea__next" href={filmHref(slug, "references")}>
+          Next: {nextLabel}
+          <Icon name="arrow" size={16} />
+        </a>
       </div>
     </section>
   );

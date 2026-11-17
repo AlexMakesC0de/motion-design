@@ -1,6 +1,6 @@
 // web/src/app/route.test.ts
 import { describe, test, expect } from "vitest";
-import { parseRoute, RAIL, railItemFor } from "./route";
+import { parseRoute, NAV, navItemFor } from "./route";
 
 describe("parseRoute", () => {
   test("empty, slash and unknown hashes go Home", () => {
@@ -14,7 +14,7 @@ describe("parseRoute", () => {
     }
   });
   test("each rail screen by name", () => {
-    for (const s of ["projects", "create", "library", "presets", "spend", "settings"] as const) {
+    for (const s of ["projects", "image", "library", "presets", "skills", "spend", "settings"] as const) {
       expect(parseRoute(`#/${s}`)).toEqual({ screen: s });
     }
   });
@@ -39,18 +39,28 @@ describe("parseRoute", () => {
     expect(parseRoute("#/library/new")).toEqual({ screen: "library" });
   });
   test("old hashes redirect", () => {
-    expect(parseRoute("#/studio")).toEqual({ redirect: "#/create" });
+    expect(parseRoute("#/studio")).toEqual({ redirect: "#/video" });
+    expect(parseRoute("#/create")).toEqual({ redirect: "#/video" });
     expect(parseRoute("#/films")).toEqual({ redirect: "#/projects" });
   });
 });
 
-describe("RAIL", () => {
-  test("top and bottom groups in order", () => {
-    expect(RAIL.top.map((r) => r.id)).toEqual(["home", "projects", "create", "library", "presets"]);
-    expect(RAIL.bottom.map((r) => r.id)).toEqual(["spend", "settings"]);
+describe("video and mcp", () => {
+  test("Video opens on Create video or the scene editor; MCP on a host's tab", () => {
+    expect(parseRoute("#/video")).toEqual({ screen: "video" });
+    expect(parseRoute("#/video/scenes")).toEqual({ screen: "video", tab: "scenes" });
+    expect(parseRoute("#/mcp")).toEqual({ screen: "mcp" });
+    expect(parseRoute("#/mcp/codex")).toEqual({ screen: "mcp", host: "codex" });
   });
-  test("a film lights Projects", () => {
-    expect(railItemFor({ screen: "film", slug: "x", step: null })).toBe("projects");
-    expect(railItemFor({ screen: "library" })).toBe("library");
+});
+
+describe("NAV", () => {
+  test("the making pages, then the studio's places, in order", () => {
+    expect(NAV.main.map((r) => r.id)).toEqual(["home", "image", "video", "mcp"]);
+    expect(NAV.studio.map((r) => r.id)).toEqual(["projects", "library", "presets", "skills"]);
+  });
+  test("a film lights Films", () => {
+    expect(navItemFor({ screen: "film", slug: "x", step: null })).toBe("projects");
+    expect(navItemFor({ screen: "library" })).toBe("library");
   });
 });

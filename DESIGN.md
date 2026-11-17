@@ -16,6 +16,11 @@ colors:
   bad: "#e2725b"
   bad-surface: "#2b1a14"
   bad-ink: "#f3c8b8"
+  gel-1: "#9d8cff"
+  gel-2: "#56c2f0"
+  gel-3: "#f27ab0"
+  gel-4: "#d9c79a"
+  gel-ink: "#141210"
 typography:
   display:
     fontFamily: "IBM Plex Sans, system-ui, sans-serif"
@@ -139,7 +144,7 @@ components:
 
 Shard is a warm near-black room where the footage is the brightest thing on screen. Every surface steps up from the floor (`bg`) by a few points of warm lightness, so chrome recedes and takes, stills and the preview player carry the light. Nothing in the chrome glows, floats or blurs; depth comes from tone and a single hairline.
 
-The machinery stays visible. Each take carries its real model id, duration, resolution and cost under the frame; the viewer lists cost, route, ratio, state and job id in a mono spec list; the chat rail prints every tool step with its arguments and result. This is a tool to Operate: one person, one machine, short AI films. It is familiar and dense where the work is (feed, jobs table, finish tools) and quiet everywhere else.
+The machinery stays visible. Each take carries its real model id, duration, resolution and cost under the frame; the viewer lists cost, route, ratio, state and job id in a mono spec list. Agents work the studio from outside it, through the MCP server; the MCP page shows how to connect each host. This is a tool to Operate: one person, one machine, short AI films. It is familiar and dense where the work is (feed, jobs table, finish tools) and quiet everywhere else.
 
 One neon green voice marks money and the one act that spends it. Everything else is warm neutral, with orange and coral kept for state. Done is a check mark in `text` colour, not a green.
 
@@ -155,7 +160,7 @@ The prompt bar and feed draw on Higgsfield, Artlist, Krea, Leonardo, Magnific an
 
 ## Colors
 
-A warm brown-black neutral ramp with one neon green accent and two state hues tuned to read apart from it.
+A neutral grey-black ramp (`bg` #0b0b0c, surfaces #141416, #1c1d1f, #26272a) with one neon green accent and two state hues tuned to read apart from it.
 
 ### Primary
 - **Neon Green** (`accent`, `#84f80a`): the Generate button (with its price inside), the spend meter fill in the top bar and on the Spend page, the 14-day spend bars, and every cost figure (take tiles, viewer, shot rows, jobs table, asset panel). `accent-ink` is the near-black text set on a green fill.
@@ -175,8 +180,15 @@ A warm brown-black neutral ramp with one neon green accent and two state hues tu
 - **Coral** (`bad`): failed take frame border, meter over the cap. `bad-surface` and `bad-ink` pair for error banners and failure messages; long error text uses `bad-ink`, not `bad`.
 - **Done** (`ok`, which is `text`): done tool steps, a configured provider key, passing doctor checks. A check mark in `text` colour, never a green that could read as the accent.
 
+### Stage gels
+Four soft hues, like lighting gels, that tell the parts of a scene apart: violet (`gel-1`), sky (`gel-2`), pink (`gel-3`) and sand (`gel-4`), in that order and repeating.
+- Solid on the stage timeline under the player, with `gel-ink` text; the open stage gets a 2px `text` ring.
+- As a 10px swatch beside the open stage's name in the notes, and as thin bars under each scene in the scene strip.
+- Tinted on the film's Idea step: each scene block is its gel at 16% over `surface-1`, with a 1px border at 45%.
+- Never for money, state, links or decoration. Never as a thick border stripe on a card.
+
 ### Named Rules
-**The One Green Rule.** Neon green appears only on Generate, the spend meter, costs and linked mentions in a prompt (`@image2` with a picture, `@library:name` with a sheet). A missing mention is `bad` red with a wavy underline. Never on decoration, never on an inactive or hover state, never on headings or links. If a screen has no money on it (Settings, chat), it has no green.
+**The One Green Rule.** Neon green appears only on Generate, the spend meter, costs, linked mentions in a prompt (`@image2` with a picture, `@library:name` with a sheet), the current page's name in the top bar, and the highlighted words of a making page's display heading (Image, Video, MCP). A missing mention is `bad` red with a wavy underline. Never on decoration, never on an inactive or hover state, never on other headings or links. If a screen has no money on it and is not a making page (Settings, Library), its only green is its name in the top bar.
 
 **The Footage Is Brightest Rule.** No chrome surface goes above `surface-3`. Light belongs to the media.
 
@@ -194,13 +206,16 @@ Current build exception, not a pattern: the global focus ring (2px outline) and 
 **Type.** Nothing is set under 12px. There are three text steps: `text` is what you read and edit, `text-2` supports it, and `text-3` is labels, hints and times. See the [Shard spec](docs/superpowers/specs/2026-11-01-shard-scenes-design.md#look).
 
 ### Hierarchy
-- **Display** (600, 22px): page and scene titles (Library, Films, Spend, Presets, Settings) and film names.
+- **Question** (600, 40px, -0.02em): Home's "What are we making?" only.
+- **Step question** (600, 30px): a film step's opening question ("What's the film?").
+- **Scene title** (600, 24px, -0.01em): the open scene in the editor.
+- **Display** (600, 22px): page titles (Library, Films, Spend, Presets, Settings) and film names.
 - **Title Card** (600, 15px): card headings.
 - **Title** (500, 16px): panel titles (Finish panel, asset panel).
 - **Title Small** (600, 14px): chat title, Settings section titles, preset names. The viewer title is 500 at 14px in Mono.
 - **Body** (400, 14px, 1.45): default text, nav links, buttons, form controls, Generate.
 - **Prompt** (400, 16px, 1.6): prompt text and anything read at length.
-- **Body Small** (400, 13px): fine print: hints, times, kinds, chat rail, notes, jobs table.
+- **Body Small** (400, 13px): fine print: hints, times, kinds, notes, jobs table.
 - **Label** (600, 12px, 0.07em, uppercase, `text-3`): the heading of a section inside a card or page region (Today, Last 14 days, Jobs, Shots, Outputs, finishing tools, asset panel parts). It is the section's only heading, never a line set above another heading.
 - **Data** (Mono 400, 13px, tabular): model ids, durations, resolutions, prices, job ids, routes, file and asset names, tool steps, axis labels.
 
@@ -215,7 +230,7 @@ Current build exception, not a pattern: the global focus ring (2px outline) and 
 
 The app is a full-height column: a top bar (brand, tabs, spend meter pushed right) on `surface-1` with a hairline under it, then a scrolling main area padded 32px top and 16px sides. Spacing runs on a 4px base (4, 8, 12, 16, 24, 32); 16px is the default gap between cards and tiles, 8px inside groups, 24px between page regions.
 
-The Studio does not scroll as a page. It is a grid of the feed (which scrolls itself), the prompt bar pinned at the bottom of that column, and a 340px chat rail on the right behind a hairline. The feed is a justified-row layout: each take starts as wide as its ratio makes a 200px-tall frame, rows grow to fill, and a tile is capped at 1.5 times its natural width so a short last row never stretches.
+Image and Video do not scroll as pages. Video is a 400px control panel on the left (look card, references, prompt, model, duration and ratio, quality, then a full-width Generate) beside a rounded area with History and How it works. Image is a centred hero, or the takes once there are some, over a floating prompt dock with chips and a tall Generate block. The feed is a justified-row layout: each take starts as wide as its ratio makes a 200px-tall frame, rows grow to fill, and a tile is capped at 1.5 times its natural width so a short last row never stretches.
 
 Other pages use auto-fill grids: film cards at 240px minimum, presets and outputs at 260px, assets at 180px. Detail panels (asset panel 340px, finish panel 380px) sit beside the main column.
 
@@ -241,6 +256,7 @@ Quiet, small and textual; one filled primary per screen.
 - **Shape:** gently rounded (6px), 1px hairline.
 - **Default:** `surface-2` fill, `text`, 13px, padding 6px by 12px. Hover steps to `surface-3`. Disabled drops text to `text-3`.
 - **Quiet:** no fill, no visible border, `text-2`; hover to `text`. Used for secondary actions such as Hide chat, Close, Up and Down, Check again.
+- **Next step (light):** cream `text` fill with `bg` text, 600 weight. The one main act on a screen that spends nothing: Plan my film, Next: Cast. Never on a screen that already has a Generate button in view.
 - **Generate (primary):** neon green fill, `accent-ink` text, 600 weight, 14px, 10px radius, padding 8px by 16px, with the estimated price in Mono inside the label. Hover brightens by 8% (`filter: brightness(1.08)`). Disabled goes to `surface-3` with `text-3`, so green never sits on an inactive control.
 - **Inline link buttons:** underlined `text`, no chrome (Check again in a tile, choose files, Use the last prompt).
 
@@ -262,7 +278,14 @@ Quiet, small and textual; one filled primary per screen.
 - **Error / Disabled:** errors appear as `bad-ink` text or a `bad-surface` block below the field; disabled controls drop to `text-3`.
 
 ### Navigation
-Text tabs in the top bar: 14px, `text-2`, 6px radius, padding 6px by 12px. Hover fills `surface-2`; the current page fills `surface-3` in `text` at 500 weight. Under 760px the tabs move to their own horizontally scrolling row. The spend meter sits at the far right: `Today $x / $cap` in Mono beside an 80px green bar (48px on narrow windows) that turns `warn` when high and `bad` when over.
+One bar across the top, 52px, on `bg`: the logo, then the making pages **Explore, Image, Video, MCP**, a 16px hairline divider, then the studio's places **Films, Library, Looks, Skills** (Skills carries a small "New" badge). Links are 15px, 500 weight, `text-3` (studio places `text-2`); hover turns them `text`; the current page is neon green. On the right: a running-jobs pill when any are running, the spend meter (a link to Spend) and a 36px Settings icon button. There is no side rail and no chat drawer.
+
+Image, Video and MCP open a menu the moment the pointer reaches them (focus or ArrowDown opens it too; Escape, leaving or a pick closes it, with a 120ms grace so the pointer can cross to the panel). The menu is a `surface-2` panel, 22px radius, 20px padding, a deep shadow, fixed under its link. Image and Video have two columns, **Features** and **Models**; MCP has one, "Generate with Shard in" and the hosts. Each row is a 48px `surface-3` icon tile with a 12px radius, a 15px title and a 14px `text-3` line; a Top or New badge sits tilted across the tile's top edge. Picking a model sets it in the draft and opens that page. Model names and lines come from `web/src/app/modelMeta.ts`.
+
+A film's steps are Idea, Cast, Scenes and Finish (the route ids stay `projects`, `presets` and `references`). Inside a film the bar also shows `Films / <slug>`. The spend meter reads `Today $x / $cap` in Mono beside an 80px green bar (40px on narrow windows) that turns `warn` when high and `bad` when over. Under 760px the links scroll sideways and menus collapse to one column.
+
+### Scene editor (signature)
+Three columns. Left, the film's scenes as frames with their length and stage bars. Centre, the stage: title with Shape and Length chips, the big player (the chosen version, or the one picked below), the gel timeline of stages, then the versions as small frames with their cost; New draft, the final's resolution and Make final sit in a bar pinned under the stage, so the price is always in view. Right, the director's notes on `surface-1`: Cast & props (faces, `image n` and the `@` name, the keep line), Goal, the open stage, then Scene, Style and Audio only when they have words or are added with their + chips, and the chat starters last. Under 1240px the notes move under the stage; under 800px everything stacks and the bar sticks to the bottom.
 
 ### Take Tile (signature)
 A frame at the take's real aspect ratio (10px radius, hairline, `surface-1`, zoom-in cursor), with the spec line under it in Mono 13px: model, duration, resolution, then the cost in green, a `~` prefix marking an estimate. Running takes show a slow warm shimmer between `surface-2` and `surface-3` (1.6s, linear); failed takes get a `bad` border and `bad-surface` fill; uncertain takes get a dashed `warn` border.
@@ -293,8 +316,8 @@ Fourteen day columns on hairline gridlines with Mono axis labels in `text-3`; ba
 - **Don't** use gradient text.
 - **Don't** use glass or backdrop blur.
 - **Don't** add decorative shadows; depth is tonal.
-- **Don't** introduce a display face or type above the 22px display size.
-- **Don't** let icon glyphs (×, ✓, ✕, arrows) stand in for icons.
+- **Don't** introduce a display face, or type larger than the three big sizes above (40, 30 and 24px), each kept to its one place.
+- **Don't** let icon glyphs (×, ✓, ✕, ★, ✦, arrows) or emoji stand in for icons. Icons are the 20px line set in `web/src/app/icons.tsx`, 1.5 stroke, `currentColor`.
 - **Don't** set text below 12px.
 - **Don't** hide the engine: model, route and cost must stay visible.
 - **Don't** set an uppercase label above another heading; the label style is only ever a section's own heading.

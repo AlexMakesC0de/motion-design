@@ -14,9 +14,9 @@ import { basename, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { serverCommand, applyClaude, applyCodex, claudeConfigs } from "./mcp/register.mjs";
+import { listSkills } from "./cli/core/skills.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const SKILL_SRC = join(ROOT, "skills", "motion-design");
 const CLI_SRC = join(ROOT, "cli", "kie.mjs");
 
 const argv = new Set(process.argv.slice(2));
@@ -69,7 +69,7 @@ function linkInto(dir, name, target, hostName) {
 
 log(`${UNINSTALL ? "Uninstalling" : "Installing"} motion-design${DRY ? " (dry run)" : ""}\n`);
 
-log("skill");
+log("skills");
 let installedAny = false;
 for (const host of HOSTS) {
   const parent = dirname(host.dir);
@@ -83,7 +83,8 @@ for (const host of HOSTS) {
     log(`  skip     ${host.name}: ${parent} not found (host not installed)`);
     continue;
   }
-  linkInto(host.dir, "motion-design", SKILL_SRC, host.name);
+  // Every skill in the library, so each runs as /<name>.
+  for (const skill of listSkills()) linkInto(host.dir, skill.name, skill.path, `${host.name} /${skill.name}`);
   installedAny = true;
 }
 

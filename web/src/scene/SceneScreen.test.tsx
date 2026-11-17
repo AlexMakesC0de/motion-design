@@ -90,7 +90,7 @@ describe("SceneScreen", () => {
     expect(screen.getByRole("textbox", { name: "Stage 1 camera" })).toHaveValue("behind him");
     expect(screen.getByRole("textbox", { name: "Audio" })).toHaveValue("<roaring wind>");
     expect(marks("missing")).toEqual(["@image1", "@image2", "@library:sky-over-alps"]);
-    expect(screen.getByText("0–4s Exit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "0–4s Exit" })).toBeInTheDocument();
   });
 
   test("pasting a whole prompt over written cards asks first", async () => {
@@ -211,23 +211,24 @@ describe("SceneScreen", () => {
     // Newest first, each with its own video.
     const items = within(list).getAllByRole("listitem");
     expect(items.map((li) => li.getAttribute("aria-label"))).toEqual(["Draft 2", "Draft 1, chosen"]);
-    expect(within(items[0]).getByLabelText("Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4");
-    expect(within(items[1]).getByLabelText("Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4");
-    expect(within(items[1]).getByText("★ Chosen")).toBeInTheDocument();
+    expect(within(items[0]).getByLabelText("Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4#t=1");
+    expect(within(items[1]).getByLabelText("Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4#t=1");
+    expect(within(items[1]).getByText("In the film")).toBeInTheDocument();
     fireEvent.click(within(items[0]).getByRole("button", { name: "Choose draft 2" }));
     await waitFor(() => expect(JSON.parse(String(calls(fetchMock, `${BASE}/s1/choose`)[0]?.[1]?.body))).toEqual({ job: "j-2" }));
     expect(await within(list).findByRole("listitem", { name: "Draft 2, chosen" })).toBeInTheDocument();
   });
 
-  test("playing one version pauses the others", async () => {
-    stub({ scenes: [scene({ versions: [version({ job: "j-1" }), version({ job: "j-2", media: "/media/runs/create/two.mp4" })] })] });
+  test("the player shows the chosen version, and clicking another version plays that one instead", async () => {
+    const one = version({ job: "j-1", media: "/media/runs/create/one.mp4" });
+    const two = version({ job: "j-2", media: "/media/runs/create/two.mp4" });
+    stub({ scenes: [scene({ versions: [one, two], chosen: "j-1" })] });
     render(<SceneScreen run="create" />);
-    const first = await screen.findByLabelText("Draft 1 of Freefall");
-    const second = screen.getByLabelText("Draft 2 of Freefall");
-    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function (this: HTMLMediaElement) {});
-    fireEvent.play(second);
-    expect(pause.mock.contexts).toEqual([first]);
-    pause.mockRestore();
+    expect(await screen.findByLabelText("Player: Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4");
+    expect(screen.getByText("Draft 1 is in the film")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Watch draft 2" }));
+    expect(screen.getByLabelText("Player: Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4");
+    expect(screen.getByRole("button", { name: "Use in film" })).toBeInTheDocument();
   });
 
   test("versions whose videos are gone say so instead of 'No versions yet'", async () => {
@@ -339,14 +340,14 @@ describe("SceneScreen", () => {
     render(<SceneScreen run="create" />);
     await screen.findByRole("textbox", { name: "Goal" });
     expect(screen.getByText("whole scene")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "+ Add stage" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add stage" }));
     expect(screen.getByRole("spinbutton", { name: "Stage 1 seconds" })).toHaveValue(8);
     fireEvent.change(screen.getByRole("textbox", { name: "Stage 1 title" }), { target: { value: "Exit" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Stage 1 seconds" }), { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: "+ Add stage" }));
-    expect(screen.getByText("0–4s Exit")).toBeInTheDocument();
-    expect(screen.getByText("4–8s Stage 2")).toBeInTheDocument();
-    expect(screen.getByText("8s · 9:16 · Seedance 2.5")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add stage" }));
+    expect(screen.getByRole("button", { name: "0–4s Exit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "4–8s Stage 2" })).toBeInTheDocument();
+    expect(screen.getByTitle("The stages set the length")).toHaveTextContent("8s");
     expect(screen.queryByRole("combobox", { name: "Length" })).toBeNull();
   });
 
@@ -396,7 +397,7 @@ describe("SceneScreen", () => {
     const fetchMock = vi.fn(routes({ "/api/films/boat/scenes": () => ({ idea: null, scenes: [] }), "/api/library": () => [] }));
     vi.stubGlobal("fetch", fetchMock);
     render(<SceneScreen run="boat" autoFirst={false} />);
-    expect(await screen.findByRole("button", { name: "+ New scene" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "New scene" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some((c) => c[1]?.method === "POST")).toBe(false);
   });
 
@@ -422,17 +423,9 @@ describe("SceneScreen", () => {
     window.location.hash = "";
   });
 
-  test("in a film, Ask chat starters hand the chat a request about this scene; Create has none", async () => {
-    resetChatForTests();
-    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/boat/scenes": () => ({ idea: null, scenes: [scene({ id: "s1" }), scene({ id: "s2", title: "Landing" })] }), "/api/library": () => [] })));
-    const { unmount } = render(<SceneScreen run="boat" initialId="s2" autoFirst={false} />);
-    expect(await screen.findByRole("tab", { name: "2 Landing" })).toHaveAttribute("aria-selected", "true");
-    fireEvent.click(within(screen.getByRole("group", { name: "Ask chat" })).getByRole("button", { name: "Make stage 2 slower" }));
-    expect(getChat()).toMatchObject({ open: true, outbox: { text: "Make stage 2 slower (scene 2, id s2)" } });
-    unmount();
-    resetChatForTests();
-    stub({ scenes: [scene()] });
-    render(<SceneScreen run="create" saveInto />);
+  test("no chat starters: the studio has no chat", async () => {
+    vi.stubGlobal("fetch", vi.fn(routes({ "/api/films/boat/scenes": () => ({ idea: null, scenes: [scene({ id: "s1" })] }), "/api/library": () => [] })));
+    render(<SceneScreen run="boat" initialId="s1" autoFirst={false} />);
     await screen.findByRole("textbox", { name: "Goal" });
     expect(screen.queryByRole("group", { name: "Ask chat" })).toBeNull();
   });

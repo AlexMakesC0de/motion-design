@@ -1,10 +1,7 @@
-/* Create: the takes feed, with the prompt bar at the bottom. The chat is the drawer (chat/chat.css).
+/* The making pages' shared parts: the film picker, the takes feed, the take viewer, and the prompt controls both
+   Image and Video build from (controls.tsx). Page layouts are in image.css and video.css.
    Tokens only (theme/tokens.css). Green is for Generate and costs, nothing else. */
-
-.studio { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); height: 100%; }
-.studio__main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-3); min-height: 0; }
-
-.studio__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); flex-wrap: wrap; }
+@import "@fontsource/ibm-plex-sans/700.css";
 
 /* Working in */
 .film-picker { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--text-sm); }
@@ -59,48 +56,6 @@
 .take__status--failed { color: var(--bad-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .take__charged { font-weight: 500; white-space: nowrap; }
 
-/* Prompt bar */
-.prompt-bar {
-  display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-1);
-}
-.prompt-bar__note { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
-.prompt-bar__text {
-  width: 100%; resize: vertical; min-height: 64px; max-height: 40vh;
-  background: transparent; color: var(--text); border: 0; font: inherit; font-size: var(--text-md); line-height: 1.5;
-}
-.prompt-bar__text:focus-visible { outline: none; }
-.prompt-bar:focus-within { border-color: var(--surface-3); }
-.prompt-bar__row { display: flex; align-items: flex-end; gap: var(--space-3); }
-.prompt-bar__chips { display: flex; flex-wrap: wrap; gap: var(--space-2); flex: 1; min-width: 0; }
-/* Why Generate is off sits right above it, where the eye already is. */
-.prompt-bar__go { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
-.prompt-bar__reason {
-  margin: 0; max-width: 44ch; font-size: var(--text-sm); color: var(--warn); text-align: right;
-  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-1) var(--space-2);
-}
-.prompt-bar__lift { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; cursor: pointer; font-size: var(--text-sm); }
-.prompt-bar__failure { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bad-surface); color: var(--bad-ink); font-size: var(--text-sm); white-space: pre-line; }
-.prompt-bar__unsure { display: flex; align-items: flex-start; gap: var(--space-3); }
-.prompt-bar__unsure p { margin: 0; flex: 1; }
-
-.chip {
-  display: inline-flex; align-items: center; gap: var(--space-1);
-  padding: 3px var(--space-2); border: 1px solid var(--line); border-radius: 999px;
-  background: var(--surface-2); color: var(--text); font-size: var(--text-xs);
-}
-.chip__label { color: var(--text-3); }
-.chip__select { background: transparent; color: var(--text); border: 0; font-size: var(--text-xs); padding: 0; cursor: pointer; }
-.chip__select option { background: var(--surface-2); }
-.chip--add { cursor: pointer; color: var(--text-2); }
-.chip--add:hover:not(:disabled) { color: var(--text); background: var(--surface-3); }
-.chip--add:disabled { color: var(--text-3); cursor: not-allowed; }
-.chip--quiet { background: transparent; border-color: transparent; color: var(--text-2); cursor: pointer; }
-.chip--ref { padding-right: var(--space-1); }
-.chip__remove { border: 0; background: none; color: var(--text-2); cursor: pointer; padding: 0 var(--space-1); font-size: var(--text-sm); line-height: 1; }
-.chip__remove:hover { color: var(--text); }
-.ref-picker { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2); border: 1px solid var(--surface-3); border-radius: 999px; }
-
 /* Take viewer */
 .viewer {
   position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: var(--space-5);
@@ -130,21 +85,99 @@
 .viewer__hint, .viewer__note { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
 .viewer__note { color: var(--text); white-space: pre-line; }
 
-/* Narrow windows: the prompt bar and the viewer stack. */
+/* Narrow windows: the viewer stacks. */
 @media (max-width: 760px) {
   .feed__grid { --row-h: 140px; }
-  .prompt-bar__row { flex-direction: column; align-items: stretch; }
-  .prompt-bar__go { margin-left: 0; align-items: stretch; }
-  .prompt-bar__reason { max-width: none; text-align: left; justify-content: flex-start; }
-  .generate { justify-content: center; }
   .viewer { padding: var(--space-2); }
   .viewer__panel { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
 }
 
-/* Create's two tabs: Scene and Quick take. */
-.create { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--space-3); height: 100%; min-height: 0; }
-.create__tabs { display: flex; gap: var(--space-1); }
-.create__tab { padding: 6px var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-2); font: 400 var(--text-md) var(--font-sans); cursor: pointer; }
-.create__tab:hover { background: var(--surface-2); color: var(--text); }
-.create__tab[aria-selected="true"] { background: var(--surface-3); color: var(--text); font-weight: 500; }
-.create__panel { min-height: 0; }
+/* The big display headings on Image and Video: heavy, tight, set in capitals. */
+.display { margin: 0; font-weight: 800; letter-spacing: -0.035em; line-height: 0.98; text-transform: uppercase; }
+
+/* Settings cards (Video's panel): the label above the value, a chevron on the right, a native select laid over it. */
+.field-card {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; column-gap: var(--space-2); row-gap: 2px;
+  width: 100%; min-height: 60px; padding: 9px 14px; border: 0; border-radius: var(--radius-lg); background: var(--surface-2);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast) var(--ease-out);
+}
+.field-card:hover { background: var(--surface-3); }
+.field-card:focus-within, .field-card:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--text-3); }
+.field-card__label { grid-column: 1; grid-row: 1; color: var(--text-3); font-size: var(--text-sm); }
+.field-card__value { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-lg); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.field-card__chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; display: flex; color: var(--text-3); transform: rotate(-90deg); }
+.field-card__select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--text-lg); }
+
+/* Video's model card and its list. */
+.model-card { position: relative; }
+.model-card .field-card[aria-expanded="true"] { background: var(--surface-3); }
+.model-badge {
+  padding: 0 5px; border-radius: 5px; background: var(--text); color: var(--bg);
+  font-size: var(--text-xs); font-weight: 700; font-style: italic; line-height: 17px; text-transform: uppercase;
+}
+.model-menu {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; right: 0; max-height: 380px; overflow-y: auto;
+  margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-1);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.5);
+}
+.model-menu:focus-visible { outline: none; }
+.model-menu__item { display: flex; align-items: center; gap: var(--space-3); padding: 8px; border-radius: var(--radius-md); cursor: pointer; }
+.model-menu__item[data-active] { background: var(--surface-3); }
+.model-menu__tile { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--surface-2); color: var(--text); }
+.model-menu__tile[data-badge] { box-shadow: inset 0 0 0 1px var(--text-3); }
+.model-menu__badge {
+  position: absolute; top: -7px; left: 50%; transform: translateX(-50%) rotate(-4deg);
+  padding: 0 4px; border-radius: 5px; background: var(--text); color: var(--bg);
+  font-size: var(--text-xs); font-weight: 700; font-style: italic; line-height: 15px; text-transform: uppercase; white-space: nowrap;
+}
+.model-menu__words { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.model-menu__name { font-size: var(--text-title); font-weight: 500; }
+.model-menu__blurb { color: var(--text-3); font-size: var(--text-sm); }
+.model-menu__check { display: flex; color: var(--accent); }
+
+/* Settings chips (Image's dock): an icon and the value, a native select laid over it. */
+.dock-chip {
+  position: relative; display: inline-flex; align-items: center; gap: var(--space-2); height: 38px; padding: 0 14px;
+  border: 0; border-radius: var(--radius-md); background: var(--surface-3); color: var(--text);
+  font: inherit; font-size: var(--text-md); font-weight: 500; white-space: nowrap; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.dock-chip:hover:not(:disabled) { background: #303135; }
+.dock-chip:focus-within, .dock-chip:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--text-3); }
+.dock-chip:disabled { color: var(--text-3); cursor: not-allowed; }
+.dock-chip .icon { color: var(--text-2); }
+.dock-chip--icon { width: 38px; padding: 0; justify-content: center; }
+.dock-chip--icon .icon { color: var(--text); }
+.dock-chip__chevron { display: flex; color: var(--text-3); transform: rotate(-90deg); }
+.dock-chip__select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--text-lg); }
+.ratio-glyph { display: inline-block; width: 11px; height: 14px; border: 1.5px solid var(--text-2); border-radius: 3px; }
+
+/* Adding a reference: which Library item, and the role the model takes it as. */
+.ref-picker { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.ref-picker__select {
+  min-width: 0; max-width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface-1); color: var(--text); font-size: var(--text-sm);
+}
+.ref-picker__select option { background: var(--surface-2); }
+.ref-picker__add { padding: 7px 14px; border: 0; border-radius: var(--radius-sm); background: var(--text); color: var(--bg); font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.ref-picker__add:disabled { background: var(--surface-3); color: var(--text-3); cursor: not-allowed; }
+.ref-picker__quiet { padding: 7px 8px; border: 0; background: none; color: var(--text-2); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.ref-picker__quiet:hover { color: var(--text); }
+.ref-picker__empty { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.ref-picker__empty a { color: var(--text); }
+
+.ref-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ref-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 3px 3px 3px; border-radius: 999px; background: var(--surface-3); font-size: var(--text-sm); }
+.ref-chip__cover { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; background: var(--surface-2); }
+.ref-chip__role { color: var(--text-3); }
+.ref-chip__remove { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 999px; background: none; color: var(--text-2); cursor: pointer; }
+.ref-chip__remove:hover { background: var(--surface-2); color: var(--text); }
+
+/* Why Generate is off sits right above it, where the eye already is. */
+.gen-msg { margin: 0; font-size: var(--text-sm); }
+.gen-msg--reason { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); color: var(--warn); }
+.gen-msg__lift { padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
+.gen-msg--failure { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--bad-surface); color: var(--bad-ink); white-space: pre-line; }
+.gen-msg--unsure { display: flex; align-items: flex-start; gap: var(--space-3); }
+.gen-msg--unsure p { margin: 0; flex: 1; }
+.preset-note { margin: 0; color: var(--text-2); font-size: var(--text-sm); }

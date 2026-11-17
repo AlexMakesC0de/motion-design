@@ -18,10 +18,11 @@ const TOOLS = [
   "get_menu", "get_brief", "save_brief", "get_plan", "save_plan", "update_shot", "check_plan", "suggest_model", "shot_wording",
   "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
   "list_scenes", "get_scene_prompt", "save_scene", "add_scene_image", "delete_scene", "choose_version", "draft_scene", "final_scene", "save_idea", "copy_scene",
+  "list_skills", "get_skill",
 ];
 
 describe("the tool list", () => {
-  test("all 48 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 50 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");
@@ -34,7 +35,7 @@ describe("the tool list", () => {
       assert.equal(t.annotations.openWorldHint, true);
       assert.equal(t.annotations.destructiveHint, false);
     }
-    for (const name of ["list_models", "list_presets", "estimate", "list_runs", "get_run", "list_assets", "get_asset", "list_scenes", "get_scene_prompt"]) {
+    for (const name of ["list_models", "list_presets", "estimate", "list_runs", "get_run", "list_assets", "get_asset", "list_scenes", "get_scene_prompt", "list_skills", "get_skill"]) {
       assert.equal(tools.find((x) => x.name === name).annotations.readOnlyHint, true, name);
     }
     assert.ok(tools.every((t) => t.outputSchema), "every tool declares an output schema");

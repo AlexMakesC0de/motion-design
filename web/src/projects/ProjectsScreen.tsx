@@ -60,7 +60,7 @@ export function ProjectsScreen() {
   return (
     <div className="projects">
       <header className="projects__head">
-        <h1>Projects</h1>
+        <h1>Films</h1>
         <div className="projects__filters" role="group" aria-label="Show">
           {tabs.map((t) => (
             <button key={t.id} type="button" className="projects__filter" aria-pressed={filter === t.id} onClick={() => setFilter(t.id)}>

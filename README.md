@@ -215,6 +215,22 @@ If it already exists, compare it, back up local customizations, and update it.
 
 **[Connect Higgsfield](docs/setup.md#2-connect-higgsfield)** using the setup guide. It includes Claude Code's MCP command, authentication and a read-only access check. Generation requires model access and credits or an applicable allowance.
 
+### Your skill library
+
+`skills/` holds your favourite skills, one folder each with a `SKILL.md`. `motion-design` is the first. Every skill there is reusable three ways:
+
+- **As a slash command.** `node install.mjs` links each one into `~/.claude/skills` (and Codex and Kimi when they are installed), so `/seedance-2-5-prompter` runs it in Claude Code.
+- **Through the MCP server.** `list_skills` and `get_skill` read the library, and each skill is also an MCP prompt.
+- **In the studio.** The Skills page lists them and adds new ones.
+
+To add a skill, give it the folder:
+
+```bash
+kie skill add ~/skills/seedance-2-5-prompter
+```
+
+This copies the folder into `skills/` and links it. `--replace` updates a copy that is already there. `kie skill list` shows the library and `kie skill link` relinks every skill. Restart Claude Code to pick up a new `/command` or MCP prompt.
+
 ### Make your first film
 
 Start with **`$motion-design`** in Codex or **`/motion-design`** in Claude Code, then add:

@@ -1,0 +1,24 @@
+/* Skills page: an add form, then one card per skill. Tokens only. */
+
+.skills { display: flex; flex-direction: column; gap: var(--space-4); }
+.skills__head h1 { margin: 0 0 var(--space-1); font-size: var(--text-xl); font-weight: 600; }
+.skills__head p { margin: 0; color: var(--text-2); max-width: 70ch; font-size: var(--text-sm); }
+.skills__error { color: var(--bad-ink); margin: 0; font-size: var(--text-sm); }
+.skills__status { color: var(--text); margin: 0; font-size: var(--text-sm); }
+.skills__empty { color: var(--text-2); }
+
+.skills__add { display: grid; gap: var(--space-1); max-width: 520px; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); font-size: var(--text-sm); }
+.skills__add h2 { margin: 0 0 var(--space-1); font-size: var(--text-title); font-weight: 600; }
+.skills__add label { color: var(--text-2); }
+.skills__add input[type="text"] { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px var(--space-2); font: inherit; font-size: var(--text-md); }
+.skills__replace { display: flex; gap: var(--space-2); align-items: center; margin: var(--space-1) 0 var(--space-2); }
+
+.skills__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-4); align-items: start; }
+.skill { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); }
+.skill__name { margin: 0; font-size: var(--text-title); font-weight: 600; }
+.skill__desc { margin: 0; color: var(--text); font-size: var(--text-sm); }
+.skill__linked { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
+.skill__actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+.skill__detail { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.skill__files { margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: var(--text-xs); }
+.skill__body { margin: 0; max-height: 320px; overflow: auto; padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius-sm); font-size: var(--text-xs); white-space: pre-wrap; color: var(--text); }

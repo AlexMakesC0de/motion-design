@@ -48,6 +48,7 @@ import { cutFilm } from "./director/cut.mjs";
 import { board, boardLines } from "./director/board.mjs";
 import { MAX_REDOS, afterReview, saveProduction } from "./director/redo.mjs";
 import { UNSETTLED } from "./core/jobs.mjs";
+import { listSkills, getSkill, readSkillFile, addSkill, linkSkill } from "./core/skills.mjs";
 
 const HELP = `kie -- motion-design execution layer
 
@@ -60,6 +61,9 @@ const HELP = `kie -- motion-design execution layer
   kie asset      save <name> <image>... --kind K --description "..." [--replace]
                  list | show <name>      saved references; use as --ref zed:identity or --ref zed#2:first_frame
                  remove <name>           move it to library/.trash/ (move the folder back to undo)
+  kie skill      list | show <name> [file]               your skill library (skills/); each runs as /<name>
+                 add <folder> [--replace]                copy a skill folder in and link it into Claude Code, Codex, Kimi
+                 link [<name>]                           link library skills into the hosts again
 
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
                  [--duration N] [--ar R] [--resolution R] [--ref URL|ASSET:ROLE]...
@@ -1306,6 +1310,48 @@ async function cmdRender(args) {
   return EXIT.OK;
 }
 
+// -------------------------------------------------------------------- skills
+
+const LINK_WORD = { linked: "linked", ok: "already linked", taken: "SKIP: something else is there; move it aside", "no-host": "skip: host not installed" };
+
+function sayLinks(links) {
+  for (const l of links) say(`  ${l.host.padEnd(12)} ${LINK_WORD[l.state]}${l.path ? `  ${l.path}` : ""}`);
+}
+
+function cmdSkill([sub = "list", name, file], args) {
+  if (sub === "list") {
+    const skills = listSkills();
+    if (args.json) return say(JSON.stringify(skills, null, 2));
+    if (!skills.length) return say("No skills yet. Add one with: kie skill add <folder>");
+    for (const s of skills) say(`\n/${s.name}${s.linked.length ? "" : "  (not linked; run kie skill link)"}\n  ${s.description}`);
+    return;
+  }
+  if (sub === "show") {
+    if (!name) throw usage("kie skill show <name> [file]");
+    if (file) return say(readSkillFile(name, file));
+    const s = getSkill(name);
+    if (args.json) return say(JSON.stringify(s, null, 2));
+    say(`/${s.name}  ${s.path}\n${s.description}\n\nfiles:\n${s.files.map((f) => `  ${f}`).join("\n")}`);
+    return;
+  }
+  if (sub === "add") {
+    if (!name) throw usage("kie skill add <folder> [--replace]");
+    const s = addSkill(name, { replace: args.replace });
+    say(`Added /${s.name} (${s.files.length} files) to ${s.path}`);
+    sayLinks(s.links);
+    say("Restart Claude Code or Codex to see it; the MCP server lists it as a prompt after a restart too.");
+    return;
+  }
+  if (sub === "link") {
+    for (const s of name ? [getSkill(name)] : listSkills()) {
+      say(`/${s.name}`);
+      sayLinks(linkSkill(s.name));
+    }
+    return;
+  }
+  throw usage(`Unknown skill command "${sub}". Use list, show, add or link.`);
+}
+
 // -------------------------------------------------------------------- main
 
 async function main(argv) {
@@ -1413,6 +1459,9 @@ async function main(argv) {
       return cmdAutoRedo(args, positionals);
     case "cut":
       return cmdCut(args);
+    case "skill":
+    case "skills":
+      return cmdSkill(positionals, args);
     case "templates":
       return cmdTemplates();
     case "render":

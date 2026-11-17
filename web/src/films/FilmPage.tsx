@@ -163,7 +163,7 @@ export function FilmPage({ slug }: { slug: string }) {
                 </ol>
               ) : (
                 <p className="film__none">
-                  No video takes in this film yet. Make some in <a href="#/create">Create</a>.
+                  No video takes in this film yet. Make some in <a href="#/video">Video</a>.
                 </p>
               )}
             </section>

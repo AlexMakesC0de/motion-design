@@ -3,6 +3,7 @@
 // step is plain text whose title (and a visually hidden description) says
 // what to do first.
 import type { FilmProgress, FilmStep } from "../api/types";
+import { Icon } from "../app/icons";
 import { STEPS, filmHref } from "../app/route";
 
 export function StepBar({ slug, progress, at }: { slug: string; progress: FilmProgress; at: FilmStep }) {
@@ -12,7 +13,7 @@ export function StepBar({ slug, progress, at }: { slug: string; progress: FilmPr
         const state = progress.steps[s.id];
         const label = (
           <>
-            <span className="stepbar__n">{state === "done" ? "✓" : i + 1}</span>
+            <span className="stepbar__n">{state === "done" ? <Icon name="check" size={12} /> : i + 1}</span>
             {s.label}
           </>
         );

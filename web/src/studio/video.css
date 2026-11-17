@@ -1,0 +1,159 @@
+/* Video: the settings panel on the left, the stage (History or How it works) on the right. Each scrolls its own area.
+   Tokens only (theme/tokens.css). Green is for Generate, the look's name, and costs. */
+
+.video { display: grid; grid-template-columns: clamp(320px, 27vw, 400px) minmax(0, 1fr); gap: var(--space-3); height: 100%; min-height: 0; }
+.video--scenes { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: var(--space-2); }
+.video__scenes { min-height: 0; overflow-y: auto; }
+.video--scenes .video-tabs { padding: 0 var(--space-2); }
+
+/* Tabs: words with a line under the one you are on. */
+.video-tabs { display: flex; gap: 22px; padding: 2px var(--space-2) 0; flex: none; }
+.video-tabs__tab {
+  padding: 6px 0 12px; border-bottom: 2px solid transparent; color: var(--text-3);
+  font-size: var(--text-lg); font-weight: 500; text-decoration: none; white-space: nowrap; transition: color var(--dur-fast) var(--ease-out);
+}
+.video-tabs__tab:hover { color: var(--text); }
+.video-tabs__tab[aria-current="page"] { color: var(--text); border-bottom-color: var(--text); }
+
+/* The panel */
+.video__panel {
+  display: flex; flex-direction: column; gap: var(--space-3); min-height: 0; padding: var(--space-3);
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1);
+}
+.video__scroll { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px 2px; }
+.video__go { display: flex; flex-direction: column; gap: var(--space-2); flex: none; }
+
+/* The look: its still, its name in green, the model under it, and Change. */
+.look-card { position: relative; flex: none; height: 156px; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-3); }
+.look-card__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.look-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0.1) 62%, transparent); }
+.look-card__words { position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 14px; }
+.look-card__title {
+  margin: 0; color: var(--accent); font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.look-card__model { margin: 6px 0 0; color: var(--text); font-size: var(--text-md); }
+.look-card__change {
+  position: absolute; z-index: 1; top: 10px; right: 10px; padding: 4px 10px; border: 1px solid rgb(255 255 255 / 0.14); border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.5); backdrop-filter: blur(6px); color: var(--text); font-size: var(--text-sm); font-weight: 500; text-decoration: none;
+}
+.look-card__change:hover { background: rgb(0 0 0 / 0.7); }
+
+/* Segmented control */
+.seg { display: flex; flex: none; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.seg__item {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2); flex: 1; height: 40px; border-radius: var(--radius-md);
+  color: var(--text-2); font-size: var(--text-md); font-weight: 500;
+}
+.seg__item[data-active] { background: var(--surface-3); color: var(--text); }
+
+/* Add references: a dashed drop card with three round icons. */
+.refs-card {
+  display: flex; flex-direction: column; gap: 10px; flex: none; padding: var(--space-3);
+  border: 1.5px dashed var(--surface-3); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--surface-2) 45%, var(--surface-1));
+}
+.refs-card__add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 118px;
+  padding: var(--space-2); border: 0; border-radius: var(--radius-md); background: none; color: var(--text); font: inherit; cursor: pointer;
+}
+.refs-card__add:hover:not(:disabled) .refs-card__icon { background: #303135; }
+.refs-card__add:disabled { cursor: not-allowed; opacity: 0.6; }
+.refs-card__icons { display: flex; margin-bottom: 8px; }
+.refs-card__icon {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 999px; border: 2px solid var(--surface-1);
+  background: var(--surface-3); color: var(--text); transition: background var(--dur-fast) var(--ease-out);
+}
+.refs-card__icon + .refs-card__icon { margin-left: -8px; }
+.refs-card__title { font-size: var(--text-lg); font-weight: 500; }
+.refs-card__sub { color: var(--text-3); font-size: var(--text-sm); text-align: center; }
+
+/* Prompt */
+.prompt-card { display: flex; flex-direction: column; gap: 6px; flex: none; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--surface-2); }
+.prompt-card:focus-within { box-shadow: inset 0 0 0 1px var(--text-3); }
+.prompt-card__label { font-size: var(--text-title); font-weight: 500; }
+.prompt-card__text {
+  width: 100%; min-height: 72px; max-height: 40vh; padding: 0; border: 0; background: transparent; resize: vertical;
+  color: var(--text); font: inherit; font-size: var(--text-title); line-height: 1.55;
+}
+.prompt-card__text::placeholder { color: var(--text-3); }
+.prompt-card__text:focus-visible { outline: none; }
+
+.field-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: none; }
+.field-cards > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* Generate: full width, the price beside the word. */
+.big-generate {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 56px;
+  border: 0; border-radius: var(--radius-lg); background: var(--accent); color: var(--accent-ink);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.16); font: inherit; font-size: 18px; font-weight: 600; cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-out);
+}
+.big-generate .mono { font-weight: 500; }
+.big-generate:hover:not(:disabled) { filter: brightness(1.08); }
+.big-generate:disabled { background: var(--surface-3); color: var(--text-3); box-shadow: none; cursor: not-allowed; }
+
+/* The stage */
+.video__stage {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--surface-1) 45%, var(--bg));
+}
+.video__stage-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); flex: none; padding: 14px 16px; }
+.pill-toggle { display: inline-flex; gap: 4px; }
+.pill-toggle__item {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: none; color: var(--text-2); font: inherit; font-size: var(--text-md); font-weight: 500; cursor: pointer;
+}
+.pill-toggle__item:hover { color: var(--text); }
+.pill-toggle__item[aria-pressed="true"] { border-color: var(--line); background: var(--surface-2); color: var(--text); }
+.video__feed { flex: 1; padding: 4px 16px 16px; }
+
+/* How it works */
+.how { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
+.how__main { display: flex; flex-direction: column; justify-content: center; flex: 1; padding: clamp(24px, 5vh, 80px) clamp(24px, 4vw, 64px) 40px; }
+.how__title { font-size: clamp(34px, 3.6vw, 56px); }
+.how__sub { margin: 16px 0 0; max-width: 72ch; color: var(--text-2); font-size: var(--text-lg); }
+.how__steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: clamp(16px, 2.4vw, 40px); margin: 40px 0 0; padding: 0; list-style: none; }
+.how-step__art { position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: var(--surface-1); }
+.how-step__title { margin: 22px 0 0; font-size: clamp(18px, 1.7vw, 26px); }
+.how-step__text { margin: 10px 0 0; color: var(--text-2); font-size: var(--text-title); line-height: 1.5; }
+
+.how-step__drop {
+  position: absolute; inset: 12% 8% 18% 22%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 10px; padding-top: 12%;
+  border: 1.5px dashed var(--surface-3); border-radius: 12px; color: var(--text-2);
+}
+.how-step__drop-title { color: var(--text); font-size: clamp(14px, 1.2vw, 18px); }
+.how-step__tilt {
+  position: absolute; left: 5%; bottom: -6%; width: 44%; aspect-ratio: 4 / 3; object-fit: cover;
+  border: 2px solid var(--accent); border-radius: 10px; transform: rotate(-8deg);
+}
+.how-step__art--looks { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.how-step__look { display: block; width: 28%; height: 72%; border-radius: 10px; object-fit: cover; background: var(--surface-3); opacity: 0.5; }
+.how-step__look[data-mid] { width: 40%; height: 82%; opacity: 1; box-shadow: 0 0 0 2px var(--accent); }
+.how-step__art--result { padding: 5%; background: var(--bg); }
+.how-step__frame { display: grid; place-items: center; width: 100%; height: 100%; border: 5px solid var(--text); border-radius: 14px; overflow: hidden; color: var(--text-3); }
+.how-step__frame video, .how-step__frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.how__start {
+  display: flex; align-items: center; justify-content: center; gap: 20px; flex: none; padding: 14px 24px;
+  border-top: 1px solid var(--line); background: var(--surface-1); color: var(--text); text-decoration: none;
+}
+.how__start:hover { background: var(--surface-2); }
+.how__start > .icon { color: var(--text-3); }
+.how__start-stack { position: relative; flex: none; width: 116px; height: 52px; }
+.how__start-stack img { position: absolute; top: 0; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; border: 2px solid var(--surface-1); }
+.how__start-stack img[data-i="0"] { left: 0; transform: rotate(-8deg); }
+.how__start-stack img[data-i="1"] { left: 32px; z-index: 1; }
+.how__start-stack img[data-i="2"] { left: 64px; transform: rotate(8deg); }
+.how__start-words { display: flex; flex-direction: column; gap: 2px; }
+.how__start-title { font-size: 17px; font-weight: 500; }
+.how__start-sub { color: var(--text-3); font-size: var(--text-sm); }
+
+/* Narrow windows: the panel stacks above the stage, and the page scrolls as one. */
+@media (max-width: 900px) {
+  .video:not(.video--scenes) { display: flex; flex-direction: column; overflow-y: auto; }
+  .video__panel, .video__scroll { flex: none; }
+  .video__scroll { overflow: visible; }
+  .video__stage { flex: none; min-height: 70vh; }
+  .how { overflow: visible; }
+  .how__start-stack { display: none; }
+}

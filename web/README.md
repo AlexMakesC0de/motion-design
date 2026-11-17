@@ -13,10 +13,10 @@ If you stop the server, the open page shows a banner and reconnects by itself wh
 
 ## Films
 
-Each film in Projects has four steps. Every step stays open, and nothing is paid for until you press a button with a price on it.
+Each film in Films has four steps. Every step stays open, and nothing is paid for until you press a button with a price on it.
 
 1. **Idea:** what the film is about, its ratio and total length, and its scene list (titles and seconds, which you can rename, reorder and delete). **Plan scenes with chat** hands the idea to the chat, which saves a scene list.
-2. **References:** each Library item the scenes use (`@library:name`), with its sheet or **Make its sheet**, and the pictures uploaded into each scene. It shows what is missing; it does not hold anything back.
+2. **Cast:** each Library item the scenes use (`@library:name`), with its sheet or **Make its sheet**, and the pictures uploaded into each scene. It shows what is missing; it does not hold anything back.
 3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from. Under the cards, **Ask chat** has starters about the scene.
 4. **Finish:** the film's takes and the finishing tools (assemble, captions, ratios, cards).
 
@@ -25,6 +25,10 @@ A film made before Shard (no `scenes.json`) opens on Finish as "takes only". Hom
 **Create** is a scratchpad: its scenes are kept in `runs/create/` and are not a film. **Save into film…** copies a scene, its pictures and its versions' videos into a film you pick or name, and opens it there; Create keeps its copy. The film then counts what those versions cost.
 
 The director's storyboard (brief, shots, stills) is no longer shown in the studio. `kie plan`, `kie still`, `kie shot` and `kie film` still work in the terminal.
+
+## Skills
+
+**Skills** lists the saved skills (each runs in Claude Code or Codex as `/name` and through the MCP server), lets you add one from a folder on this Mac, and shows its instructions.
 
 ## Chat
 

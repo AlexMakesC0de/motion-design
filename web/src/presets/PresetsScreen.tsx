@@ -22,7 +22,7 @@ export function PresetsScreen() {
     try {
       const p = await api<PresetDetail>(`/api/presets/${encodeURIComponent(id)}`);
       applyPreset(p);
-      window.location.hash = "#/create";
+      window.location.hash = "#/video";
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -33,7 +33,7 @@ export function PresetsScreen() {
   return (
     <div className="presets">
       <header className="presets__head">
-        <h1>Presets</h1>
+        <h1>Looks</h1>
         <p>Each preset starts from a published source prompt. Use this puts that prompt and its model, length and ratio in the prompt bar; adapt it to your subject before you generate.</p>
       </header>
       {error && (

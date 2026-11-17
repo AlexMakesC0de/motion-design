@@ -1,13 +1,13 @@
-/* Shard. A dark projection room; the footage is the brightest thing on screen, the neon green is for money and the main button. */
+/* Shard. A dark projection room in neutral greys; the footage is the brightest thing on screen, the neon green is for money and the main button. */
 :root {
-  --bg: #0e0d0c;
-  --surface-1: #161412;
-  --surface-2: #1b1917;
-  --surface-3: #2a2724;
-  --line: #2c2926;
-  --text: #ece7df;
-  --text-2: #b9b0a3;
-  --text-3: #988f83; /* ≥4.5:1 on every surface, including --surface-3 */
+  --bg: #0b0b0c;
+  --surface-1: #141416;
+  --surface-2: #1c1d1f;
+  --surface-3: #26272a;
+  --line: #2a2b2e;
+  --text: #f4f4f5;
+  --text-2: #a3a3a8;
+  --text-3: #8e8e94; /* ≥4.5:1 on every surface, including --surface-3 */
   --accent: #84f80a; /* Shard's neon green: money and the one main button per screen, nothing else */
   --accent-ink: #0b1400;
   --ok: var(--text); /* done is a check mark in bright text, never a green that could read as the accent */
@@ -38,6 +38,18 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+
+  /* Stage gels: one soft hue per stage of a scene, in order, and per scene on a film's Idea step. Never money, never state. */
+  --gel-1: #9d8cff;
+  --gel-2: #56c2f0;
+  --gel-3: #f27ab0;
+  --gel-4: #d9c79a;
+  --gel-ink: #141210; /* text set on a solid gel */
+
+  /* Display sizes for the few big headings. */
+  --text-display: 40px; /* Home's question */
+  --text-hero: 30px; /* a film step's question */
+  --text-scene: 24px; /* the open scene's title */
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 150ms;

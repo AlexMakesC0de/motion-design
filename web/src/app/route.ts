@@ -3,39 +3,51 @@
 // old hashes from the six-tab studio redirect so links in docs keep working.
 import type { FilmStep } from "../api/types";
 
-export type RailId = "home" | "projects" | "create" | "library" | "presets" | "spend" | "settings";
-export type Screen = RailId | "film";
+export type NavId = "home" | "image" | "video" | "mcp" | "projects" | "library" | "presets" | "skills" | "spend" | "settings";
+/** Kept for older imports: the place a top-bar item opens. */
+export type RailId = NavId;
+export type Screen = NavId | "film";
 // The Library can open straight to the sheet maker for a name (#/library/new/<name>) or to one item (#/library/item/<name>).
+// Video opens on Create video, or on the scene editor at #/video/scenes. MCP can open on one host's tab (#/mcp/<host>).
 export type Route =
-  | { screen: Exclude<Screen, "film" | "library"> }
+  | { screen: Exclude<Screen, "film" | "library" | "video" | "mcp"> }
   | { screen: "library"; newName?: string; item?: string }
+  | { screen: "video"; tab?: "create" | "scenes" }
+  | { screen: "mcp"; host?: string }
   | { screen: "film"; slug: string; step: FilmStep | null; scene?: string }
   | { redirect: string };
 export type Place = Exclude<Route, { redirect: string }>;
 
 export const STEPS: { id: FilmStep; label: string }[] = [
   { id: "idea", label: "Idea" },
-  { id: "references", label: "References" },
+  { id: "references", label: "Cast" },
   { id: "scenes", label: "Scenes" },
   { id: "finish", label: "Finish" },
 ];
 
-export const RAIL: { top: { id: RailId; label: string }[]; bottom: { id: RailId; label: string }[] } = {
-  top: [
-    { id: "home", label: "Home" },
-    { id: "projects", label: "Projects" },
-    { id: "create", label: "Create" },
-    { id: "library", label: "Library" },
-    { id: "presets", label: "Presets" },
+/** The top bar: the making pages first (each opens a menu on hover), then the studio's places. */
+export const NAV: { main: { id: NavId; label: string }[]; studio: { id: NavId; label: string; badge?: string }[] } = {
+  main: [
+    { id: "home", label: "Explore" },
+    { id: "image", label: "Image" },
+    { id: "video", label: "Video" },
+    { id: "mcp", label: "MCP" },
   ],
-  bottom: [
-    { id: "spend", label: "Spend" },
-    { id: "settings", label: "Settings" },
+  studio: [
+    { id: "projects", label: "Films" },
+    { id: "library", label: "Library" },
+    { id: "presets", label: "Looks" },
+    { id: "skills", label: "Skills", badge: "New" },
   ],
 };
+/** Reached from the top bar's right side: the spend meter and the settings button. */
+const UTILITY: NavId[] = ["spend", "settings"];
 
-const RAIL_IDS = new Set<string>([...RAIL.top, ...RAIL.bottom].map((r) => r.id));
-const REDIRECTS: Record<string, string> = { studio: "#/create", films: "#/projects" };
+export const navHref = (id: NavId) => (id === "home" ? "#/" : `#/${id}`);
+
+const NAV_IDS = new Set<string>([...NAV.main.map((r) => r.id), ...NAV.studio.map((r) => r.id), ...UTILITY]);
+// Create split into Image and Video; its scene editor is Video's Scenes tab.
+const REDIRECTS: Record<string, string> = { studio: "#/video", create: "#/video", films: "#/projects", chat: "#/mcp" };
 // A film's steps before Shard: Brief became Idea, Shots became Scenes.
 const OLD_STEPS: Record<string, FilmStep> = { brief: "idea", shots: "scenes" };
 
@@ -60,13 +72,16 @@ export function parseRoute(hash: string): Route {
   if (first === "library" && rest[1] && (rest[0] === "new" || rest[0] === "item")) {
     return rest[0] === "new" ? { screen: "library", newName: decoded(rest[1]) } : { screen: "library", item: decoded(rest[1]) };
   }
+  if (first === "video") return rest[0] === "scenes" ? { screen: "video", tab: "scenes" } : { screen: "video" };
+  if (first === "mcp") return rest[0] ? { screen: "mcp", host: decoded(rest[0]) } : { screen: "mcp" };
   if (Object.hasOwn(REDIRECTS, first)) return { redirect: REDIRECTS[first] };
-  if (RAIL_IDS.has(first)) return { screen: first as Exclude<Screen, "film" | "library"> };
+  if (NAV_IDS.has(first)) return { screen: first as Exclude<Screen, "film" | "library" | "video" | "mcp"> };
   return { screen: "home" };
 }
 
-/** The rail item lit for a place: inside a film, Projects. */
-export const railItemFor = (place: Place): RailId => (place.screen === "film" ? "projects" : place.screen);
+/** The top-bar item lit for a place: inside a film, Films. */
+export const navItemFor = (place: Place): NavId => (place.screen === "film" ? "projects" : place.screen);
+export const railItemFor = navItemFor;
 
 export const libraryNewHref = (name: string) => `#/library/new/${encodeURIComponent(name)}`;
 export const libraryItemHref = (name: string) => `#/library/item/${encodeURIComponent(name)}`;

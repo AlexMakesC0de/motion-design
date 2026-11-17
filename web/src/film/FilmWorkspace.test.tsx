@@ -44,9 +44,9 @@ describe("FilmWorkspace", () => {
     vi.stubGlobal("fetch", vi.fn(routes(film())));
     render(<FilmWorkspace slug="boat" step="references" />);
     const bar = await screen.findByRole("list", { name: "Steps" });
-    expect(within(bar).getAllByRole("link").map((a) => a.textContent)).toEqual(["✓Idea", "✓References", "3Scenes", "4Finish"]);
+    expect(within(bar).getAllByRole("link").map((a) => a.textContent)).toEqual(["Idea", "Cast", "3Scenes", "4Finish"]);
     expect(within(bar).getByRole("link", { name: /Idea/ })).toHaveAttribute("href", "#/films/boat/idea");
-    expect(within(bar).getByRole("link", { name: /References/ })).toHaveAttribute("aria-current", "step");
+    expect(within(bar).getByRole("link", { name: /Cast/ })).toHaveAttribute("aria-current", "step");
   });
 
   test("References lists each Library item the scenes use, with a way to make a missing sheet", async () => {
@@ -61,7 +61,7 @@ describe("FilmWorkspace", () => {
     expect(within(rows[1]).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["#/films/boat/scenes/s1", "#/films/boat/scenes/s2"]);
     within(rows[0]).getByRole("button", { name: "Make @library:skipper" }).click();
     expect(window.location.hash).toBe("#/library/new/skipper");
-    expect(JSON.parse(sessionStorage.getItem("shard.back") ?? "null")).toEqual({ hash: "#/", label: "References" });
+    expect(JSON.parse(sessionStorage.getItem("shard.back") ?? "null")).toEqual({ hash: "#/", label: "Cast" });
   });
 
   test("Idea shows the idea and the scene list with the total against the target", async () => {
@@ -70,8 +70,8 @@ describe("FilmWorkspace", () => {
     const box = await screen.findByRole("textbox", { name: "What is the film about?" });
     await waitFor(() => expect(box).toHaveValue("A boat at dawn"));
     expect(await screen.findByRole("textbox", { name: "Scene 1 title" })).toHaveValue("Harbour");
-    expect(screen.getByText("14s of 20s")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Next: References →" })).toHaveAttribute("href", "#/films/boat/references");
+    expect(screen.getByText("14s planned")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Next: Cast" })).toHaveAttribute("href", "#/films/boat/references");
   });
 
   test("an unknown film says so", async () => {
@@ -87,7 +87,7 @@ describe("FilmWorkspace", () => {
     const fetch = vi.fn(routes(film()));
     vi.stubGlobal("fetch", fetch);
     render(<FilmWorkspace slug="boat" step="references" />);
-    await screen.findByRole("heading", { name: "References" });
+    await screen.findByRole("heading", { name: "Cast & props" });
     expect(progressCalls(fetch)).toBe(1);
 
     act(() => {
@@ -116,7 +116,7 @@ describe("FilmWorkspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Server hiccup.");
     fail = false;
     act(() => emitForTests({ event: "hello", data: { at: "2026-10-31T10:00:00.000Z" } }));
-    expect(await screen.findByRole("heading", { name: "References" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Cast & props" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -141,7 +141,7 @@ describe("FilmWorkspace", () => {
     vi.stubGlobal("fetch", vi.fn(routes(film())));
     render(<FilmWorkspace slug="boat" step="references" />);
     expect(getRun()).toBe("old-film");
-    await screen.findByRole("heading", { name: "References" });
+    await screen.findByRole("heading", { name: "Cast & props" });
     expect(getRun()).toBe("boat");
   });
 

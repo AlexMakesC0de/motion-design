@@ -35,7 +35,7 @@ describe("ProjectsScreen", () => {
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
     expect(within(boat).getByRole("link", { name: "Next: Draft scenes 2 and 3" })).toHaveAttribute("href", "#/films/boat/scenes");
-    expect(within(boat).getByText("$0.42 spent")).toBeInTheDocument();
+    expect(within(boat).getByText("$0.42")).toBeInTheDocument();
     expect(within(boat).getByRole("list", { name: "Steps" })).toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("ProjectsScreen", () => {
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
     const steps = within(within(boat).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
-    expect(steps.map((li) => li.textContent)).toEqual(["Idea, done", "References, done", "Scenes, current", "Finish, not started"]);
+    expect(steps.map((li) => li.textContent)).toEqual(["Idea, done", "Cast, done", "Scenes, current", "Finish, not started"]);
   });
 
   test("the Finder button's name starts with its visible text", async () => {

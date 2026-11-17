@@ -33,6 +33,7 @@ import { artifactPreview, imagePreview } from "./preview.mjs";
 import { registerDirector } from "./director.mjs";
 import { registerMaking } from "./making.mjs";
 import { registerScenes } from "./scenes.mjs";
+import { registerSkills } from "./skills.mjs";
 import { stoppable } from "./stop.mjs";
 
 const VERSION = "0.1.0";
@@ -52,7 +53,8 @@ const INSTRUCTIONS =
   "Scenes are one Seedance 2.5 generation each, kept per film (a film's Scenes step; Create's scratch scenes are run \"create\"): " +
   "save_idea (what the film is about and its scene list), list_scenes, save_scene " +
   "(change only the fields the user named), get_scene_prompt (free: the exact prompt, its problems and prices), then " +
-  "draft_scene or final_scene only when the user agreed that spend, then wait_job. copy_scene moves a scene from Create into a film.";
+  "draft_scene or final_scene only when the user agreed that spend, then wait_job. copy_scene moves a scene from Create into a film. " +
+  "The user keeps a skill library (list_skills): when a request matches a skill's description, load it with get_skill and follow it.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -171,6 +173,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   registerDirector(tool, { catalog, ctx });
   registerMaking(tool, { catalog, ctx, deps, runFile });
   registerScenes(tool, { catalog, ctx, deps });
+  registerSkills(tool, server);
   return server;
 
   function registerLook() {

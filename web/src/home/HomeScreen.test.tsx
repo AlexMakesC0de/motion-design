@@ -37,10 +37,10 @@ describe("HomeScreen", () => {
   test("shows the four newest films and a link to all projects", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films, "/api/director/menu": () => menu })));
     render(<HomeScreen />);
-    const recent = await screen.findByRole("region", { name: "Recent films" });
+    const recent = await screen.findByRole("region", { name: "Keep going" });
     await waitFor(() => expect(within(recent).getAllByRole("article")).toHaveLength(4));
     expect(within(recent).getAllByRole("article").map((a) => a.getAttribute("aria-label"))).toEqual(["film-e", "film-d", "film-c", "film-b"]);
-    expect(screen.getByRole("link", { name: "See all projects" })).toHaveAttribute("href", "#/projects");
+    expect(screen.getByRole("link", { name: "All films" })).toHaveAttribute("href", "#/projects");
   });
 
   test("Start film saves the idea under a slug from its words and opens it on Idea", async () => {
@@ -51,7 +51,7 @@ describe("HomeScreen", () => {
     await screen.findByRole("article", { name: "rain-on-glass-a" }); // the film list has loaded
     fireEvent.change(await screen.findByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass, a cup going cold" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "8" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plan my film" }));
     await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-a-2/idea"));
     const body = JSON.parse(String((put.mock.calls[0] as unknown as [RequestInit])[0].body));
     expect(body).toEqual({ idea: { text: "Rain on glass, a cup going cold", ratio: "16:9", lengthS: 8 }, create: true });
@@ -62,7 +62,7 @@ describe("HomeScreen", () => {
     render(<HomeScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
     await new Promise((r) => setTimeout(r, 20)); // the list never answers
-    expect(screen.getByRole("button", { name: "Start film" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Plan my film" })).toBeDisabled();
   });
 
   test("a film list that fails to load says so, and Start film stays off", async () => {
@@ -70,13 +70,13 @@ describe("HomeScreen", () => {
     render(<HomeScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your films, so a new one can't be named yet: disk full");
-    expect(screen.getByRole("button", { name: "Start film" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Plan my film" })).toBeDisabled();
   });
 
   test("Start film waits for words", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
     render(<HomeScreen />);
-    expect(await screen.findByRole("button", { name: "Start film" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Plan my film" })).toBeDisabled();
   });
 
   test("a name taken since the list loaded: reads the list again and starts the film under the next free name", async () => {
@@ -98,8 +98,8 @@ describe("HomeScreen", () => {
     render(<HomeScreen />);
     const box = screen.getByRole("textbox", { name: "What is the film about?" });
     fireEvent.change(box, { target: { value: "Rain on glass" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Plan my film" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Plan my film" }));
     await waitFor(() => expect(window.location.hash).toBe("#/films/rain-on-glass-2/idea"));
     expect(taken).toHaveBeenCalledTimes(1);
     expect(lists).toBe(2);
@@ -121,10 +121,10 @@ describe("HomeScreen", () => {
     );
     render(<HomeScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Start film" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Plan my film" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Plan my film" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("runs/rain-on-glass-2 already exists");
     expect(window.location.hash).toBe("");
-    expect(screen.getByRole("button", { name: "Start film" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Plan my film" })).toBeEnabled();
   });
 });

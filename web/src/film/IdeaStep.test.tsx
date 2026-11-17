@@ -36,33 +36,25 @@ describe("a film's Idea step in the shell", () => {
     resetChatForTests();
   });
 
-  test("an old Brief link lands on Idea; Plan scenes with chat opens the drawer and sends the idea once", async () => {
+  test("an old Brief link lands on Idea; Copy plan for Claude Code copies the request", async () => {
     stub({
       "/api/films/zed/progress": () => progress,
       "/api/films/zed/scenes": () => ({ idea: { text: "A calm inbox", ratio: "9:16", lengthS: 20 }, scenes: [] }),
-      "/api/chat-settings": () => chatSettings({ backend: "codex" }),
-      "/api/chat/zed": (init) => (init?.method === "POST" ? { entry: { id: "u1", kind: "user", text: "x", at: "" } } : { film: "zed", busy: false, entries: [] }),
     });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     window.location.hash = "#/films/zed/brief";
     const { unmount } = render(<App />);
     await waitFor(() => expect(window.location.hash).toBe("#/films/zed/idea"));
     const box = await screen.findByRole("textbox", { name: "What is the film about?" });
     await waitFor(() => expect(box).toHaveValue("A calm inbox"));
-    expect(screen.queryByRole("dialog", { name: "Chat drawer" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Plan scenes with chat" }));
-    expect(await screen.findByRole("dialog", { name: "Chat drawer" })).toBeInTheDocument();
-    await waitFor(() => expect(sent("/api/chat/zed")).toHaveLength(1));
-    const text = (sent("/api/chat/zed")[0].body as { text: string }).text;
+    fireEvent.click(screen.getByRole("button", { name: "Copy plan for Claude Code" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = writeText.mock.calls[0][0] as string;
     expect(text).toMatch(/^Plan the scenes for this film and save them with save_idea/);
     expect(text).toMatch(/9:16, about 20s in total: A calm inbox$/);
+    expect(await screen.findByText(/Paste it into Claude Code or Codex/)).toBeInTheDocument();
     expect(sent("/api/films/zed/idea", "PUT")).toHaveLength(0); // the idea had not changed, so nothing was saved first
-
-    // Closing and opening the drawer again does not send it a second time.
-    fireEvent.click(screen.getByRole("button", { name: "Close chat" }));
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Shard" })).getByRole("button", { name: "Chat" }));
-    await screen.findByRole("dialog", { name: "Chat drawer" });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent("/api/chat/zed")).toHaveLength(1);
     unmount();
     window.location.hash = "";
   });

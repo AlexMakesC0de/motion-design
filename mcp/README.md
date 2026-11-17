@@ -37,6 +37,11 @@ the same code as the `kie` CLI.
 | Make (spend) | `make_sheet`, `make_still`, `film_shot`, `film_all` | spends kie credits; each takes `dry_run` |
 | Scenes (look) | `save_idea`, `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene`, `copy_scene` | free, local |
 | Scenes (spend) | `draft_scene`, `final_scene` | spends kie credits |
+| Skills | `list_skills`, `get_skill` | free, local |
+
+## Skills
+
+Your skill library is the `skills/` folder in the repo (see the main README). `list_skills` gives each skill's name and description. `get_skill` returns its instructions, and with `file` it returns any file inside its folder; paths that leave the folder are refused. Each skill is also an MCP **prompt** with an optional `request` argument, so hosts that show prompts as slash commands can run it by name. Prompts are read when the server starts, so restart the host after `kie skill add`.
 
 ## Scenes
 
