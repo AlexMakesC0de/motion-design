@@ -50,6 +50,29 @@ describe("scenes.json", () => {
     assert.throws(() => saveScene("f4", { ...base(), refs: [{ id: "r1", source: "https://x" }] }), /library:<name> or file:refs/);
     assert.throws(() => saveScene("f4", { ...base(), cards: { ...base().cards, stages: [{ title: "", seconds: 0, camera: "", action: "", end: "" }] } }), /at least 1 second/);
   });
+
+  test("picks are kept on the stage and on the cards; an empty picks is not stored", () => {
+    const stage = { title: "Open", seconds: 4, camera: "", action: "", end: "" };
+    const s = saveScene("p1", {
+      ...base(),
+      cards: { ...base().cards, picks: { light: "golden-hour", lens: "" }, stages: [{ ...stage, picks: { move: "push-in", speed: "slow", size: "close-up" } }, { ...stage, picks: {} }] },
+    });
+    assert.deepEqual(s.cards.picks, { light: "golden-hour" });
+    assert.deepEqual(s.cards.stages[0].picks, { move: "push-in", speed: "slow", size: "close-up" });
+    assert.equal("picks" in s.cards.stages[1], false);
+    const plain = saveScene("p1", base());
+    assert.equal("picks" in plain.cards, false);
+  });
+
+  test("bad picks are refused, naming what the menu has", () => {
+    const stage = (picks) => ({ ...base(), cards: { ...base().cards, stages: [{ title: "", seconds: 4, camera: "", action: "", end: "", picks }] } });
+    assert.throws(() => saveScene("p2", stage({ move: "moonwalk" })), /"moonwalk" is not on the director's moves menu\. Choose one of: static, push-in/);
+    assert.throws(() => saveScene("p2", stage({ lens: "85mm" })), /Stage 1 has no "lens" pick\. It takes: move, speed, size, angle\./);
+    assert.throws(() => saveScene("p2", stage({ speed: "slow" })), /Stage 1: a speed needs a move other than static\./);
+    assert.throws(() => saveScene("p2", stage({ move: "static", speed: "slow" })), /a speed needs a move other than static/);
+    assert.throws(() => saveScene("p2", { ...base(), cards: { ...base().cards, picks: { light: "moonbeam" } } }), /not on the director's lights menu/);
+    assert.throws(() => saveScene("p2", { ...base(), cards: { ...base().cards, picks: "golden-hour" } }), /The scene's picks must be an object\./);
+  });
   test("delete and order", () => {
     saveScene("f5", base()); saveScene("f5", base()); saveScene("f5", base());
     orderScenes("f5", ["s3", "s1", "s2"]);
