@@ -1,21 +1,24 @@
-<p align="center">
-  <img src="web/public/brand/shard-icon.svg" alt="" width="96" />
-</p>
+<div align="center">
 
-<h1 align="center">Shard</h1>
+<img src="web/public/brand/shard-icon.svg" width="88" height="88" alt="Shard logo">
 
-<p align="center">
-  A motion-design studio for AI video and images, on your own computer.<br />
-  Plan a film, generate its scenes and finish it, from a web studio, the terminal, or Claude Code and Codex.
-</p>
+# Shard
 
-<p align="center">
-  <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
-  <a href="#credits">Credits</a> &nbsp;·&nbsp;
-  <a href="cli/README.md">The CLI</a> &nbsp;·&nbsp;
-  <a href="mcp/README.md">The MCP server</a> &nbsp;·&nbsp;
-  <a href="web/README.md">The studio</a>
-</p>
+**A motion-design studio for AI video and images, on your own computer.**
+
+Plan a film, generate its scenes and finish it, from a web studio, the terminal, or Claude Code and Codex.
+
+[![Validate](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![macOS](https://img.shields.io/badge/platform-macOS-555)
+![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
+
+**English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
+
+[Quick start](#quick-start) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
+
+</div>
 
 ---
 
