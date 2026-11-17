@@ -511,7 +511,16 @@
               "480p": 0.0585,
               "720p": 0.124
             },
-            "source": "kie.ai/seedance-2-0, Fast tab, read 2026-10-30 (direct page text): 11.7 credits/s at 480p and 24.8 at 720p without video input (6.8 and 15 with video input, not modelled here). Matches the measured 46.8 credits for 4s at 480p."
+            "videoInput": {
+              "field": "reference_video_urls",
+              "usdPerSecond": {
+                "480p": 0.034,
+                "720p": 0.075
+              },
+              "maxInputS": 15,
+              "source": "kie.ai/seedance-2-0, read 2026-11-17 (direct page text): with video input 6.8 credits/s at 480P and 15 at 720P, 'With video = Price x (Input + Output)'. docs.kie.ai/market/bytedance/seedance-2-fast.md, same day: up to 3 reference videos, 15 seconds in total."
+            },
+            "source": "kie.ai/seedance-2-0, Fast tab, read 2026-10-30 and 2026-11-17 (direct page text): 11.7 credits/s at 480p and 24.8 at 720p without video input. Matches the measured 46.8 credits for 4s at 480p."
           },
           "priceNote": "priceUsd is 5s at 720p (the route default)."
         }
@@ -743,16 +752,16 @@
           "provider": "kie",
           "family": "jobs",
           "model": "kling/kling-3-0",
-          "priceUsd": 1.35,
+          "priceUsd": 1.51,
           "verified": false,
           "schemaVerified": false,
           "pricing": {
             "per": "second",
             "usdPerSecond": {
-              "720p": 0.1,
-              "1080p": 0.135
+              "720p": 0.1135,
+              "1080p": 0.151
             },
-            "source": "kie.ai/kling-3-0, read 2026-10-30 (direct page text): Standard 14 credits/s without audio, 20 with; Pro 18 without, 27 with; 4K 67 credits/s. Rates here assume audio on (Standard = 720p, Pro = 1080p); 4K is a separate mode, not modelled."
+            "source": "kie.ai/kling-3-0, read 2026-11-17 (direct page text): 720P Standard 15.1 credits/s without audio, 22.7 with; 1080P Pro 20.2 without, 30.2 with; 4K 75.5 credits/s either way. On 2026-10-30 the page said 14/20, 18/27 and 67. Rates here assume audio on, so a silent job is overcounted by a third; 4K is a separate mode, not modelled."
           },
           "priceNote": "priceUsd is 10s Pro with audio, the most a job in this route's 5/10s range costs short of 4K. The docs name the model kling-3.0/video; this route's id is unverified and may be rejected (free)."
         }
@@ -981,7 +990,8 @@
           "priceUsd": 0.05,
           "verified": false,
           "schemaVerified": false,
-          "priceNote": "kie.ai/gpt-image-2, read 2026-10-30: 6/10/16 credits ($0.03/$0.05/$0.08) at 1K/2K/4K. priceUsd assumes 2K, as for gpt-image-2-5."
+          "pricing": {"per": "image", "by": "resolution", "usd": {"1K": 0.03, "2K": 0.05, "4K": 0.08}},
+          "priceNote": "kie.ai/gpt-image-2, read 2026-10-30 and 2026-11-17: 6/10/16 credits ($0.03/$0.05/$0.08) at 1K/2K/4K. No contract is captured for this route, so a job that names no resolution is priced at 4K."
         }
       ]
     },
@@ -1149,7 +1159,8 @@
           "priceUsd": 0.12,
           "verified": false,
           "schemaVerified": false,
-          "priceNote": "kie.ai/elevenlabs-tts, read 2026-10-30: 12 credits ($0.06) per 1,000 characters (Turbo v2.5 is 6). Billed by length: priceUsd assumes a script of up to 2,000 characters; longer ones cost proportionally more."
+          "pricing": {"per": "characters", "usdPer1000": 0.06, "field": "text"},
+          "priceNote": "kie.ai/elevenlabs-tts, read 2026-10-30 and 2026-11-17: 12 credits ($0.06) per 1,000 characters. priceUsd (2,000 characters) is only the fallback when the script is not known."
         }
       ]
     },

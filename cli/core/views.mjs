@@ -137,7 +137,7 @@ export function planJob(catalog, req) {
       params,
     });
     problems.push(...built.problems);
-    est = estimateUsd(call, { durationS: built.input.duration, resolution: built.input.resolution, quality: built.input.quality });
+    est = estimateUsd(call, { durationS: built.input.duration, resolution: built.input.resolution, quality: built.input.quality, input: built.input });
   } else {
     problems.push(`No route for ${model.id}${provider ? ` via ${provider}` : ""}.`);
   }

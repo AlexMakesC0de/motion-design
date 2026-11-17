@@ -7,17 +7,20 @@ import { budget as budgetError } from "./errors.mjs";
  * draft by 4x and understates a 30s film by 5x -- and the budget cap is only as
  * honest as this number. Routes without per-second pricing keep `priceUsd`.
  */
-export function estimateUsd(route, { durationS, resolution, quality } = {}) {
+export function estimateUsd(route, { durationS, resolution, quality, input } = {}) {
   const pricing = route.pricing;
   if (pricing?.per === "image") return imagePrice(route, { resolution, quality });
+  if (pricing?.per === "characters") return scriptPrice(route, input);
   if (pricing?.per !== "second") return { usd: route.priceUsd ?? 0, basis: "per-job" };
 
   const res = resolution ?? route.input?.defaults?.resolution;
-  const rate = pricing.usdPerSecond?.[res];
   const seconds = Number(durationS ?? route.input?.defaults?.duration);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return { usd: route.priceUsd ?? 0, basis: "per-job-fallback" };
   }
+  const video = pricing.videoInput;
+  if (video && input?.[video.field]?.length) return videoInputPrice(video, seconds, res);
+  const rate = pricing.usdPerSecond?.[res];
   if (rate == null) {
     // The seconds are known but the resolution is not (or has no rate): the flat
     // figure would undercount a long job, so assume the dearest resolution.
@@ -32,6 +35,29 @@ export function estimateUsd(route, { durationS, resolution, quality } = {}) {
     usd: Math.round(rate * seconds * 10_000) / 10_000,
     basis: `${seconds}s × $${rate}/s at ${res}`,
   };
+}
+
+/**
+ * A job that sends a reference video. kie's Seedance 2 Fast then charges a lower
+ * rate on the input seconds plus the output seconds, which comes to more than
+ * the usual rate on the output alone. The video's length is not known when the
+ * price is asked for, so the longest the provider accepts is counted: the cap
+ * may overcount a short reference, never undercount a long one.
+ */
+function videoInputPrice({ usdPerSecond = {}, maxInputS }, seconds, res) {
+  const known = usdPerSecond[res];
+  const rate = known ?? Math.max(...Object.values(usdPerSecond).filter(Number.isFinite));
+  const usd = Math.round(rate * (seconds + maxInputS) * 10_000) / 10_000;
+  const at = known == null ? "(highest rate; resolution unknown)" : `at ${res}`;
+  return { usd, basis: `(${seconds}s + up to ${maxInputS}s of reference video) × $${rate}/s ${at}` };
+}
+
+/** Speech billed by the script's length (ElevenLabs on kie: per 1,000 characters). */
+function scriptPrice(route, input) {
+  const { usdPer1000, field } = route.pricing;
+  const chars = typeof input?.[field] === "string" ? input[field].length : 0;
+  if (!chars) return { usd: route.priceUsd ?? 0, basis: "per-job-fallback" };
+  return { usd: Math.round((chars / 1000) * usdPer1000 * 10_000) / 10_000, basis: `${chars} characters × $${usdPer1000} per 1,000` };
 }
 
 /**
@@ -53,6 +79,7 @@ function imagePrice(route, { resolution, quality }) {
 
 /** How `kie models` and `kie preflight` show a route's price. */
 export function priceLabel(route) {
+  if (route.pricing?.per === "characters") return `$${route.pricing.usdPer1000} per 1,000 characters`;
   if (route.pricing?.per === "image") return Object.entries(route.pricing.usd ?? {}).map(([k, usd]) => `${k} $${usd}`).join(" ");
   const rates = route.pricing?.per === "second" ? Object.entries(route.pricing.usdPerSecond ?? {}) : [];
   if (!rates.length) return `$${route.priceUsd}`;
@@ -74,9 +101,9 @@ export function priceLabel(route) {
 export async function preflight(
   catalog,
   route,
-  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution, quality } = {},
+  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution, quality, input } = {},
 ) {
-  const { usd, basis } = estimateUsd(route, { durationS, resolution, quality });
+  const { usd, basis } = estimateUsd(route, { durationS, resolution, quality, input });
   const estimatedUsd = usd * quantity;
   const cap = budgetUsd ?? catalog.defaultBudgetUsd?.[capability] ?? null;
 
