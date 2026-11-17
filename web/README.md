@@ -17,7 +17,7 @@ Each film in Films has four steps. Every step stays open, and nothing is paid fo
 
 1. **Idea:** what the film is about, its ratio and total length, and its scene list (titles and seconds, which you can rename, reorder and delete). **Copy plan for Claude Code** copies a request you paste into Claude Code (or Codex), which plans the scenes through the MCP server.
 2. **Cast:** each Library item the scenes use (`@library:name`), with its sheet or **Make its sheet**, and the pictures uploaded into each scene. It shows what is missing; it does not hold anything back.
-3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from.
+3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from. A stage's camera move, speed, shot size and angle, and the scene's lens and lighting, can be picked as chips from the director's menu; Shard writes their words into the prompt before what you typed.
 4. **Finish:** the film's takes and the finishing tools (assemble, captions, ratios, cards).
 
 A film made before Shard (no `scenes.json`) opens on Finish as "takes only". Home's **What are we making?** starts a new film on its Idea step.
