@@ -102,3 +102,20 @@ Every route in `cli/models.json` was re-read from the raw page HTML (not a summa
 - MiniMax H3 on WaveSpeed is $0.04/$0.06/$0.08/$0.16 per second (480p/540p/768p/1080p), not about $0.10/s.
 - MiniMax H3 Max (`minimax/hailuo-h3-max-t2v`) could not be found anywhere on kie.ai or its docs.
 - The kie docs name Veo's models `veo3`, `veo3_fast` and `veo3_lite`, Kling 3.0's `kling-3.0/video`, and Suno's `ai-music-api/generate`; the catalog's ids for those three routes are unverified.
+
+## Re-read on 2026-11-17
+
+Every kie route was read again, for [improvement 2](../improvements.md). Eleven of fourteen still match. What changed in `cli/models.json` and the estimate (`cli/lib/budget.mjs`):
+- **Kling 3.0 went up.** kie.ai/kling-3-0 now says 15.1 credits/s without audio and 22.7 with at 720P, 20.2 and 30.2 at 1080P, and 75.5 at 4K. The catalog had 20 and 27 with audio. It now holds 22.7 and 30.2 ($0.1135 and $0.151 a second).
+- **A reference video on Seedance 2 Fast is now counted.** kie charges 6.8 credits/s (480P) or 15 (720P) on the input seconds plus the output seconds. The video's length is not known when the price is asked for, so the estimate counts 15 seconds of input, the most kie accepts. A 5-second take at 720p with a reference video is estimated at $1.50, where it used to say $0.62.
+- **GPT Image 2 is priced by resolution** (6/10/16 credits at 1K/2K/4K), and **ElevenLabs speech by the script's length** (12 credits per 1,000 characters).
+
+Still not counted:
+- Kling without audio (the estimate assumes audio, so it overcounts a silent job) and Kling at 4K.
+- A reference video on Kling 3.0: its route has no captured contract, so the reference is refused before anything is sent.
+- Veo 3.1's tiers (Lite, Fast, Quality): which one the route's id selects is not known, so the dearest non-4K figure stands.
+- Hailuo H3's input images after the fifth (4 credits each), and Seedream's input images after the first (0.5 credits each).
+- kie's bonus credits on large top-ups, which make every real price about 10% lower than the list price used here.
+- MiniMax H3 Max was not re-checked, and no WaveSpeed page was re-read.
+
+New on kie's pricing page and not in the catalog: Seedance 2.5 Flash, Seedance 2 Mini, Kling 3.0 Omni, Turbo and Motion Control, MiniMax H3 Image. These were seen through a page summary, not read directly.

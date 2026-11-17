@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { EXIT } from "../cli/lib/errors.mjs";
 import { estimateUsd, priceLabel, preflight } from "../cli/lib/budget.mjs";
@@ -115,5 +116,81 @@ describe("an image route is priced per picture at the size or quality asked for"
 
   test("the label lists every price", () => {
     assert.equal(priceLabel(byRes), "1K $0.03 2K $0.05 4K $0.08");
+  });
+});
+
+describe("a reference video changes how a per-second route bills", () => {
+  // kie's Seedance 2 Fast: a lower rate, charged on the input seconds as well as the output.
+  const route = {
+    priceUsd: 0.62,
+    pricing: {
+      per: "second",
+      usdPerSecond: { "480p": 0.0585, "720p": 0.124 },
+      videoInput: { field: "reference_video_urls", usdPerSecond: { "480p": 0.034, "720p": 0.075 }, maxInputS: 15 },
+    },
+    input: { defaults: { duration: 5, resolution: "720p" } },
+  };
+
+  test("no reference video: the usual rate on the output seconds", () => {
+    assert.equal(estimateUsd(route, { durationS: 5, resolution: "720p", input: { reference_video_urls: [] } }).usd, 0.62);
+    assert.equal(estimateUsd(route, { durationS: 5, resolution: "720p" }).usd, 0.62);
+  });
+
+  test("with one, its length is unknown here, so the longest the provider allows is counted", () => {
+    const e = estimateUsd(route, { durationS: 5, resolution: "720p", input: { reference_video_urls: ["https://x/a.mp4"] } });
+    assert.equal(e.usd, 1.5); // (5 + 15) × 0.075, where the flat reading said 0.62
+    assert.equal(e.basis, "(5s + up to 15s of reference video) × $0.075/s at 720p");
+  });
+
+  test("a resolution with no video rate is priced at the dearest video rate", () => {
+    const e = estimateUsd(route, { durationS: 5, resolution: "1080p", input: { reference_video_urls: ["u"] } });
+    assert.equal(e.usd, 1.5);
+    assert.match(e.basis, /highest rate/);
+  });
+
+  test("the budget check sees it", async () => {
+    const withProv = { ...route, prov: { label: "Test", credits: null } };
+    await assert.rejects(
+      preflight({}, withProv, { budgetUsd: 1, durationS: 5, resolution: "720p", input: { reference_video_urls: ["u"] } }),
+      (e) => e.code === EXIT.BUDGET && /\$1\.50/.test(e.message),
+    );
+  });
+});
+
+describe("speech is priced by the length of the script", () => {
+  const route = { priceUsd: 0.12, pricing: { per: "characters", usdPer1000: 0.06, field: "text" } };
+
+  test("5,000 characters cost five thousandths' worth, not the flat figure", () => {
+    const e = estimateUsd(route, { input: { text: "a".repeat(5000) } });
+    assert.equal(e.usd, 0.3);
+    assert.equal(e.basis, "5000 characters × $0.06 per 1,000");
+  });
+
+  test("no script to measure falls back to the flat figure", () => {
+    assert.deepEqual(estimateUsd(route, {}), { usd: 0.12, basis: "per-job-fallback" });
+  });
+});
+
+describe("the catalog's prices as read on kie on 2026-11-17", () => {
+  const catalog = JSON.parse(readFileSync(new URL("../cli/models.json", import.meta.url), "utf8"));
+  const kie = (id) => catalog.models[id].routes.find((r) => r.provider === "kie");
+
+  test("Kling 3.0 with audio: 22.7 and 30.2 credits a second", () => {
+    assert.deepEqual(kie("kling-3-0").pricing.usdPerSecond, { "720p": 0.1135, "1080p": 0.151 });
+    assert.equal(estimateUsd(kie("kling-3-0"), { durationS: 10, resolution: "1080p" }).usd, 1.51);
+  });
+
+  test("Seedance 2 Fast with a reference video: 15 credits a second on input plus output", () => {
+    const e = estimateUsd(kie("seedance-2-fast"), { durationS: 5, resolution: "720p", input: { reference_video_urls: ["u"] } });
+    assert.equal(e.usd, 1.5);
+  });
+
+  test("GPT Image 2 is priced by resolution", () => {
+    assert.equal(estimateUsd(kie("gpt-image-2"), { resolution: "1K" }).usd, 0.03);
+    assert.equal(estimateUsd(kie("gpt-image-2"), { resolution: "4K" }).usd, 0.08);
+  });
+
+  test("ElevenLabs speech is priced by the script's length", () => {
+    assert.equal(estimateUsd(kie("elevenlabs-tts"), { input: { text: "a".repeat(3000) } }).usd, 0.18);
   });
 });
