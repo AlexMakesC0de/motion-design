@@ -35,7 +35,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     versions: z.array(Data),
     chosen: z.string().nullable(),
   };
-  const pickId = (what) => z.string().nullable().optional().describe(`${what} An id from get_menu; null removes it.`);
+  const pickId = (what, group) => z.string().nullable().optional().describe(`${what} An id from get_menu's "${group}" group.`);
   const Stage = z.object({
     title: z.string(),
     seconds: z.number().int().min(1),
@@ -43,7 +43,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     action: z.string(),
     end: z.string(),
     picks: z
-      .object({ move: pickId("The camera move."), speed: pickId("How fast the move is; needs a move other than static."), size: pickId("The shot size."), angle: pickId("The camera angle.") })
+      .object({ move: pickId("The camera move.", "moves"), speed: pickId("How fast the move is; needs a move other than static.", "speeds"), size: pickId("The shot size.", "sizes"), angle: pickId("The camera angle.", "angles") })
       .optional()
       .describe("This stage's camera, chosen from the director's menu. Its words are written before `camera` in the prompt."),
   });
@@ -114,6 +114,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
         "Create a scene (no id) or change one (with id). When changing, only the fields given are replaced: " +
         "cards merge by key (goal, scene, stages, style, audio, picks), and stages, when given, replace the whole list. " +
         "A stage's picks (move, speed, size, angle) and the cards' picks (lens, light) are ids from get_menu; prefer a pick over typing the same move in words. " +
+        "Stages replace the whole list, so resend each stage's picks with it or they are cleared. " +
         "Change only what the user asked for. The length is the sum of the stages' seconds (4 to 30). " +
         MENTIONS +
         " Free.",
@@ -132,9 +133,9 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
             style: z.string().optional(),
             audio: z.string().optional(),
             picks: z
-              .object({ lens: pickId("The scene's lens."), light: pickId("The scene's lighting.") })
+              .object({ lens: pickId("The scene's lens.", "lenses"), light: pickId("The scene's lighting.", "lights") })
               .optional()
-              .describe("The scene's lens and lighting, chosen from the director's menu. Merged by key."),
+              .describe("The scene's lens and lighting, chosen from the director's menu. Merged by key; send a key as null to remove it."),
           })
           .optional(),
       },

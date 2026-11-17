@@ -38,7 +38,7 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
   const chosen = options.find((o) => o.id === value);
   const speedChosen = speeds?.find((o) => o.id === speed);
   // An id the menu no longer has is shown as written.
-  const name = value ? `${chosen?.label ?? value}${speedChosen ? `, ${speedChosen.label.toLowerCase()}` : ""}` : null;
+  const name = value ? `${chosen?.label ?? value}${speedChosen ? ` · ${speedChosen.label.toLowerCase()}` : ""}` : null;
   const moving = Boolean(speeds && value && value !== "static");
 
   const close = (focus = true) => {
@@ -53,6 +53,11 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
     list.current?.focus();
     // Only on opening: a pick that keeps the list open must not move the highlight.
   }, [open]);
+
+  // The highlighted option stays in view as the arrow keys move through a long list.
+  useEffect(() => {
+    if (open && options[active]) document.getElementById(`${uid}-${options[active].id}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [open, active, options, uid]);
 
   // A click anywhere else closes it.
   useEffect(() => {
@@ -85,15 +90,23 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
       if (options[active]) choose(options[active].id);
     }
   };
-  // Escape closes from anywhere in the list, the speed buttons included.
+  // Escape closes from anywhere in the pick: the chip, the speed buttons or the list.
   const escape = (e: KeyboardEvent) => {
-    if (e.key !== "Escape") return;
+    if (e.key !== "Escape" || !open) return;
     e.stopPropagation();
     close();
   };
 
   return (
-    <span className="pick" ref={wrap}>
+    <span
+      className="pick"
+      ref={wrap}
+      onKeyDown={escape}
+      // Tabbing out to another control closes the list; a click elsewhere is handled above.
+      onBlur={(e) => {
+        if (open && e.relatedTarget && !wrap.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
       <button
         type="button"
         ref={chip}
@@ -105,7 +118,7 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
         onClick={() => setOpen((o) => !o)}
       >
         {!value && <Icon name="plus" size={14} />}
-        {value ? `${chosen?.label ?? value}${speedChosen ? ` · ${speedChosen.label.toLowerCase()}` : ""}` : label}
+        {name ?? label}
       </button>
       {value && (
         <button type="button" className="pick__remove" aria-label={`Remove ${lower(scope)}`} title="Remove" onClick={() => onPick(undefined)}>
@@ -113,7 +126,7 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
         </button>
       )}
       {open && (
-        <div className="pick-pop" onKeyDown={escape}>
+        <div className="pick-pop">
           {moving && speeds && (
             <div className="pick-pop__speeds" role="group" aria-label={`${scope} speed`}>
               {speeds.map((s) => (

@@ -88,7 +88,7 @@ describe("PickChip", () => {
     fireEvent.click(within(speedRow).getByRole("button", { name: "Slow" }));
     expect(value()).toBe("push-in/slow");
     expect(within(speedRow).getByRole("button", { name: "Slow" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Stage 2 move: Push in, slow. Change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stage 2 move: Push in · slow. Change" })).toBeInTheDocument();
     fireEvent.click(within(speedRow).getByRole("button", { name: "Slow" }));
     expect(value()).toBe("push-in/none");
     fireEvent.keyDown(within(speedRow).getByRole("button", { name: "Fast" }), { key: "Escape" });
@@ -97,6 +97,21 @@ describe("PickChip", () => {
     fireEvent.click(screen.getByRole("option", { name: /Static/ }));
     expect(value()).toBe("static/none");
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  test("Home and End jump, the list names its highlighted option, and a click elsewhere closes it", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Stage 2 move: none. Choose" }));
+    const list = screen.getByRole("listbox");
+    fireEvent.keyDown(list, { key: "End" });
+    const last = within(list).getByRole("option", { name: /Pull out/ });
+    expect(last).toHaveAttribute("data-active", "true");
+    expect(list).toHaveAttribute("aria-activedescendant", last.id);
+    fireEvent.keyDown(list, { key: "Home" });
+    expect(list).toHaveAttribute("aria-activedescendant", within(list).getByRole("option", { name: /Static/ }).id);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(value()).toBe("none/none");
   });
 
   test("an id the menu no longer has shows as written, so it can be swapped or removed", () => {
