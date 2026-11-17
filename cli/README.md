@@ -382,6 +382,18 @@ pass, with their type and allowed values checked locally. Anything else is
 refused with exit 3, so a param can never replace the prompt or a reference
 field. A route with no captured contract refuses every param.
 
+### Camera and look picks
+
+`kie video --pick key=id` (repeatable) adds camera and look words after the
+prompt file's text, worded for the model (Hailuo gets its bracket command, for
+example `[Push in]`). The keys are `move`, `speed`, `size`, `angle`, `lens` and
+`light`; the ids are the director's menu (`kie plan --menu`, or `get_menu` over MCP).
+`speed` needs a move other than `static`. An id the menu lacks, or a prompt
+that goes past the model's `promptProfile.maxChars` only because of the added
+block, is refused with exit 3 before anything is uploaded or spent. A prompt
+with no picks is sent as before. `--dry-run` prints the added lines.
+`prompt.txt` holds what was sent; `inputs.json` gains `picks` and `typedPrompt`.
+
 ### Reference rules
 
 `input.refRules` holds what the provider documents as impossible:

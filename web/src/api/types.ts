@@ -17,6 +17,10 @@ export interface JobView {
   costSource: string;
   capability: "video" | "image" | "audio" | null;
   prompt: string | null;
+  /** Create Video's picks (menu ids), when the take was made with any. */
+  picks: Partial<Record<"move" | "speed" | "size" | "angle" | "lens" | "light", string>> | null;
+  /** What was typed, before the picks' words were added to `prompt`. */
+  typedPrompt: string | null;
   /** Some routes record the duration as text ("5"); show it with Number(). */
   durationS: number | string | null;
   resolution: string | null;

@@ -23,6 +23,7 @@ import { readLimits, setDailyLimit, setPerJobLimit, limitsPath, dailyPosition } 
 import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { openLibrary, KINDS } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
+import { VIDEO_PICKS, applyVideoPicks } from "./director/video-picks.mjs";
 import { allowedRoots, checkLocalFile } from "./core/inputs.mjs";
 import { doctor } from "./core/views.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
@@ -68,6 +69,7 @@ const HELP = `kie -- motion-design execution layer
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
                  [--duration N] [--ar R] [--resolution R] [--ref URL|ASSET:ROLE]...
                  [--param KEY=VALUE]... [--budget U]
+                 [--pick KEY=ID]...      camera and look words added after the prompt (keys: move speed size angle lens light; ids: kie plan --menu)
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--ref URL|ASSET:ROLE]... [--background B]
@@ -142,6 +144,7 @@ const OPTS = {
   description: { type: "string" },
   replace: { type: "boolean", default: false },
   param: { type: "string", multiple: true, default: [] },
+  pick: { type: "string", multiple: true, default: [] },
   budget: { type: "string" },
   resolution: { type: "string" },
   quality: { type: "string" },
@@ -579,6 +582,17 @@ async function refsFor(catalog, args, parsed) {
   return expanded;
 }
 
+/** --pick key=id, repeatable → { key: id }. A later pick of the same key wins. */
+function parsePicks(list) {
+  const out = {};
+  for (const item of list) {
+    const at = item.indexOf("=");
+    if (at < 1) throw usage(`--pick takes key=id, got "${item}". The keys are: ${Object.keys(VIDEO_PICKS).join(", ")}.`);
+    out[item.slice(0, at)] = item.slice(at + 1);
+  }
+  return out;
+}
+
 async function cmdVideo(catalog, args) {
   const presets = loadPresets();
   let usedSourcePromptRaw = false;
@@ -647,9 +661,16 @@ async function cmdVideo(catalog, args) {
         (preset ? durationAdvice(catalog, preset, model, durationS) : ""),
     );
   }
+  // Words for the picks go after the typed prompt. Checked here, before any upload or spend.
+  const typed = readFileSync(promptPath, "utf8");
+  const worded = applyVideoPicks(typed, parsePicks(args.pick), model);
+  const prompt = worded.prompt;
+  if (worded.picks && args["dry-run"]) {
+    say("picks added after the prompt:");
+    for (const line of prompt.slice(typed.trimEnd().length).trim().split("\n")) say(`  ${line}`);
+  }
   const { refs, refMapping, assets } = await refsFor(catalog, args, parsedRefs);
 
-  const prompt = readFileSync(promptPath, "utf8");
   const dir = runDir(args.run);
   await writeRecord(dir, "prompt.txt", prompt);
   await writeRecord(dir, "inputs.json", {
@@ -663,6 +684,7 @@ async function cmdVideo(catalog, args) {
     refMapping,
     params,
     promptChars: prompt.length,
+    ...(worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {}),
     usedSourcePromptRaw,
     deliverable: !usedSourcePromptRaw,
     ...(usedSourcePromptRaw
@@ -690,7 +712,7 @@ async function cmdVideo(catalog, args) {
     },
     args,
     artifactBase: "out",
-    record: { refMapping, assets },
+    record: { refMapping, assets, ...(worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {}) },
   });
 }
 

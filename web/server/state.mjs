@@ -26,6 +26,9 @@ export function jobView(j, following = () => false) {
     capability: j.capability ?? null,
     providerModel: j.providerModel ?? null,
     prompt: typeof input.prompt === "string" ? input.prompt : null,
+    // Create Video's picks and what was typed before the picks' words were added.
+    picks: j.picks ?? null,
+    typedPrompt: typeof j.typedPrompt === "string" ? j.typedPrompt : null,
     durationS: input.duration ?? input.duration_s ?? null,
     resolution: input.resolution != null ? String(input.resolution) : null,
     aspectRatio: input.aspect_ratio ?? null,

@@ -57,6 +57,34 @@ describe("generate", () => {
     assert.ok(existsSync(join(RUNS, "gen-image", "image-prompt.txt")));
   });
 
+  test("generate_video words the picks after the prompt and records them with what was typed", async () => {
+    const picks = { move: "pull-out", size: "wide", light: "golden-hour" };
+    const r = await call(client, "generate_video", { ...video, run: "gen-picks", picks });
+    assert.notEqual(r.isError, true, r.content[0].text);
+    const sent = `${video.prompt}\n\nCamera: Wide shot; the camera pulls out.\nWarm, low golden-hour sunlight.`;
+    assert.equal(calls.create.at(-1).input.prompt, sent);
+    assert.equal(readFileSync(join(RUNS, "gen-picks", "prompt.txt"), "utf8"), sent);
+    const inputs = JSON.parse(readFileSync(join(RUNS, "gen-picks", "inputs.json"), "utf8"));
+    assert.deepEqual(inputs.picks, picks);
+    assert.equal(inputs.typedPrompt, video.prompt);
+    const job = JSON.parse(readFileSync(join(RUNS, ".jobs", `${r.structuredContent.localJobId}.json`), "utf8"));
+    assert.deepEqual(job.picks, picks);
+    assert.equal(job.typedPrompt, video.prompt);
+  });
+
+  test("an unknown pick id is a refusal with nothing sent or recorded", async () => {
+    const sent = calls.create.length;
+    const jobs = jobCount();
+    const r = await call(client, "generate_video", { ...video, run: "gen-badpick", picks: { light: "moonbeam" } });
+    assert.equal(errorOf(r).code, 3);
+    assert.match(r.content[0].text, /not on the director's lights menu/);
+    assert.equal(calls.create.length, sent);
+    assert.equal(jobCount(), jobs);
+    assert.equal(existsSync(join(RUNS, "gen-badpick", "prompt.txt")), false);
+    const odd = await call(client, "generate_video", { ...video, run: "gen-badpick", picks: { zoom: "fast" } });
+    assert.match(odd.content[0].text, /The video has no "zoom" pick/);
+  });
+
   test("no model and no preset is a usage error", async () => {
     const { model, ...noModel } = video;
     const r = await call(client, "generate_video", noModel);

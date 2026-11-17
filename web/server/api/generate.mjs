@@ -11,6 +11,7 @@ import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { unknown, usage } from "../../../cli/lib/errors.mjs";
 import { submitJob, waitJob } from "../../../cli/core/generate.mjs";
 import { expandRefs } from "../../../cli/core/refs.mjs";
+import { applyVideoPicks } from "../../../cli/director/video-picks.mjs";
 import { context, jobView } from "../state.mjs";
 import * as f from "./fields.mjs";
 
@@ -21,7 +22,7 @@ import * as f from "./fields.mjs";
 export function createSubmitter({ catalog, deps = {}, follower }) {
   const view = (j) => jobView(j, follower.has);
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
-  return async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {} }) {
+  return async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {}, jobRecord = {} }) {
     const dir = runDir(a.run);
     const { store, limits, roots, library } = context();
     const expanded = await expandRefs(a.refs, { catalog, library, roots, baseDir: RUNS_DIR, upload });
@@ -51,7 +52,7 @@ export function createSubmitter({ catalog, deps = {}, follower }) {
           budgetUsd: a.budget_usd,
           only: a.provider,
           values: { ...values, refs: expanded.refs, params: a.params, _useI2v: useI2v(expanded.refs) },
-          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "studio" },
+          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "studio", ...jobRecord },
         },
         { store, limits, deps: deps.generate },
       );
@@ -135,17 +136,22 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
           : "refs";
       throw unknown(`Refused before submitting, nothing was spent. ${problems.join(" ")}`, { field, problems });
     }
+    // After the request is checked and before anything is reserved: a bad pick or an over-long prompt costs nothing.
+    const worded = applyVideoPicks(a.prompt, body.picks, model);
+    const sent = { ...a, prompt: worded.prompt };
+    const withPicks = worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {};
     return submit(
       "video",
       model,
-      a,
-      { prompt: a.prompt, duration: durationS, aspect_ratio: aspectRatio, resolution: a.resolution },
+      sent,
+      { prompt: sent.prompt, duration: durationS, aspect_ratio: aspectRatio, resolution: a.resolution },
       {
         promptFile: "prompt.txt",
         inputsFile: "inputs.json",
         artifactBase: "out",
         useI2v: (refs) => refs.some((r) => r.role === "first_frame"),
-        extra: { preset: presetId, durationS, aspectRatio },
+        extra: { preset: presetId, durationS, aspectRatio, ...withPicks },
+        jobRecord: withPicks,
       },
     );
   });

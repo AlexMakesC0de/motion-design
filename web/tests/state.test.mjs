@@ -41,6 +41,18 @@ describe("jobView", () => {
     assert.equal(v.following, false, "nobody follows a job unless a predicate says so");
   });
 
+  test("picks and the typed prompt come from the job record; null when there are none", () => {
+    const store = openJobs(join(RUNS, ".jobs"));
+    const base = { run: "zed", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 };
+    const withPicks = store.create({ ...base, picks: { lens: "85mm" }, typedPrompt: "A fox." });
+    const v = jobView(withPicks);
+    assert.deepEqual(v.picks, { lens: "85mm" });
+    assert.equal(v.typedPrompt, "A fox.");
+    const plain = jobView(store.create(base));
+    assert.equal(plain.picks, null);
+    assert.equal(plain.typedPrompt, null);
+  });
+
   test("following comes from the predicate it is given", () => {
     const store = openJobs(join(RUNS, ".jobs"));
     const job = store.create({ run: "zed", capability: "video", model: "seedance-2", provider: "kie", estimateUsd: 1 });
