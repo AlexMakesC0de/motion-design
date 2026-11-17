@@ -6,6 +6,8 @@ import { RUNS_DIR, runDir } from "../lib/run.mjs";
 import { unknown, usage } from "../lib/errors.mjs";
 import { MAX_REFS, emptyCards } from "./mentions.mjs";
 import { RATIOS, DURATION } from "./scene-shape.mjs";
+import { loadMenu, entry } from "./menu.mjs";
+import { STAGE_PICKS, SCENE_PICKS } from "./picks.mjs";
 export { emptyCards, parseDanPrompt } from "./mentions.mjs";
 export { RATIOS, DURATION, emptyScene, stageTimes } from "./scene-shape.mjs";
 
@@ -21,6 +23,26 @@ const text = (v, field) => {
 
 export function readScenes(film) {
   return readFilmJson(film, FILE) ?? { version: 1, idea: null, scenes: [] };
+}
+
+/**
+ * A picks object, checked against the menu. `groups` is STAGE_PICKS or
+ * SCENE_PICKS; `where` starts the message ("Stage 2", "The scene"). Empty
+ * values are dropped. Returns null when nothing is picked.
+ */
+function cleanPicks(input, groups, where) {
+  if (input == null) return null;
+  if (typeof input !== "object" || Array.isArray(input)) throw bad("picks", `${where === "The scene" ? "The scene's" : `${where}'s`} picks must be an object.`);
+  const menu = loadMenu();
+  const out = {};
+  for (const [key, id] of Object.entries(input)) {
+    if (id == null || id === "") continue;
+    if (!groups[key]) throw bad("picks", `${where} has no "${key}" pick. It takes: ${Object.keys(groups).join(", ")}.`);
+    entry(menu, groups[key], id); // refuses an unknown id, naming the menu's own
+    out[key] = id;
+  }
+  if (out.speed && (!out.move || out.move === "static")) throw bad("picks", `${where}: a speed needs a move other than static.`);
+  return Object.keys(out).length ? out : null;
 }
 
 /** Check and tidy what a caller sent. Versions and chosen are never taken from the caller. */
@@ -41,9 +63,13 @@ function clean(input) {
   const c = input.cards ?? emptyCards();
   const stages = (c.stages ?? []).map((s, i) => {
     if (!Number.isInteger(s.seconds) || s.seconds < 1) throw bad("stages", `Stage ${i + 1} must last at least 1 second.`);
-    return { title: text(s.title, "title").trim(), seconds: s.seconds, camera: text(s.camera, "camera"), action: text(s.action, "action"), end: text(s.end, "end") };
+    const stage = { title: text(s.title, "title").trim(), seconds: s.seconds, camera: text(s.camera, "camera"), action: text(s.action, "action"), end: text(s.end, "end") };
+    const picks = cleanPicks(s.picks, STAGE_PICKS, `Stage ${i + 1}`);
+    return picks ? { ...stage, picks } : stage;
   });
   const cards = { goal: text(c.goal, "goal"), scene: text(c.scene, "scene"), stages, style: text(c.style, "style"), audio: text(c.audio, "audio") };
+  const scenePicks = cleanPicks(c.picks, SCENE_PICKS, "The scene");
+  if (scenePicks) cards.picks = scenePicks;
   const durationS = stages.length ? stages.reduce((n, s) => n + s.seconds, 0) : input.durationS;
   if (!Number.isInteger(durationS) || durationS < DURATION.min || durationS > DURATION.max) {
     throw bad("durationS", `A Seedance scene lasts ${DURATION.min} to ${DURATION.max} seconds, got ${durationS}.`);
