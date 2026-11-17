@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { png } from "./fixtures/images.mjs";
 import { openLibrary } from "../cli/core/assets.mjs";
 import { compileScene } from "../cli/director/scene.mjs";
+import { loadMenu, entry } from "../cli/director/menu.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "kie-compile-"));
 const img = (name, w = 600, h = 400) => { const p = join(dir, name); writeFileSync(p, png(w, h)); return p; };
@@ -28,6 +29,10 @@ const scene = (over = {}) => ({
   },
   ...over,
 });
+
+const cap = (s) => `${s[0].toUpperCase()}${s.slice(1)}`;
+const light = (id) => entry(loadMenu(), "lights", id).words;
+const lens = (id) => entry(loadMenu(), "lenses", id).words;
 
 describe("compileScene", () => {
   test("Dan's sections, in order, with every mention as the model's token", () => {
@@ -52,6 +57,39 @@ describe("compileScene", () => {
       { source: join("sky", "refs/door.png"), role: "identity" },
       { source: "jumpsuit#1", role: "identity" },
     ]);
+  });
+
+  test("picks are written before the typed words of their line", () => {
+    const s = scene();
+    s.cards.picks = { light: "golden-hour", lens: "85mm" };
+    s.cards.stages[0].picks = { move: "push-in", speed: "slow", size: "close-up", angle: "low" };
+    const { prompt, problems } = compileScene(s, { film: "sky", library });
+    assert.deepEqual(problems, []);
+    assert.match(prompt, /\[SCENE\]\nWarm, low golden-hour sunlight\. Over the Alps\.\n/);
+    assert.match(prompt, /\nCamera: Close-up, low angle; the camera slowly pushes in\. Behind him, framed like \[Image 2\]\n/);
+    assert.match(prompt, /\nCamera: Facing him\.\n/);
+    assert.match(prompt, /\[VISUAL STYLE\]\n85mm portrait lens\. Film grain\.\n/);
+  });
+
+  test("picks with empty boxes still make their line and section", () => {
+    const s = scene({ refs: [] });
+    s.cards = { goal: "", scene: "", style: "", audio: "", picks: { light: "neon", lens: "24mm" }, stages: [{ title: "", seconds: 8, camera: "", action: "", end: "", picks: { move: "static" } }] };
+    const { prompt, problems } = compileScene(s, { film: "sky", library });
+    assert.deepEqual(problems, []);
+    assert.equal(prompt, [
+      "[SCENE]", `${cap(light("neon"))}.`, "",
+      "[STAGE 1 | 0–8 SECONDS | STAGE 1]", "Camera: The camera holds still.", "",
+      "[VISUAL STYLE]", `${cap(lens("24mm"))}.`, "",
+      "[MAINTAIN CONSISTENCY]", "Keep every person, product and place exactly as in their reference images in every stage.",
+    ].join("\n"));
+  });
+
+  test("a pick the menu no longer has is a problem, not a crash", () => {
+    const s = scene();
+    s.cards.stages[0].picks = { move: "moonwalk" };
+    const { problems } = compileScene(s, { film: "sky", library });
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /"moonwalk" is not on the director's moves menu/);
   });
 
   test("reordering refs renumbers the prompt", () => {
