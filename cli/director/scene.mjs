@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { sheetOf } from "../core/assets.mjs";
 import { IMAGE, LIBRARY, STORED, attachLibraryMentions, refLabel, MAX_REFS } from "./mentions.mjs";
 import { stageTimes } from "./scenes.mjs";
+import { loadMenu, entry } from "./menu.mjs";
+import { stageWords, pickSentence, hasPicks } from "./picks.mjs";
 
 export const DEFAULT_REF_TOKEN = "[Image {n}]";
 const KIND_WORD = { character: "character", product: "prop", location: "location", style: "style" };
@@ -25,7 +27,7 @@ function sizeProblem(what, size, limits) {
  * `limits` and `sizeOf(path)` are optional: with them, pictures the model
  * would refuse are named here, in the preview, rather than at submit.
  */
-export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN, limits = null, sizeOf = () => null }) {
+export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN, limits = null, sizeOf = () => null, menu = loadMenu() }) {
   const scene = attachLibraryMentions(input);
   const problems = [];
   const token = (i) => refToken.replace("{n}", String(i + 1));
@@ -58,7 +60,7 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
     return { send: { source: join(film, rel), role: "identity" }, line: `${token(i)} — ${refLabel(r)}.${r.keep ? ` Preserve ${r.keep}.` : ""}` };
   });
   if (scene.refs.length > MAX_REFS) problems.push(`A scene holds at most ${MAX_REFS} images.`);
-  const says = [scene.cards.goal, scene.cards.scene, ...scene.cards.stages.flatMap((s) => [s.camera, s.action])].some((t) => t?.trim());
+  const says = [scene.cards.goal, scene.cards.scene, ...scene.cards.stages.flatMap((s) => [s.camera, s.action])].some((t) => t?.trim()) || hasPicks(scene.cards);
   if (!says) problems.push("Write the Goal, or what happens in a stage, first.");
 
   const render = (t) =>
@@ -78,6 +80,19 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
       .trim();
 
   const c = scene.cards;
+  // A pick's words. An id the menu no longer has becomes a problem and no words.
+  const pick = (group, id) => entry(menu, group, id);
+  const words = (fn) => {
+    try {
+      return fn();
+    } catch (err) {
+      problems.push(err.message);
+      return "";
+    }
+  };
+  const lead = (first, typed) => [first, typed].filter(Boolean).join(" ");
+  const lightWords = words(() => (c.picks?.light ? pickSentence(pick("lights", c.picks.light)) : ""));
+  const lensWords = words(() => (c.picks?.lens ? pickSentence(pick("lenses", c.picks.lens)) : ""));
   const out = [];
   const section = (head, body) => {
     if (body) out.push(`[${head}]`, body, "");
@@ -86,13 +101,14 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
   if (resolved.length) {
     out.push("[REFERENCES]", ...resolved.filter(Boolean).map((r) => r.line), "Do not reproduce reference-sheet panels, grey studio backgrounds or labels.", "");
   }
-  section("SCENE", render(c.scene));
+  section("SCENE", lead(lightWords, render(c.scene)));
   const times = stageTimes(scene);
   c.stages.forEach((s, i) => {
-    const lines = [["Camera", s.camera], ["Action", s.action], ["End", s.end]].map(([k, v]) => [k, render(v)]).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
+    const camera = lead(words(() => stageWords(s.picks, pick)), render(s.camera));
+    const lines = [["Camera", camera], ["Action", render(s.action)], ["End", render(s.end)]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
     out.push(`[STAGE ${i + 1} | ${times[i].fromS}–${times[i].toS} SECONDS | ${(s.title || `Stage ${i + 1}`).toUpperCase()}]`, ...lines, "");
   });
-  section("VISUAL STYLE", render(c.style));
+  section("VISUAL STYLE", lead(lensWords, render(c.style)));
   section("AUDIO", render(c.audio));
   out.push("[MAINTAIN CONSISTENCY]", "Keep every person, product and place exactly as in their reference images in every stage.");
 
