@@ -11,3 +11,14 @@ Agreed with Alex on 2026-11-17, after the camera and look pickers for Scenes shi
 - [ ] **7. Keep an agent from wiping stage picks.** When `save_scene` resends a scene's stages without their picks, keep the picks unless told to remove them.
 - [ ] **8. Safety nets for the code.** An `npm run typecheck`, a GitHub check on every push, and a fix for the page test that fails now and then (`useScenes.test.ts`, "a job event for one of its versions reloads").
 - [ ] **9. The bigger Higgsfield gaps.** After-the-take tools (upscale, extend, lip-sync), a larger look library, a product-ad builder, a chat director in the studio. Each is its own project.
+
+## From the open-source alternatives
+
+Added on 2026-11-17 from [what the open-source Higgsfield alternatives do](research/2026-11-17-open-source-higgsfield-alternatives.md). In the order they should be done.
+
+- [ ] **10. Compare two takes, and keep a failed take with Retry.** Two takes side by side, and a failed or refused job that stays as a tile saying why, with one click to send it again. Check first what the take viewer already does.
+- [ ] **11. Next beat and Coverage in Scenes.** *Next beat* starts a new scene from a take's last frame. *Coverage* makes several scenes from one, at different shot sizes and angles, using the picks.
+- [ ] **12. Find out whether character swap is possible on kie.** A reading task: does kie's Seedance 2.5 take a reference video for editing, does Kling Motion Control do it, what are the face rules, and what does it cost. It decides whether item 13 is the end or a first step.
+- [ ] **13. First-frame swap.** Redraw a clip's first frame with a Library character using an image model, then generate from that frame. Keeps the opening pose, not the whole performance.
+- [ ] **14. Trim a reference video before upload.** Pick the range to send, so only that is uploaded and billed, and the estimate uses its real length instead of the 15 seconds assumed today.
+- [ ] **15. Export in the browser.** Trim, caption and export MP4 in Chrome without ffmpeg, as BeatDesign does. Weigh against item 3 first.
