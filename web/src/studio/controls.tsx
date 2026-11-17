@@ -236,13 +236,16 @@ export function RefChips({ refs, assets }: { refs: RefDraft[]; assets: AssetSumm
   return (
     <ul className="ref-chips" aria-label="References">
       {refs.map((r, i) => {
-        const cover = assets.find((a) => a.name === r.source)?.cover;
+        // A Library item shows its cover; an uploaded picture (a path inside runs/) shows itself.
+        const upload = r.source.includes("/") && !r.source.includes("://");
+        const cover = upload ? `/media/runs/${r.source.split("/").map(encodeURIComponent).join("/")}` : assets.find((a) => a.name === r.source)?.cover;
+        const shown = upload ? r.source.split("/").pop() : `@${r.source}`;
         return (
           <li key={`${r.source}:${r.role}`} className="ref-chip">
             {cover ? <img className="ref-chip__cover" src={cover} alt="" /> : <span className="ref-chip__cover" aria-hidden="true" />}
-            <span className="mono">@{r.source}</span>
+            <span className="mono">{shown}</span>
             <span className="ref-chip__role">{r.role}</span>
-            <button type="button" className="ref-chip__remove" aria-label={`Remove @${r.source} ${r.role}`} onClick={() => removeRef(i)}>
+            <button type="button" className="ref-chip__remove" aria-label={`Remove ${shown} ${r.role}`} onClick={() => removeRef(i)}>
               <Icon name="close" size={14} />
             </button>
           </li>

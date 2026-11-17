@@ -62,14 +62,56 @@ describe("Image", () => {
     expect(screen.queryByRole("heading", { name: /Start creating/ })).toBeNull();
   });
 
-  test("the + chip adds a reference with any role core knows", async () => {
+  test("the + menu opens upward: pick a role, then a Library item", async () => {
     page();
     await screen.findByRole("button", { name: "Generate $0.04" });
-    fireEvent.click(screen.getByRole("button", { name: "Add a reference" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Role" }), { target: { value: "style" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const plus = screen.getByRole("button", { name: "Add a reference" });
+    expect(plus).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(plus);
+    expect(plus).toHaveAttribute("aria-expanded", "true");
+    const menu = screen.getByRole("menu", { name: "Add a reference" });
+    expect(within(menu).getByRole("menuitem", { name: /Upload from your computer/ })).toHaveFocus();
+    fireEvent.click(screen.getByRole("radio", { name: "Style" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /From your Library/ }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Library" })).getByRole("menuitem", { name: /zed/ }));
     expect(getDraft().refs).toContainEqual({ source: "zed", role: "style" });
+    expect(screen.queryByRole("menu")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remove @zed style" }));
     expect(getDraft().refs).not.toContainEqual({ source: "zed", role: "style" });
+  });
+
+  test("Escape steps back from the Library, then closes the menu and returns focus to +", async () => {
+    page();
+    await screen.findByRole("button", { name: "Generate $0.04" });
+    const plus = screen.getByRole("button", { name: "Add a reference" });
+    fireEvent.click(plus);
+    fireEvent.click(screen.getByRole("menuitem", { name: /From your Library/ }));
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Library" }), { key: "Escape" });
+    expect(screen.getByRole("menu", { name: "Add a reference" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Add a reference" }), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(plus).toHaveFocus();
+  });
+
+  test("Upload from your computer saves the picture into the film's refs and adds it with the chosen role", async () => {
+    const fetchMock = page([], { "/api/films/zed/refs": () => ({ source: "file:refs/chair.png" }) });
+    await screen.findByRole("button", { name: "Generate $0.04" });
+    fireEvent.click(screen.getByRole("button", { name: "Add a reference" }));
+    const file = new File(["png"], "chair.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Picture to upload"), { target: { files: [file] } });
+    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "zed/refs/chair.png", role: "identity" }));
+    const call = fetchMock.mock.calls.find(([url]) => String(url).startsWith("/api/films/zed/refs"));
+    expect(String(call?.[0])).toContain("name=chair.png");
+    const chip = screen.getByRole("button", { name: "Remove chair.png identity" }).closest("li")!;
+    expect(chip.querySelector("img")).toHaveAttribute("src", "/media/runs/zed/refs/chair.png");
+  });
+
+  test("a picture dropped on the dock is uploaded the same way", async () => {
+    page([], { "/api/films/zed/refs": () => ({ source: "file:refs/drop.png" }) });
+    await screen.findByRole("button", { name: "Generate $0.04" });
+    const dock = screen.getByRole("region", { name: "Prompt" });
+    const file = new File(["png"], "drop.png", { type: "image/png" });
+    fireEvent.drop(dock, { dataTransfer: { types: ["Files"], files: [file] } });
+    await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "zed/refs/drop.png", role: "identity" }));
   });
 });

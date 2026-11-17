@@ -1,42 +1,81 @@
-/* Settings: limits, provider keys, kie doctor, and the chat place. Tokens only; no green accent here. */
+/* Settings: one centred column of cards (limits, providers, the health check, agents). */
 
-.settings { display: flex; flex-direction: column; gap: var(--space-4); max-width: 760px; }
-.settings__head h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; }
-.settings__section {
-  display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4);
-  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1); font-size: var(--text-sm);
+.settings { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; max-width: 720px; margin: 0 auto; padding: var(--space-5) 0 var(--space-6); }
+.settings__head { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); text-align: center; }
+.settings__head h1 { margin: 0; font-size: var(--text-hero); font-weight: 700; letter-spacing: -0.02em; }
+.settings__head p { margin: 0; max-width: 46ch; color: var(--text-2); font-size: var(--text-lg); }
+
+.set-card {
+  display: flex; flex-direction: column; gap: var(--space-4); padding: 20px;
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1); font-size: var(--text-md);
 }
-.settings__section h2 { margin: 0; font-size: var(--text-md); font-weight: 600; }
-.settings__hint { margin: 0; color: var(--text-2); max-width: 70ch; }
+.set-card__head { display: flex; align-items: flex-start; gap: 14px; }
+.set-card__tile { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--surface-3); color: var(--text); }
+.set-card__words { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-top: 2px; }
+.set-card__words h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.set-card__foot { display: flex; align-items: center; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.set-card__foot .settings__hint { flex: 1; min-width: 0; }
+.set-card__foot > .settings__note:first-child { flex: 1; }
+.set-card__links { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-left: 58px; }
+
+.settings__hint { margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: 1.5; }
 /* A long path (the limits file) breaks inside the card instead of running out of it. */
-.settings__hint .mono { overflow-wrap: anywhere; }
-.settings__grid { display: grid; grid-template-columns: max-content max-content; gap: var(--space-2) var(--space-3); align-items: center; }
-.settings__grid > label { color: var(--text-2); }
-.settings__money { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-2); }
-.settings__money input {
-  width: 8em; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-sm);
-  padding: 5px var(--space-2); font-size: var(--text-sm);
+.settings__hint .mono { overflow-wrap: anywhere; color: var(--text); }
+.settings__note { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.settings__note[data-problems="true"] { color: var(--warn); }
+.settings__problem { margin: 0; color: var(--warn); font-size: var(--text-sm); }
+.settings__error { margin: 0; color: var(--bad-ink); font-size: var(--text-sm); }
+
+/* Limits: two large money fields, each with quick picks. */
+.limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.limit { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 14px; background: var(--surface-2); }
+.limit__label { color: var(--text-3); font-size: var(--text-sm); }
+.limit__money { display: flex; align-items: baseline; gap: 4px; color: var(--text-3); font-family: var(--font-mono); font-size: 30px; }
+.limit__money input {
+  width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--accent);
+  font-size: 30px; font-weight: 500; letter-spacing: -0.02em; outline: none; appearance: textfield; -moz-appearance: textfield;
 }
-.settings__actions { display: flex; align-items: center; gap: var(--space-3); }
-.settings__note { margin: 0; color: var(--text-2); }
-.settings__problem { margin: 0; color: var(--warn); }
-.settings__error { margin: 0; color: var(--bad-ink); }
+.limit__money input::-webkit-outer-spin-button, .limit__money input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.limit__money input::placeholder { color: var(--text-3); }
+.limit:focus-within { box-shadow: inset 0 0 0 1px var(--text-3); }
+.limit__quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.limit__pick {
+  height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: transparent;
+  color: var(--text-2); font: inherit; font-family: var(--font-mono); font-size: var(--text-sm); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.limit__pick:hover { color: var(--text); border-color: var(--text-3); }
+.limit__pick[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
 
-.providers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.provider { display: grid; grid-template-columns: 120px 90px minmax(0, 1fr) auto; gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+/* Providers: one row each, a letter tile, where the key goes, and whether it is set. */
+.providers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.provider { display: flex; align-items: center; gap: var(--space-3); padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.provider__mark {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--surface-3);
+  color: var(--text); font-weight: 700;
+}
+.provider__main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .provider__name { font-weight: 500; }
-.provider__key { font-size: var(--text-xs); color: var(--warn); }
-.provider__key[data-ok="true"] { color: var(--ok); }
-.provider__where { color: var(--text-2); font-size: var(--text-xs); }
-.provider__signup { color: var(--text); font-size: var(--text-xs); }
+.provider__where { color: var(--text-3); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.provider__where .mono { color: var(--text-2); }
+.provider__key {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; height: 26px; padding: 0 10px; border-radius: 999px;
+  background: rgb(239 138 71 / 0.12); color: var(--warn); font-size: var(--text-sm); font-weight: 500;
+}
+.provider__key[data-ok="true"] { background: var(--surface-3); color: var(--text); }
+.provider__signup { flex: none; color: var(--text); font-size: var(--text-sm); text-underline-offset: 3px; }
 
-.doctor { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); }
-.doctor li { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); gap: var(--space-2); }
-.doctor__tag { color: var(--text-3); }
-.doctor li[data-level="ok"] .doctor__tag { color: var(--ok); }
-.doctor li[data-level="warn"] .doctor__tag { color: var(--warn); }
-.doctor li[data-level="fail"] .doctor__tag { color: var(--bad-ink); }
+/* Doctor: one line per check, an icon in the level's colour. */
+.doctor { list-style: none; margin: 0; padding: 4px 0 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); }
+.doctor li { display: flex; align-items: flex-start; gap: 10px; color: var(--text-2); }
+.doctor__icon { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 6px; background: var(--surface-3); color: var(--text-3); }
+.doctor li[data-level="ok"] .doctor__icon { color: var(--ok); }
+.doctor li[data-level="warn"] .doctor__icon { color: var(--warn); background: rgb(239 138 71 / 0.12); }
+.doctor li[data-level="fail"] .doctor__icon { color: var(--bad-ink); background: var(--bad-surface); }
+.doctor li[data-level="fail"] { color: var(--text); }
 
-@media (max-width: 760px) {
-  .provider { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 640px) {
+  .limits { grid-template-columns: 1fr; }
+  .provider { flex-wrap: wrap; }
+  .set-card__links { padding-left: 0; }
 }

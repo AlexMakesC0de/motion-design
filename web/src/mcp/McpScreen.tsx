@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { SkillInfo } from "../api/types";
+import { Mark } from "../app/brands";
 import { Icon } from "../app/icons";
 import { Logo } from "../app/Logo";
 import "./mcp.css";
@@ -16,9 +17,9 @@ interface McpInfo {
 }
 
 const HOSTS = [
-  { id: "claude-code", label: "Claude Code", icon: "terminal" },
-  { id: "codex", label: "Codex", icon: "code" },
-  { id: "claude-desktop", label: "Claude Desktop", icon: "plug" },
+  { id: "claude-code", label: "Claude Code", icon: "claude" },
+  { id: "codex", label: "Codex", icon: "openai" },
+  { id: "claude-desktop", label: "Claude Desktop", icon: "claude" },
   { id: "cli", label: "CLI", icon: "terminal" },
   { id: "skills", label: "Skills", icon: "skills" },
 ] as const;
@@ -186,7 +187,7 @@ export function McpScreen({ host }: { host?: string }) {
       <nav className="mcp-tabs" aria-label="Connect from">
         {HOSTS.map((h) => (
           <a key={h.id} href={`#/mcp/${h.id}`} className="mcp-tab" aria-current={h.id === hostId ? "page" : undefined}>
-            <Icon name={h.icon} size={18} />
+            <Mark name={h.icon} size={18} />
             {h.label}
           </a>
         ))}
@@ -200,7 +201,7 @@ export function McpScreen({ host }: { host?: string }) {
             <em>{hostId === "skills" ? "SKILLS" : "IMAGES & VIDEOS"}</em>
           </span>
           <span className="mcp-title__line">
-            IN <span className="mcp-tile mcp-tile--host"><Icon name={current.icon} size={30} /></span> {current.label.toUpperCase()} WITH{" "}
+            IN <span className="mcp-tile mcp-tile--host"><Mark name={current.icon} size={30} /></span> {current.label.toUpperCase()} WITH{" "}
             <span className="mcp-tile mcp-tile--logo"><Logo size={36} /></span> SHARD
           </span>
         </h1>

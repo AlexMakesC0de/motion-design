@@ -55,3 +55,100 @@
   .dock { flex-direction: column; border-radius: 18px; }
   .dock__generate { flex-direction: row; gap: 10px; width: 100%; height: 52px; }
 }
+
+/* A picture dragged over the dock: the whole dock becomes the drop target. */
+.dock { position: relative; }
+.dock[data-dropping] { border-color: var(--text-3); }
+.dock__drop {
+  position: absolute; inset: 6px; z-index: 5; display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  border: 1.5px dashed var(--text-3); border-radius: 18px; background: rgb(28 29 31 / 0.92);
+  color: var(--text); font-size: var(--text-title); font-weight: 500; pointer-events: none;
+}
+
+/* The "+" menu: opens upward from the chip, two ways in, and a Library grid one level down. */
+.attach { position: relative; display: flex; }
+.attach__button { transition: background var(--dur-fast) var(--ease-out), transform 200ms var(--ease-out); }
+.attach__button .icon { transition: transform 220ms var(--ease-out); }
+.attach__button[data-open], .attach__button[data-open]:hover:not(:disabled) { background: var(--text); color: var(--bg); }
+.attach__button[data-open] .icon { color: var(--bg); transform: rotate(45deg); }
+.attach__panel {
+  position: absolute; bottom: calc(100% + 12px); left: -14px; z-index: 30; width: 380px; max-width: calc(100vw - 48px);
+  display: flex; flex-direction: column; gap: 10px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1);
+  box-shadow: 0 -18px 50px rgb(0 0 0 / 0.55);
+  transform-origin: 26px 100%; animation: attach-in 180ms var(--ease-out);
+}
+@keyframes attach-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+.attach__panel[data-view="library"] { width: 460px; }
+
+.attach__roles { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 6px 8px; border-bottom: 1px solid var(--line); }
+.attach__roles-label { margin-right: 4px; color: var(--text-3); font-size: var(--text-sm); }
+.attach__role {
+  height: 28px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent;
+  color: var(--text-2); font: inherit; font-size: var(--text-sm); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.attach__role:hover { color: var(--text); border-color: var(--text-3); }
+.attach__role[aria-checked="true"] { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 500; }
+
+.attach__list { display: flex; flex-direction: column; gap: 2px; }
+.attach__item {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 8px; border: 0; border-radius: 14px;
+  background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; outline: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.attach__item:hover, .attach__item:focus-visible { background: var(--surface-3); }
+.attach__item:disabled { cursor: progress; }
+.attach__tile {
+  position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; overflow: hidden;
+  border-radius: 12px; background: var(--surface-3); color: var(--text);
+}
+.attach__item:hover .attach__tile { background: #303135; }
+/* Up to three Library covers fanned inside the tile. */
+.attach__tile--stack img, .attach__tile--stack > span {
+  position: absolute; width: 30px; height: 30px; border-radius: 7px; object-fit: cover; border: 2px solid var(--surface-3); background: var(--surface-2);
+}
+.attach__tile--stack > :nth-child(1) { transform: translate(-9px, -6px) rotate(-8deg); }
+.attach__tile--stack > :nth-child(2) { transform: translate(8px, -4px) rotate(7deg); }
+.attach__tile--stack > :nth-child(3) { transform: translate(0, 8px) rotate(-2deg); }
+.attach__words { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.attach__title { font-size: var(--text-title); font-weight: 500; }
+.attach__text { color: var(--text-3); font-size: var(--text-sm); }
+.attach__chevron { display: flex; color: var(--text-3); transition: transform var(--dur-fast) var(--ease-out); }
+.attach__item:hover .attach__chevron { transform: translateX(2px); color: var(--text); }
+
+.attach__library { display: flex; flex-direction: column; gap: 8px; animation: attach-slide 200ms var(--ease-out); }
+@keyframes attach-slide { from { opacity: 0; transform: translateX(16px); } }
+.attach__head { display: flex; align-items: center; gap: 8px; padding: 0 4px; }
+.attach__back {
+  display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 9px; background: var(--surface-3); color: var(--text); cursor: pointer;
+}
+.attach__back .icon { transform: rotate(180deg); }
+.attach__back:hover { background: #303135; }
+.attach__head-title { font-size: var(--text-title); font-weight: 500; }
+.attach__manage { margin-left: auto; color: var(--text-3); font-size: var(--text-sm); text-decoration: none; }
+.attach__manage:hover { color: var(--text); }
+.attach__grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto;
+  margin: 0; padding: 2px; list-style: none;
+}
+.attach__asset {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 6px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; outline: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.attach__asset:hover, .attach__asset:focus-visible { background: var(--surface-3); }
+.attach__asset img, .attach__asset-empty {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 1; margin-bottom: 4px; border-radius: 9px; object-fit: cover;
+  background: var(--surface-2); color: var(--text-3); transition: transform 200ms var(--ease-out);
+}
+.attach__asset:hover img { transform: scale(1.03); }
+.attach__asset-name { overflow: hidden; font-size: var(--text-sm); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.attach__asset-kind { color: var(--text-3); font-size: var(--text-xs); }
+.attach__empty { margin: 0; padding: 12px 8px; color: var(--text-2); font-size: var(--text-sm); }
+.attach__empty a { color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .attach__panel, .attach__library { animation: none; }
+  .attach__button .icon { transition: none; }
+}

@@ -1,7 +1,7 @@
 import { describe, test, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { SettingsScreen } from "./SettingsScreen";
-import { chatSettings, errorResponse, routes, settings } from "../test-fixtures";
+import { errorResponse, routes, settings } from "../test-fixtures";
 
 function setup(table: Record<string, (init?: RequestInit) => unknown> = {}) {
   const fetch = vi.fn(routes({ "/api/settings": () => settings(), ...table }));
@@ -148,73 +148,22 @@ describe("SettingsScreen: providers, doctor and chat", () => {
 
 });
 
-describe("SettingsScreen: chat connection", () => {
-  const keyed = (over = {}) => chatSettings({ openai: { ...chatSettings().openai, keySaved: true, keySource: "file" }, ...over });
-
-  test("shows the connection in use and only whether a key is saved", async () => {
-    setup({
-      "/api/chat-settings": () => keyed({ backend: "openai", model: "gpt-test-1" }),
-      "/api/chat-settings/models": () => ({ models: ["gpt-test-2", "gpt-test-1"] }),
-    });
-    expect(await screen.findByText("Now: OpenAI API key, gpt-test-1")).toBeInTheDocument();
-    const chat = screen.getByRole("region", { name: "Chat" });
-    expect(within(chat).getByRole("radio", { name: /OpenAI API key/ })).toBeChecked();
-    expect(within(chat).getByText("Key saved.")).toBeInTheDocument();
-    expect(await within(chat).findByRole("combobox", { name: "Model" })).toHaveValue("gpt-test-1");
-    expect(within(chat).getByLabelText("Replace the key")).toHaveAttribute("type", "password");
+describe("SettingsScreen: layout", () => {
+  test("quick picks set the daily cap; No limit clears the per-job limit", async () => {
+    setup();
+    const save = await screen.findByRole("button", { name: "Save limits" });
+    fireEvent.click(screen.getByRole("button", { name: "Set daily cap to $25" }));
+    expect(screen.getByLabelText("Daily cap")).toHaveValue(25);
+    expect(screen.getByRole("button", { name: "Set daily cap to $25" })).toHaveAttribute("aria-pressed", "true");
+    expect(save).toBeEnabled();
   });
 
-  test("a pasted key is sent once and cleared; then a model from the key's list is saved with it", async () => {
-    let saved = false;
-    const fetch = setup({
-      "/api/chat-settings": (init) => (init?.method === "PUT" ? keyed({ backend: "openai", model: "gpt-b" }) : chatSettings()),
-      "/api/chat-settings/openai-key": () => {
-        saved = true;
-        return keyed();
-      },
-      "/api/chat-settings/models": () => (saved ? { models: ["gpt-a", "gpt-b"] } : errorResponse(409, "Paste an OpenAI API key first.", { connect: true })),
-    });
-    expect(await screen.findByText("Now: Not connected")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: /OpenAI API key/ }));
-    expect(screen.getByRole("button", { name: "Use this connection" })).toBeDisabled();
-    const field = screen.getByLabelText("OpenAI API key");
-    fireEvent.change(field, { target: { value: "sk-test-0123456789abcdefghij" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
-    expect(await screen.findByText("Key saved.")).toBeInTheDocument();
-    expect(lastBody(fetch, "/api/chat-settings/openai-key")).toEqual({ key: "sk-test-0123456789abcdefghij" });
-    expect(screen.getByLabelText("Replace the key")).toHaveValue("");
-    fireEvent.change(await screen.findByRole("combobox", { name: "Model" }), { target: { value: "gpt-b" } });
-    fireEvent.click(screen.getByRole("button", { name: "Use this connection" }));
-    expect(await screen.findByText("Now: OpenAI API key, gpt-b")).toBeInTheDocument();
-    const put = calls(fetch, "/api/chat-settings").find(([, init]) => init?.method === "PUT")!;
-    expect(JSON.parse(String(put[1]!.body))).toEqual({ backend: "openai", model: "gpt-b" });
-  });
-
-  test("the connection already in use shows In use; choosing another option offers Use this connection again", async () => {
-    setup({
-      "/api/chat-settings": () => keyed({ backend: "openai", model: "gpt-test-1" }),
-      "/api/chat-settings/models": () => ({ models: ["gpt-test-2", "gpt-test-1"] }),
-      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: true, plan: "ChatGPT Plus", message: null }),
-    });
-    const model = await screen.findByRole("combobox", { name: "Model" });
-    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
-    fireEvent.change(model, { target: { value: "gpt-test-2" } });
-    expect(screen.getByRole("button", { name: "Use this connection" })).toBeEnabled();
-    fireEvent.change(model, { target: { value: "gpt-test-1" } });
-    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("radio", { name: /ChatGPT subscription/ }));
-    expect(await screen.findByText("Codex is logged in with ChatGPT Plus.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Use this connection" })).toBeEnabled();
-  });
-
-  test("Codex not logged in says how to log in, and Check again asks again", async () => {
-    const fetch = setup({
-      "/api/chat-settings": () => chatSettings({ backend: "codex" }),
-      "/api/chat-settings/codex": () => ({ installed: true, loggedIn: false, plan: null, message: "Codex isn't logged in. Run codex login in a terminal, then check again, or use an OpenAI API key." }),
-    });
-    expect(await screen.findByText(/Run codex login in a terminal/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "In use" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-    await waitFor(() => expect(calls(fetch, "/api/chat-settings/codex")).toHaveLength(2));
+  test("no chat section; the Agents card points to MCP and Skills", async () => {
+    setup();
+    await screen.findByRole("button", { name: "Save limits" });
+    expect(screen.queryByRole("region", { name: "Chat" })).toBeNull();
+    const agents = screen.getByRole("region", { name: "Agents" });
+    expect(within(agents).getByRole("link", { name: "Set up MCP" })).toHaveAttribute("href", "#/mcp");
+    expect(within(agents).getByRole("link", { name: "Your skills" })).toHaveAttribute("href", "#/skills");
   });
 });

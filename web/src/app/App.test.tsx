@@ -40,7 +40,7 @@ describe("App", () => {
     window.location.hash = "#/settings";
     render(<App />);
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
   });
 
   test("hovering Image, Video or MCP opens its menu at once; Escape closes it", async () => {
@@ -67,6 +67,14 @@ describe("App", () => {
     expect(screen.queryByRole("menu", { name: "Video" })).not.toBeInTheDocument();
     fireEvent.focus(screen.getByRole("link", { name: "MCP" }));
     expect(within(screen.getByRole("menu", { name: "MCP" })).getByRole("menuitem", { name: /Claude Code/ })).toHaveAttribute("href", "#/mcp/claude-code");
+    // Moving from one menu link to the next swaps the content in the same shell: never two menus at once.
+    fireEvent.mouseEnter(screen.getByRole("link", { name: "Image" }).parentElement!);
+    expect(screen.getAllByRole("menu")).toHaveLength(1);
+    expect(screen.getByRole("menu", { name: "Image" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".menu-shell")).toHaveLength(1);
+    // A plain link closes it.
+    fireEvent.mouseEnter(screen.getByRole("link", { name: "Films" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   test("old hashes redirect: #/create to Video, #/films to Films", async () => {

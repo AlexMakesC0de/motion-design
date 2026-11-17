@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FocusEvent, type Key
 import { api } from "../api/client";
 import type { ModelInfo, SpendView } from "../api/types";
 import { fitToModel, getDraft, setDraft } from "../studio/promptStore";
+import { Mark } from "./brands";
 import { Icon } from "./icons";
 import { Logo } from "./Logo";
 import { modelBadge, modelBlurb, modelName, sortModels } from "./modelMeta";
@@ -39,9 +40,9 @@ const FEATURES: Record<"image" | "video", Entry[]> = {
 };
 
 const HOSTS: Entry[] = [
-  { href: "#/mcp/claude-code", icon: "terminal", title: "Claude Code", text: "Create with Shard in Claude Code" },
-  { href: "#/mcp/codex", icon: "code", title: "Codex", text: "Create with Shard in Codex" },
-  { href: "#/mcp/claude-desktop", icon: "plug", title: "Claude Desktop", text: "Generate images and videos in Claude" },
+  { href: "#/mcp/claude-code", icon: "claude", title: "Claude Code", text: "Create with Shard in Claude Code" },
+  { href: "#/mcp/codex", icon: "openai", title: "Codex", text: "Create with Shard in Codex" },
+  { href: "#/mcp/claude-desktop", icon: "claude", title: "Claude Desktop", text: "Generate images and videos in Claude" },
   { href: "#/mcp/cli", icon: "terminal", title: "CLI", text: "Create with Shard from your terminal" },
   { href: "#/skills", icon: "skills", title: "Skills", text: "Your saved skills, as slash commands" },
 ];
@@ -58,7 +59,7 @@ function MenuItem({ e, close }: { e: Entry; close(): void }) {
       }}
     >
       <span className="menu-item__tile" data-badge={e.badge ?? undefined}>
-        <Icon name={e.icon} size={22} />
+        <Mark name={e.icon} size={22} />
         {e.badge && <span className="menu-item__badge">{e.badge}</span>}
       </span>
       <span className="menu-item__words">
@@ -69,28 +70,11 @@ function MenuItem({ e, close }: { e: Entry; close(): void }) {
   );
 }
 
-/**
- * Fixed under its link (the bar scrolls sideways on narrow windows, which would clip an absolute panel),
- * nudged left when it would run off the right edge.
- */
-function usePlacement(anchor: HTMLElement | null) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !anchor) return;
-    const r = anchor.getBoundingClientRect();
-    const room = window.innerWidth - el.offsetWidth - 16;
-    el.style.top = `${r.bottom + 6}px`;
-    el.style.left = `${Math.max(16, Math.min(r.left - 12, room))}px`;
-  }, [anchor]);
-  return ref;
-}
-
-function Panel({ id, models, close, anchor }: { id: MenuId; models: ModelInfo[]; close(): void; anchor: HTMLElement | null }) {
-  const ref = usePlacement(anchor);
+/** What one menu holds: one column of hosts for MCP, Features and Models for Image and Video. */
+function MenuContent({ id, models, close }: { id: MenuId; models: ModelInfo[]; close(): void }) {
   if (id === "mcp") {
     return (
-      <div ref={ref} className="menu-panel menu-panel--one" role="menu" aria-label="MCP">
+      <div className="menu-panel menu-panel--one" role="menu" aria-label="MCP">
         <p className="menu-panel__label">Generate with Shard in</p>
         {HOSTS.map((e) => (
           <MenuItem key={e.title} e={e} close={close} />
@@ -107,7 +91,7 @@ function Panel({ id, models, close, anchor }: { id: MenuId; models: ModelInfo[];
     onPick: () => setDraft(fitToModel(m, getDraft())),
   }));
   return (
-    <div ref={ref} className="menu-panel" role="menu" aria-label={id === "image" ? "Image" : "Video"}>
+    <div className="menu-panel" role="menu" aria-label={id === "image" ? "Image" : "Video"}>
       <div className="menu-panel__col">
         <p className="menu-panel__label">Features</p>
         {FEATURES[id].map((e) => (
@@ -122,96 +106,155 @@ function Panel({ id, models, close, anchor }: { id: MenuId; models: ModelInfo[];
   );
 }
 
-/** A top-bar link that opens its menu on hover or focus, and closes on leave, Escape or a pick. */
-function MenuLink({ id, label, current, models }: { id: MenuId; label: string; current: NavId; models: ModelInfo[] }) {
-  const [open, setOpen] = useState(false);
-  const wrap = useRef<HTMLDivElement>(null);
-  const timer = useRef<number | undefined>(undefined);
-  // Escape hands focus back to the link; that focus must not reopen the menu.
-  const quiet = useRef(false);
-  const show = () => {
-    window.clearTimeout(timer.current);
-    if (quiet.current) {
-      quiet.current = false;
-      return;
-    }
-    setOpen(true);
-  };
-  // A short grace period, so the pointer can cross from the link to the panel.
-  const hide = () => {
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setOpen(false), 120);
-  };
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  // A new page closes the menu, even with the pointer still over the link.
-  useEffect(() => {
-    let at = window.location.hash;
-    const shut = () => {
-      if (window.location.hash !== at) setOpen(false);
-      at = window.location.hash;
-    };
-    window.addEventListener("hashchange", shut);
-    return () => window.removeEventListener("hashchange", shut);
-  }, []);
-  const blur = (e: FocusEvent) => {
-    if (!wrap.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
-  };
-  const keys = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setOpen(false);
-      const link = wrap.current?.querySelector<HTMLAnchorElement>(".topnav__link");
-      if (link && document.activeElement !== link) {
-        quiet.current = true;
-        link.focus();
-      }
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      requestAnimationFrame(() => wrap.current?.querySelector<HTMLAnchorElement>(".menu-item")?.focus());
-    }
-  };
+const ORDER: MenuId[] = ["image", "video", "mcp"];
+
+/**
+ * The one menu shell. It stays mounted while the pointer moves between Image, Video and MCP,
+ * sliding under the new link and resizing to the new content, which fades in from the side
+ * the pointer came from. Fixed, because the bar scrolls sideways on narrow windows.
+ */
+function MenuShell({ id, from, anchor, models, close }: { id: MenuId; from: MenuId | null; anchor: HTMLElement | null; models: ModelInfo[]; close(): void }) {
+  const shell = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const el = shell.current;
+    const body = inner.current;
+    if (!el || !body || !anchor) return;
+    const w = body.offsetWidth;
+    const h = body.offsetHeight;
+    const r = anchor.getBoundingClientRect();
+    const left = Math.max(16, Math.min(r.left - 12, window.innerWidth - w - 16));
+    // The first placement jumps; every later one glides from where the shell was.
+    el.dataset.moving = placed.current ? "true" : "false";
+    el.style.top = `${r.bottom + 6}px`;
+    el.style.left = `${left}px`;
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    placed.current = true;
+  }, [id, anchor, models]);
+  const dir = from && from !== id ? (ORDER.indexOf(id) > ORDER.indexOf(from) ? "right" : "left") : "none";
   return (
-    <div className="topnav__menu" ref={wrap} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={blur} onKeyDown={keys}>
-      <a className="topnav__link" href={navHref(id)} aria-current={current === id ? "page" : undefined} aria-haspopup="menu" aria-expanded={open}>
-        {label}
-      </a>
-      {open && <Panel id={id} models={models} close={() => setOpen(false)} anchor={wrap.current} />}
+    <div ref={shell} className="menu-shell">
+      <div ref={inner} key={id} className="menu-shell__inner" data-from={dir}>
+        <MenuContent id={id} models={models} close={close} />
+      </div>
     </div>
   );
 }
 
 export function TopBar({ current, spend, children }: { current: NavId; spend: SpendView | null; children?: ReactNode }) {
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [menu, setMenu] = useState<{ id: MenuId; from: MenuId | null } | null>(null);
+  const bar = useRef<HTMLElement>(null);
+  const links = useRef<Partial<Record<MenuId, HTMLAnchorElement | null>>>({});
+  const timer = useRef<number | undefined>(undefined);
+  // Escape hands focus back to the link; that focus must not reopen the menu.
+  const quiet = useRef(false);
+
   useEffect(() => {
     api<ModelInfo[]>("/api/models").then(setModels).catch(() => {});
   }, []);
+
+  const open = (id: MenuId) => {
+    window.clearTimeout(timer.current);
+    if (quiet.current) {
+      quiet.current = false;
+      return;
+    }
+    setMenu((m) => (m?.id === id ? m : { id, from: m?.id ?? null }));
+  };
+  const shut = () => {
+    window.clearTimeout(timer.current);
+    setMenu(null);
+  };
+  // A short grace period, so the pointer can cross from a link to the panel.
+  const later = () => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setMenu(null), 140);
+  };
+  const stay = () => window.clearTimeout(timer.current);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // A new page closes the menu, even with the pointer still over the link.
+  useEffect(() => {
+    let at = window.location.hash;
+    const onHash = () => {
+      if (window.location.hash !== at) setMenu(null);
+      at = window.location.hash;
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const blur = (e: FocusEvent) => {
+    if (!bar.current?.contains(e.relatedTarget as Node | null)) setMenu(null);
+  };
+  const keys = (e: KeyboardEvent) => {
+    if (!menu) {
+      const id = ORDER.find((k) => links.current[k] === e.target);
+      if (id && e.key === "ArrowDown") {
+        e.preventDefault();
+        open(id);
+        requestAnimationFrame(() => bar.current?.querySelector<HTMLAnchorElement>(".menu-item")?.focus());
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      const link = links.current[menu.id];
+      shut();
+      if (link && document.activeElement !== link) {
+        quiet.current = true;
+        link.focus();
+      }
+    }
+    if (e.key === "ArrowDown" && ORDER.some((k) => links.current[k] === e.target)) {
+      e.preventDefault();
+      bar.current?.querySelector<HTMLAnchorElement>(".menu-item")?.focus();
+    }
+  };
+
   const running = spend?.unsettled ?? 0;
   return (
-    <header className="topbar">
-      <a className="topbar__brand" href="#/" aria-label="Shard home">
+    <header className="topbar" ref={bar} onMouseLeave={later} onMouseEnter={stay} onBlur={blur} onKeyDown={keys}>
+      <a className="topbar__brand" href="#/" aria-label="Shard home" onMouseEnter={shut}>
         <Logo size={30} />
       </a>
       <nav className="topnav" aria-label="Shard">
         {NAV.main.map((n) =>
           n.id === "image" || n.id === "video" || n.id === "mcp" ? (
-            <MenuLink key={n.id} id={n.id} label={n.label} current={current} models={models} />
+            <div key={n.id} className="topnav__menu" onMouseEnter={() => open(n.id as MenuId)}>
+              <a
+                ref={(el) => {
+                  links.current[n.id as MenuId] = el;
+                }}
+                className="topnav__link"
+                href={navHref(n.id)}
+                aria-current={current === n.id ? "page" : undefined}
+                aria-haspopup="menu"
+                aria-expanded={menu?.id === n.id}
+                onFocus={() => open(n.id as MenuId)}
+              >
+                {n.label}
+              </a>
+            </div>
           ) : (
-            <a key={n.id} className="topnav__link" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined}>
+            <a key={n.id} className="topnav__link" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={shut} onFocus={shut}>
               {n.label}
             </a>
           ),
         )}
         <span className="topnav__divider" aria-hidden="true" />
         {NAV.studio.map((n) => (
-          <a key={n.id} className="topnav__link topnav__link--studio" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined}>
+          <a key={n.id} className="topnav__link topnav__link--studio" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={shut} onFocus={shut}>
             {n.label}
             {n.badge && <span className="topnav__badge">{n.badge}</span>}
           </a>
         ))}
       </nav>
+      {menu && <MenuShell id={menu.id} from={menu.from} anchor={links.current[menu.id] ?? null} models={models} close={shut} />}
       {children && <div className="topbar__where">{children}</div>}
-      <div className="topbar__end">
+      <div className="topbar__end" onMouseEnter={shut}>
         {running > 0 && (
           <a className="topbar__jobs" href="#/spend">
             {running === 1 ? "1 job running" : `${running} jobs running`}

@@ -1,10 +1,14 @@
 // web/src/app/Logo.tsx
-// Shard's mark: a play triangle with a shard split off. Drawn from Alex's
-// neon-lime logo; the same shape is web/public/logo.svg (the favicon).
-export function Logo({ size = 28 }: { size?: number }) {
+// The Shard mark: a ribbon folding into a play shape, with a drop at its foot.
+// Traced from the artwork in docs/brand/; the same path is in web/public/brand/.
+export const SHARD_MARK = "M 424 163 C 332 173 254 244 235 338 C 221 403 245 463 296 491 C 315 502 332 505 360 505 C 387 505 399 503 442 490 C 532 463 572 454 632 446 C 652 444 709 444 725 446 C 766 453 793 468 804 490 C 818 517 804 549 775 563 C 751 575 728 578 643 583 C 491 592 428 604 358 639 C 268 684 205 751 189 818 C 186 831 186 864 188 877 C 207 964 296 1039 423 1075 C 453 1084 503 1092 503 1089 C 503 1088 498 1085 492 1080 C 420 1031 389 986 390 935 C 392 869 451 805 542 769 C 593 748 637 738 762 717 C 933 688 994 668 1034 626 C 1090 568 1076 491 996 427 C 961 399 888 356 791 306 C 729 274 564 192 538 181 C 502 166 462 159 424 163 M 948 726 C 938 729 929 736 915 748 C 853 804 795 830 689 851 C 647 858 630 862 619 865 C 559 881 520 912 506 952 C 501 965 501 985 505 998 C 518 1044 570 1083 634 1095 C 734 1114 847 1058 931 948 C 972 893 999 837 1006 793 C 1010 760 1002 737 981 727 C 973 724 957 723 948 726";
+
+/** The mark alone. Lime by default; `tone="ink"` draws it black, for lime or light grounds. */
+export function Logo({ size = 28, tone = "accent" }: { size?: number; tone?: "accent" | "ink" | "current" }) {
+  const fill = tone === "accent" ? "var(--accent)" : tone === "ink" ? "#000" : "currentColor";
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-      <path d="M24 22 L74 46 L26 70 Z M44 74 L72 61 L62 86 Z" fill="var(--accent)" stroke="var(--accent)" strokeWidth="9" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="136 142 990 990" aria-hidden="true" focusable="false">
+      <path d={SHARD_MARK} fill={fill} fillRule="evenodd" />
     </svg>
   );
 }
