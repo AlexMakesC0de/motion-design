@@ -83,10 +83,13 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
     else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       if (options[active]) choose(options[active].id);
-    } else if (e.key === "Escape") {
-      e.stopPropagation();
-      close();
     }
+  };
+  // Escape closes from anywhere in the list, the speed buttons included.
+  const escape = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    e.stopPropagation();
+    close();
   };
 
   return (
@@ -110,7 +113,7 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
         </button>
       )}
       {open && (
-        <div className="pick-pop">
+        <div className="pick-pop" onKeyDown={escape}>
           {moving && speeds && (
             <div className="pick-pop__speeds" role="group" aria-label={`${scope} speed`}>
               {speeds.map((s) => (

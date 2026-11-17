@@ -91,6 +91,9 @@ describe("PickChip", () => {
     expect(screen.getByRole("button", { name: "Stage 2 move: Push in, slow. Change" })).toBeInTheDocument();
     fireEvent.click(within(speedRow).getByRole("button", { name: "Slow" }));
     expect(value()).toBe("push-in/none");
+    fireEvent.keyDown(within(speedRow).getByRole("button", { name: "Fast" }), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Stage 2 move: Push in. Change" }));
     fireEvent.click(screen.getByRole("option", { name: /Static/ }));
     expect(value()).toBe("static/none");
     expect(screen.queryByRole("listbox")).toBeNull();
