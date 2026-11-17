@@ -3,12 +3,15 @@
 // store read with useSyncExternalStore, so the bar keeps its draft when you
 // switch tabs. The working film is kept here too, and remembered across reloads.
 import { useSyncExternalStore } from "react";
-import type { JobView, ModelInfo } from "../api/types";
+import type { JobView, ModelInfo, ScenePicks, StagePicks } from "../api/types";
 
 export interface RefDraft {
   source: string;
   role: string;
 }
+
+/** A video's camera and look, as director's-menu ids: what a stage and a scene take, in one. */
+export type VideoPicks = StagePicks & ScenePicks;
 
 export interface Draft {
   prompt: string;
@@ -17,6 +20,8 @@ export interface Draft {
   aspectRatio: string | null;
   resolution: string | null;
   refs: RefDraft[];
+  /** Create Video's chips. The server words them after the prompt; they do not change the price. */
+  picks: VideoPicks;
   preset: string | null;
   /** A per-job budget the user raised for this job; null keeps the catalog default. */
   budgetUsd: number | null;
@@ -29,6 +34,7 @@ export const EMPTY_DRAFT: Draft = {
   aspectRatio: null,
   resolution: null,
   refs: [],
+  picks: {},
   preset: null,
   budgetUsd: null,
 };
@@ -96,10 +102,16 @@ export function fitToModel(m: ModelInfo, d: Draft): Partial<Draft> {
   };
 }
 
-/** Reuse: a take's prompt and settings back into the bar. Refs are not restored: a job keeps provider URLs, not the asset and role. */
+/**
+ * Reuse: a take's prompt and settings back into the bar. A take made with chips
+ * gets its typed words and its chips back, not the sent prompt, which already
+ * has the chips' words in it. Refs are not restored: a job keeps provider URLs,
+ * not the asset and role.
+ */
 export function reuseJob(job: JobView) {
   setDraft({
-    prompt: job.prompt ?? "",
+    prompt: (job.picks ? job.typedPrompt : null) ?? job.prompt ?? "",
+    picks: job.picks ?? {},
     model: job.model,
     durationS: job.durationS == null || job.durationS === "" ? null : Number(job.durationS),
     aspectRatio: job.aspectRatio,
@@ -110,7 +122,7 @@ export function reuseJob(job: JobView) {
   });
 }
 
-/** Use this: a preset's source prompt and defaults. The prompt is the source to adapt, not to send as is. */
+/** Use this: a preset's source prompt and defaults. The prompt is the source to adapt, not to send as is. Chips stay. */
 export function applyPreset(p: { id: string; model: string | null; durationS: number | null; aspectRatio: string | null; prompt: string | null }) {
   setDraft({
     prompt: p.prompt ?? "",
@@ -151,7 +163,7 @@ export function generateBody(d: Draft, m: ModelInfo, run: string) {
     run,
     prompt: d.prompt,
     model: d.model,
-    ...(m.capability === "video" ? { duration_s: d.durationS ?? undefined, preset: d.preset ?? undefined } : {}),
+    ...(m.capability === "video" ? { duration_s: d.durationS ?? undefined, preset: d.preset ?? undefined, picks: Object.keys(d.picks).length ? d.picks : undefined } : {}),
     resolution: d.resolution ?? undefined,
     aspect_ratio: d.aspectRatio ?? undefined,
     refs: d.refs,

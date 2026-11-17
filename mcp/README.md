@@ -55,6 +55,10 @@ tools share `cli/director/scene-make.mjs`, so both send the same prompt.
 - A stage can carry `picks` (`move`, `speed`, `size`, `angle`) and the cards
   `picks` (`lens`, `light`): ids from `get_menu`, worded by Shard before the
   typed text. The cards' picks merge by key; send a key as `null` to remove it.
+- `generate_video` takes the same six `picks` in one object (`move`, `speed`,
+  `size`, `angle`, `lens`, `light`). Their words are added after the prompt,
+  worded for the model. A prompt the picks push past the model's limit is
+  refused before anything is spent.
 - `get_scene_prompt` is free: the exact prompt, the images in order, what
   would stop it, and the draft, 720p and 1080p prices. Read it before spending.
 - `draft_scene` (480p, draft mode) and `final_scene` (720p or 1080p) refuse
