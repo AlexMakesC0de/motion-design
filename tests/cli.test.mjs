@@ -1,6 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -362,5 +364,43 @@ describe("catalog staleness is surfaced, not assumed away", () => {
   test("an undated catalog is not claimed fresh or stale", () => {
     assert.equal(catalogAgeDays({}), null);
     assert.equal(isStale({}), false);
+  });
+});
+
+describe("kie video --pick", () => {
+  const KIE = fileURLToPath(new URL("../cli/kie.mjs", import.meta.url));
+  const tmp = mkdtempSync(join(tmpdir(), "kie-pick-"));
+  mkdirSync(join(tmp, "runs"));
+  writeFileSync(join(tmp, "prompt.txt"), "A fox runs through snow.\n");
+  const env = { ...process.env, KIE_RUNS_DIR: join(tmp, "runs"), KIE_LIBRARY_DIR: join(tmp, "library"), KIE_LIMITS_FILE: join(tmp, "limits.json"), HOME: tmp, KIE_API_KEY: "test-key-not-real", WAVESPEED_API_KEY: "" };
+  const video = (...extra) =>
+    spawnSync(process.execPath, [KIE, "video", "--run", "picked", "--prompt-file", join(tmp, "prompt.txt"), "--model", "seedance-2-5", "--duration", "4", "--resolution", "480p", ...extra], { env, encoding: "utf8" });
+
+  test("a dry run shows the block that would be added, and records what was typed and sent", () => {
+    const r = video("--pick", "move=push-in", "--pick", "speed=slow", "--pick", "light=golden-hour", "--dry-run");
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /picks added after the prompt:\n\s+Camera: The camera slowly pushes in\.\n\s+Warm, low golden-hour sunlight\./);
+    assert.equal(readFileSync(join(tmp, "runs", "picked", "prompt.txt"), "utf8"), "A fox runs through snow.\n\nCamera: The camera slowly pushes in.\nWarm, low golden-hour sunlight.");
+    const inputs = JSON.parse(readFileSync(join(tmp, "runs", "picked", "inputs.json"), "utf8"));
+    assert.deepEqual(inputs.picks, { move: "push-in", speed: "slow", light: "golden-hour" });
+    assert.equal(inputs.typedPrompt, "A fox runs through snow.\n");
+  });
+
+  test("a dry run without picks is as before", () => {
+    const r = video("--dry-run");
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /picks added/);
+  });
+
+  test("a bad pick is refused before anything is submitted", () => {
+    const noEquals = video("--pick", "push-in", "--dry-run");
+    assert.equal(noEquals.status, EXIT.USAGE);
+    assert.match(noEquals.stderr, /--pick takes key=id, got "push-in"\. The keys are: move, speed, size, angle, lens, light\./);
+    const unknownId = video("--pick", "light=moonbeam", "--dry-run");
+    assert.equal(unknownId.status, EXIT.UNKNOWN);
+    assert.match(unknownId.stderr, /not on the director's lights menu/);
+    const noMove = video("--pick", "speed=slow", "--dry-run");
+    assert.equal(noMove.status, EXIT.UNKNOWN);
+    assert.match(noMove.stderr, /a speed needs a move other than static/);
   });
 });

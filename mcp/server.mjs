@@ -21,6 +21,7 @@ import { makeVariants, MODES } from "../cli/lib/variants.mjs";
 import { burnCaptions } from "../cli/lib/caption.mjs";
 import { render, TEMPLATES } from "../cli/lib/render.mjs";
 import { unknown, usage } from "../cli/lib/errors.mjs";
+import { applyVideoPicks } from "../cli/director/video-picks.mjs";
 import { openJobs } from "../cli/core/jobs.mjs";
 import { readLimits } from "../cli/core/spend.mjs";
 import { submitJob, waitJob } from "../cli/core/generate.mjs";
@@ -520,7 +521,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
     };
 
     /** Expand refs, record the inputs, then reserve and submit through the core (not once `signal` is aborted). */
-    async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {}, signal }) {
+    async function submit(capability, model, a, values, { promptFile, inputsFile, artifactBase, useI2v, extra = {}, jobRecord = {}, signal }) {
       const dir = runDir(a.run);
       const { store, limits, roots, library } = ctx();
       const expanded = await expandRefs(a.refs ?? [], {
@@ -550,7 +551,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           budgetUsd: a.budget_usd,
           only: a.provider,
           values: { ...values, refs: expanded.refs, params: a.params ?? {}, _useI2v: useI2v(expanded.refs) },
-          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "mcp" },
+          record: { refMapping: expanded.refMapping, assets: expanded.assets, via: "mcp", ...jobRecord },
         },
         { store, limits, deps: stoppable(deps.generate, signal) },
       );
@@ -626,12 +627,25 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         description:
           "Spends kie credits. Generates a video. Reserves the estimate against the daily cap, submits, and returns a local job id at once; then call wait_job. " +
           "A preset supplies model, duration and aspect ratio defaults only: the prompt is always yours (adapt the preset's source prompt; never send it unmodified). " +
-          "A first_frame ref makes it image-to-video. Write the prompt against the returned refMapping.",
+          "A first_frame ref makes it image-to-video. Write the prompt against the returned refMapping. " +
+          "picks adds a camera move, shot size, angle, lens and light from get_menu after your prompt, worded for the model.",
         inputSchema: {
           ...common,
           model: z.string().optional(),
           preset: z.string().optional(),
           duration_s: z.number().int().positive().optional(),
+          // passthrough: an unknown key reaches the check, which names the six.
+          picks: z
+            .object({
+              move: z.string().optional().describe("An id from get_menu's moves."),
+              speed: z.string().optional().describe("An id from get_menu's speeds; needs a move other than static."),
+              size: z.string().optional().describe("An id from get_menu's sizes."),
+              angle: z.string().optional().describe("An id from get_menu's angles."),
+              lens: z.string().optional().describe("An id from get_menu's lenses."),
+              light: z.string().optional().describe("An id from get_menu's lights."),
+            })
+            .passthrough()
+            .optional(),
         },
         outputSchema: Submit,
         annotations: SPEND,
@@ -656,17 +670,22 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
         if (problems.length) {
           throw unknown(`Refused before submitting — nothing was spent:\n${problems.map((p) => `  · ${p}`).join("\n")}`);
         }
+        // Before any record is written or anything reserved: a bad pick or an over-long prompt costs nothing.
+        const worded = applyVideoPicks(a.prompt, a.picks, model);
+        const sent = { ...a, prompt: worded.prompt };
+        const withPicks = worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {};
         return submit(
           "video",
           model,
-          a,
-          { prompt: a.prompt, duration: durationS, aspect_ratio: aspectRatio, resolution: a.resolution },
+          sent,
+          { prompt: sent.prompt, duration: durationS, aspect_ratio: aspectRatio, resolution: a.resolution },
           {
             promptFile: "prompt.txt",
             inputsFile: "inputs.json",
             artifactBase: "out",
             useI2v: (refs) => refs.some((r) => r.role === "first_frame"),
-            extra: { preset: presetId, durationS, aspectRatio },
+            extra: { preset: presetId, durationS, aspectRatio, ...withPicks },
+            jobRecord: withPicks,
             signal,
           },
         );

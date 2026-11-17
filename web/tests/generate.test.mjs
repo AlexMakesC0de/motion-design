@@ -50,6 +50,47 @@ describe("POST /api/generate/video", () => {
     assert.match(job.media[0], /^\/media\/runs\/gen-web\/out/);
   });
 
+  test("picks are worded after the typed prompt, sent, and recorded with what was typed", async () => {
+    const picks = { move: "push-in", speed: "slow", lens: "85mm" };
+    const r = await post("/api/generate/video", { ...video, run: "gen-picks", provider: "kie", picks });
+    assert.equal(r.status, 200, r.text);
+    const sent = `${video.prompt}\n\nCamera: The camera slowly pushes in.\n85mm portrait lens.`;
+    assert.equal(calls.create.at(-1).input.prompt, sent);
+    assert.equal(readFileSync(join(RUNS, "gen-picks", "prompt.txt"), "utf8"), sent);
+    const inputs = JSON.parse(readFileSync(join(RUNS, "gen-picks", "inputs.json"), "utf8"));
+    assert.deepEqual(inputs.picks, picks);
+    assert.equal(inputs.typedPrompt, video.prompt);
+    assert.deepEqual(r.json.job.picks, picks);
+    assert.equal(r.json.job.typedPrompt, video.prompt);
+    assert.equal(r.json.job.prompt, sent);
+    await app.follower.idle();
+    const plain = await post("/api/generate/video", { ...video, run: "gen-nopicks", provider: "kie" });
+    assert.equal(plain.json.job.picks, null);
+    assert.equal(plain.json.job.typedPrompt, null);
+    assert.equal(JSON.parse(readFileSync(join(RUNS, "gen-nopicks", "inputs.json"), "utf8")).picks, undefined);
+    await app.follower.idle();
+  });
+
+  test("an unknown pick id is refused with nothing sent or written", async () => {
+    const sent = calls.create.length;
+    const jobs = store.list().length;
+    const r = await post("/api/generate/video", { ...video, run: "gen-badpick", picks: { light: "moonbeam" } });
+    assert.equal(r.status, 400, r.text);
+    assert.match(r.json.error.message, /not on the director's lights menu/);
+    assert.equal(calls.create.length, sent);
+    assert.equal(store.list().length, jobs);
+    assert.equal(existsSync(join(RUNS, "gen-badpick", "prompt.txt")), false);
+  });
+
+  test("picks that push the prompt past the model's limit are refused before anything is spent", async () => {
+    const sent = calls.create.length;
+    const r = await post("/api/generate/video", { ...video, run: "gen-long", prompt: "x".repeat(5990), picks: { lens: "85mm" } });
+    assert.equal(r.status, 400, r.text);
+    assert.match(r.json.error.message, /^Refused before submitting, nothing was spent\. With the picks the prompt is \d+ characters; seedance-2-5 follows at most 6000\./);
+    assert.equal(r.json.error.field, "prompt");
+    assert.equal(calls.create.length, sent);
+  });
+
   test("the answer marks the new job as followed; once settled it is not", async () => {
     const r = await post("/api/generate/video", { ...video, run: "gen-follow", provider: "kie" });
     assert.equal(r.status, 200, r.text);
