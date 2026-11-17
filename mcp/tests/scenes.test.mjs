@@ -128,7 +128,10 @@ describe("scenes through the tools", { skip: !hasFfmpeg && "needs ffmpeg" }, () 
     ok(await call(client, "delete_scene", { run: "film", id: "s1" }));
     assert.deepEqual(data(await call(client, "list_scenes", { run: "film" })).scenes, []);
   });
+});
 
+// Needs no picture and no ffmpeg, so it runs on every machine.
+describe("picks through the tools", () => {
   test("save_scene keeps picks, words them in the prompt, merges them by key and refuses an id the menu lacks", async () => {
     const r = await call(client, "save_scene", {
       run: "picks", title: "Box",
