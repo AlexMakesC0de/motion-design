@@ -1,110 +1,92 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/wordmark-dark.svg" />
-    <img src="docs/images/wordmark-light.svg" alt="Motion Design" width="960" />
-  </picture>
+  <img src="web/public/brand/shard-icon.svg" alt="" width="96" />
+</p>
+
+<h1 align="center">Shard</h1>
+
+<p align="center">
+  A motion-design studio for AI video and images, on your own computer.<br />
+  Plan a film, generate its scenes and finish it, from a web studio, the terminal, or Claude Code and Codex.
 </p>
 
 <p align="center">
-  Turn a product, website or idea into a complete motion film.<br />
-  Choose a look. Adapt the prompt. Generate with kie.ai.
-</p>
-
-<p align="center">
-  <strong>Claude Code + Codex + Kimi</strong> &nbsp; / &nbsp; 10 motion styles &nbsp; / &nbsp; One shared skill
-</p>
-
-<p align="center">
-  <a href="#this-fork"><strong>Start here</strong></a> &nbsp; · &nbsp;
-  <a href="cli/README.md">The CLI</a> &nbsp; · &nbsp;
-  <a href="#the-motion-library">Explore the looks</a> &nbsp; · &nbsp;
-  <a href="#how-it-works">How it works</a>
+  <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
+  <a href="#credits">Credits</a> &nbsp;·&nbsp;
+  <a href="cli/README.md">The CLI</a> &nbsp;·&nbsp;
+  <a href="mcp/README.md">The MCP server</a> &nbsp;·&nbsp;
+  <a href="web/README.md">The studio</a>
 </p>
 
 ---
 
-## This fork
+Shard started as a fork of **[Chase's motion-design skill](https://github.com/cth9191/motion-design)**, ten great-looking motion styles with the prompts behind them. Huge thanks to Chase: the looks in this repo are his. Everything built around them is new. See [Credits](#credits).
 
-Private fork of [cth9191/motion-design](https://github.com/cth9191/motion-design).
-**The creative layer is upstream's and is deliberately untouched** — ten presets,
-their verbatim hash-verified source prompts, adaptation guides, the brief and
-review rubrics. What changed is underneath: generation was routed through
-Higgsfield MCP, and now goes through a `kie` CLI that talks to kie.ai directly.
+## What's inside
 
-Three files were edited (`SKILL.md`, `references/tool-routing.md`,
-`references/production.md`) plus one additive `kie` block per preset. Upstream's
-validator still passes, so merging new presets from upstream stays cheap.
+| Part | What it does |
+|---|---|
+| **Studio** (`web/`) | A local web app: Image and Video pages, films planned scene by scene, a Library of characters, products and places, Looks, your skills, spend and settings. |
+| **`kie` CLI** (`cli/`) | Generates video, images and audio through [kie.ai](https://kie.ai) (with WaveSpeed as a fallback), prices every job first, and keeps a record of each one. |
+| **MCP server** (`mcp/`) | Gives Claude Code, Codex and Claude Desktop the same tools as the studio, so you can make films by asking. |
+| **Render and finish** (`render/`, `cli/`) | Draws exact graphics in code (titles, logos, numbers) with Remotion, and finishes films with ffmpeg: music, captions, loudness, other aspect ratios. |
+| **Skill library** (`skills/`) | Your favourite agent skills, each usable as a `/slash-command`, as an MCP prompt and in the studio. `motion-design` holds the looks. |
 
-**Why:** kie.ai resells the same models at roughly 30–50% under list, and — more
-interestingly — it exposes `minimax_h3`, the model **three of the ten source
-prompts were actually generated on**. Those three now run natively rather than
-as adaptations, which the Higgsfield route could not do either. The other seven
-record `marketing_studio_*`, Higgsfield's internal orchestration product that no
-raw API reproduces, so those were always adaptations and are now labelled as
-such by the tooling rather than by hope.
+**Spending is guarded everywhere.** Every paid job is priced before it is sent and checked against a daily cap and an optional per-job limit, whether it comes from the studio, the CLI or an agent. Looking things up, planning and pricing are free.
 
-**It also unlocks Kimi.** The CLI is shell, not MCP, so all three hosts get
-identical capability.
+## Quick start
 
-### Three engines
+You need **Node 20+** and a **kie.ai API key**. ffmpeg is needed only for finishing, and Python 3.10+ only to rebuild the looks gallery.
 
-| | Command | Needs |
-|---|---|---|
-| **Generate** — photographic film from a preset or prompt | `kie video` `image` `audio` | a kie.ai and/or WaveSpeed key |
-| **Render** — graphic motion drawn exactly: copy, logos, numbers, screenshots | `kie render` | `cd render && npm install` |
-| **Finish** — music bed, ducked VO, loudness, captions, aspect variants | `kie assemble` `caption` `variants` `probe` | ffmpeg |
+1. **Get the code and install the tools.** The installer puts `kie` on your PATH, links the skills into Claude Code, Codex and Kimi when they are installed, and registers the MCP server.
 
-Each is independent. Generation never needs ffmpeg or npm; finishing and
-rendering never spend money.
+   ```bash
+   git clone https://github.com/AlexMakesC0de/motion-design.git
+   cd motion-design
+   node install.mjs            # --dry-run shows what it would change first
+   ```
 
-**The choice between the first two is the important one.** Generative video is
-photographic — it invents plausible pixels and is very good at that. Anything
-that has to be *correct* rather than plausible (a headline, your logo, a price,
-a chart value, a real screenshot) is a code render, because a model draws a
-*picture of* text and misspells it in ways no retry fixes. They are designed to
-meet: `--alpha` composites a rendered strap or end card onto a generated film.
-See [graphic-motion.md](skills/motion-design/references/graphic-motion.md).
+2. **Add your kie.ai key**, readable only by you, then check the setup. `kie doctor` makes one free balance request and generates nothing.
+
+   ```bash
+   mkdir -p ~/.config/kie
+   printf '%s' 'YOUR_KIE_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
+   kie doctor
+   ```
+
+3. **Set a budget.** For example, at most $25 a day and $2 per job:
+
+   ```bash
+   kie limits --daily 25 --per-job 2
+   ```
+
+4. **Open the studio.** It runs on http://127.0.0.1:4317 and only answers your own machine.
+
+   ```bash
+   npm --prefix web install
+   npm run studio
+   ```
+
+5. **Or ask an agent.** Restart Claude Code or Codex and try: *"Plan a 15-second product film for my app, show me the price, and don't generate anything yet."* The MCP page in the studio has the exact setup command for each app.
+
+## Make something from the terminal
 
 ```bash
-node install.mjs                                  # symlink skill + kie into every host
-printf '%s' 'YOUR_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
-kie doctor                                        # keys, balances, catalog age, routing
-kie providers                                     # what's configured, and each one's shape
-kie presets                                       # which presets are native vs adaptation
-
-kie video    --run entri-hero --preset kinetic-typography --duration 10
-kie render   --run entri-hero --template logo-reveal --props brand.json
-kie assemble --run entri-hero --shot out.mp4 --shot logo-reveal.mp4 --transition fade:0.5
-kie variants --run entri-hero --video film.mp4 --ratios 9:16,1:1   # reframe BEFORE
-kie caption  --run entri-hero --video film-9x16.mp4 --srt cap.srt  # …then caption
+kie presets                                        # the ten looks
+kie preflight --model seedance-2-5 --duration 10   # what a job would cost, without spending
+kie video    --run launch --preset kinetic-typography --duration 10
+kie render   --run launch --template logo-reveal --props brand.json
+kie assemble --run launch --shot out.mp4 --shot logo-reveal.mp4 --transition fade:0.5
+kie variants --run launch --video film.mp4 --ratios 9:16,1:1
 ```
 
-`node install.mjs` also registers the MCP server with Claude Code and Codex; see [mcp/README.md](mcp/README.md).
+Generated video is photographic: it invents plausible pixels. Anything that has to be exactly right, like a headline, a logo or a price, is better drawn by `kie render` and laid over the film. [graphic-motion.md](skills/motion-design/references/graphic-motion.md) explains when to use which.
 
-### Studio (web app)
+Your films, takes and spend records stay in `runs/`, and saved references in `library/`. Both are ignored by git.
 
-`npm --prefix web install` once, then `npm run studio`. A local page with the prompt bar, your takes, the library, presets, films, spend and settings, a storyboard for directed films (shots, stills, takes, review and cut), plus a chat that drives the same tools through your ChatGPT subscription or an OpenAI API key. See [web/README.md](web/README.md).
+## The looks
 
-`kie limits --daily 25` sets the daily cap. `kie limits --per-job 2` refuses any single job estimated above $2; `--per-job off` removes that limit. Both apply to the CLI, the MCP tools and the studio.
-
-`kie preflight` and `kie doctor` are read-only: they answer cost and access
-questions without spending. Nothing here submits a job to probe anything.
-
-See **[cli/README.md](cli/README.md)** for the exit-code contract, the design
-decisions, and how to keep `models.json` honest.
-
-> **Licensing.** Our code (the kie CLI, the MCP server, the render engine and the
-> installer) is by Alexandros Karayiannis under the
-> [PolyForm Noncommercial License 1.0.0](LICENSE.md): free for any noncommercial
-> use, not for sale. Upstream ships no license, and the source prompts come from a
-> Higgsfield blog post; neither is covered (see [ATTRIBUTION.md](ATTRIBUTION.md)).
-> Keep this repository private while it contains that material.
-
----
-
-## The motion library
-
-From glass interfaces to product reveals, start with a visual direction you can actually watch. **Click any image to play its source film.**
+<!-- The gallery below is Chase's material, kept as he made it. -->
+<p align="center"><sub>The ten looks and these previews come from <a href="https://github.com/cth9191/motion-design">Chase's motion-design repo</a>. Click an image to play its source film.</sub></p>
 
 <table>
   <tr>
@@ -175,158 +157,25 @@ From glass interfaces to product reveals, start with a visual direction you can 
 
 </details>
 
-<sub>These are Higgsfield source examples that the skill adapts, not new results generated by this package. <a href="ATTRIBUTION.md">Source attribution</a>.</sub>
+## Credits
 
-**[Open the playable gallery locally](docs/setup.md#4-browse-the-playable-gallery)** to browse all ten styles, inspect their original prompts and copy a request for your app. You can also develop an original concept.
+- **Chase ([@cth9191](https://github.com/cth9191))** made the original [motion-design](https://github.com/cth9191/motion-design) skill this project grew out of: the ten looks, their source prompts, the adaptation guides and templates, the playable gallery, the preview stills and the "Motion Design" wordmark. Thank you, Chase. If you like the looks, go give his repo a star.
+- The source prompts first appeared in a [Higgsfield Marketing Studio article](https://higgsfield.ai/@adilinthewildtempo/blogs/claude-fable-5-1-higgsfield-marketing-studio-300-day).
+- Brand icons for Claude and OpenAI on the MCP page are from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT).
 
-<details>
-<summary>Inside the gallery</summary>
+[ATTRIBUTION.md](ATTRIBUTION.md) lists exactly which files came from Chase's repo.
 
-![Motion library with playable source previews and style selection](docs/images/gallery.png)
+## Licence
 
-Choose a look, select Codex or Claude Code, add your brief and copy the request into chat. The page does not send your brief or start a generation. GitHub shows the gallery HTML as source; the [setup guide](docs/setup.md#4-browse-the-playable-gallery) explains how to open it locally.
+Everything I wrote is under the [MIT licence](LICENSE): the studio, the `kie` CLI, the MCP server, the render and finishing engines, the installer, the director guides, the tests and the docs.
 
-</details>
+The looks and the other files from Chase's repo are **not** covered by the MIT licence. They are his, shared here with credit, and his repo has no licence of its own. [ATTRIBUTION.md](ATTRIBUTION.md) lists them.
 
-## Quick start
-
-Install the same skill in either app, then connect your own Higgsfield account for media generation. Browsing and prompt drafting work before you connect.
-
-### Codex
-
-Paste into Codex:
-
-```text
-$skill-installer
-
-Install the skill from:
-https://github.com/cth9191/motion-design/tree/main/skills/motion-design
-```
-
-### Claude Code
-
-Paste into Claude Code:
-
-```text
-Install the skill from https://github.com/cth9191/motion-design.
-Copy skills/motion-design into ~/.claude/skills/motion-design.
-If it already exists, compare it, back up local customizations, and update it.
-```
-
-**[Connect Higgsfield](docs/setup.md#2-connect-higgsfield)** using the setup guide. It includes Claude Code's MCP command, authentication and a read-only access check. Generation requires model access and credits or an applicable allowance.
-
-### Your skill library
-
-`skills/` holds your favourite skills, one folder each with a `SKILL.md`. `motion-design` is the first. Every skill there is reusable three ways:
-
-- **As a slash command.** `node install.mjs` links each one into `~/.claude/skills` (and Codex and Kimi when they are installed), so `/seedance-2-5-prompter` runs it in Claude Code.
-- **Through the MCP server.** `list_skills` and `get_skill` read the library, and each skill is also an MCP prompt.
-- **In the studio.** The Skills page lists them and adds new ones.
-
-To add a skill, give it the folder:
+## Tests
 
 ```bash
-kie skill add ~/skills/seedance-2-5-prompter
+npm test             # CLI
+npm run test:mcp     # MCP server
+npm run test:web     # studio
+npm run validate     # the looks: source hashes, templates and gallery
 ```
-
-This copies the folder into `skills/` and links it. `--replace` updates a copy that is already there. `kie skill list` shows the library and `kie skill link` relinks every skill. Restart Claude Code to pick up a new `/command` or MCP prompt.
-
-### Make your first film
-
-Start with **`$motion-design`** in Codex or **`/motion-design`** in Claude Code, then add:
-
-```text
-Use the kinetic typography preset for a 15-second announcement:
-"Build your first AI workflow."
-Use music and synchronized effects, without narration.
-Show me the complete adapted prompt before generating anything.
-```
-
-Review the draft, then ask it to generate. A prompt-review request stops before images, uploads and video jobs; production can incur Higgsfield charges.
-
-<details>
-<summary><strong>More things to try</strong> — a website promo, an explainer or a product film</summary>
-
-**Browse first**
-
-```text
-Show me the available motion-graphics styles with playable examples.
-```
-
-**Turn a website into a launch concept**
-
-```text
-Use the website I provide to propose a 15-second promo.
-Choose a suitable preset and focus on one main product benefit.
-Show me the complete adapted prompt before generating anything.
-```
-
-**Explain one idea**
-
-```text
-Use the flat vector explainer preset for a beginner-friendly,
-15-second explanation of how an LLM generates an answer.
-Use music and synchronized effects without narration.
-Show me the full adapted prompt before generating anything.
-```
-
-**Create a product film**
-
-```text
-Use the tropical product preset to make a 15-second film for the
-product photo I attach. Keep its packaging recognizable.
-Use instrumental music and sound effects, with no narration.
-Generate the complete film and inspect the result.
-```
-
-You can also ask for reference images alone. Requesting images does not commission a video.
-
-</details>
-
-## How it works
-
-**Choose → Adapt → Generate → Review**
-
-The skill starts from the closest example's **complete original prompt** and the takeaway your viewer should leave with. It retains the source's effective visual and motion techniques while adapting scenes, sequence, timing and transitions to your subject. The resolved timed sequence is submitted as **one complete film** through Higgsfield MCP.
-
-**Bring your own video:** a supplied clip defaults to a new generation guided by its sequence, framing, timing and camera moves, with your message fitted into those beats. It uses video-reference conditioning and compares the result against the actual source. Editing existing footage is a separate request. Ask for loose inspiration when you want more freedom. See [video references](skills/motion-design/references/video-reference.md).
-
-References are optional. A product photo can help preserve identity; a style frame can clarify appearance. Typography or abstract motion may need no images. After generation, the assistant checks the actual motion, product relevance, exact copy, audio and ending, then identifies any corrections needed.
-
-| | Codex | Claude Code |
-| --- | --- | --- |
-| **Reference images** | Built-in image generation when available; Higgsfield fallback | Higgsfield MCP, preferring **GPT Image 2** |
-| **Complete film** | Higgsfield MCP, suitable current **Seedance** preferred | Same |
-| **Prompt-only work** | No generation connection required | Same |
-
-New campaigns generally target **15 seconds · 16:9 · music + effects**, without narration, and a 30fps delivery. Native fps and supported durations depend on the model. Portrait product and supplied-footage presets have their own starting settings; your choices take precedence. See [tool routing](skills/motion-design/references/tool-routing.md) for live model checks and asset handoff.
-
-## Under the hood
-
-The package includes ten source examples, archived prompts with verified hashes, separate adaptation guides, a playable gallery and production review guidance. Both apps use the same skill folder.
-
-<details>
-<summary><strong>Project status & validation</strong></summary>
-
-The shared workflow is implemented; source catalog and templates remain version 4. Package checks and connection discovery do not establish creative reliability across all ten styles. The [validation plan](ROADMAP.md) separates implemented work from film trials and reference comparisons still needed.
-
-Exact typography, charts, timing and product identity require output inspection. Supported finishing can repair some problems; automatic pixel-exact compositing and deterministic reproduction of Marketing Studio are not promised. GPT Image 2 was observed as `gpt_image_2` in the connected catalog on September 5, 2026; the skill checks current availability and capabilities before use.
-
-</details>
-
-<details>
-<summary><strong>Maintain or update the skill</strong></summary>
-
-Edit `skills/motion-design/`, then rebuild:
-
-```sh
-python skills/motion-design/scripts/build_gallery.py
-```
-
-Python 3.10+ is needed only for the builder or serving the gallery. The builder checks preset IDs, linked recipes/templates, timeline coverage and archived source hashes, then refreshes the gallery and index. Commit generated changes with source edits; GitHub Actions repeats the check.
-
-Keep original source prompts immutable. Update adaptation guides and workflow instructions for behavior changes. The catalog/template version tracks the source library; README and host-routing edits do not rewrite its provenance. Installed copies are separate from the repo: update the complete skill folder, including references and gallery, and preserve local customizations.
-
-</details>
-
----

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Motion-design skill with a kie.ai execution layer. Creative direction stays upstream; generation, budget and records are ours.",
+  "description": "Shard: a local motion-design studio, CLI and MCP server for AI video and images over kie.ai.",
   "bin": {
     "kie": "./cli/kie.mjs"
   },
@@ -19,5 +19,5 @@
   "engines": {
     "node": ">=20"
   },
-  "license": "SEE LICENSE IN LICENSE.md"
+  "license": "MIT"
 }

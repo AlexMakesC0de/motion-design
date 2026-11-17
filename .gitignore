@@ -28,3 +28,9 @@ node_modules/
 # like runs/.
 /library/
 .superpowers/
+
+# Local agent and tool state (Claude Code launch config, gstack logs, design hook cache)
+/.claude/
+/.gstack/
+/.impeccable/hook.cache.json
+/transcript

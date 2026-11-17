@@ -15,9 +15,9 @@ If you stop the server, the open page shows a banner and reconnects by itself wh
 
 Each film in Films has four steps. Every step stays open, and nothing is paid for until you press a button with a price on it.
 
-1. **Idea:** what the film is about, its ratio and total length, and its scene list (titles and seconds, which you can rename, reorder and delete). **Plan scenes with chat** hands the idea to the chat, which saves a scene list.
+1. **Idea:** what the film is about, its ratio and total length, and its scene list (titles and seconds, which you can rename, reorder and delete). **Copy plan for Claude Code** copies a request you paste into Claude Code (or Codex), which plans the scenes through the MCP server.
 2. **Cast:** each Library item the scenes use (`@library:name`), with its sheet or **Make its sheet**, and the pictures uploaded into each scene. It shows what is missing; it does not hold anything back.
-3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from. Under the cards, **Ask chat** has starters about the scene.
+3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from.
 4. **Finish:** the film's takes and the finishing tools (assemble, captions, ratios, cards).
 
 A film made before Shard (no `scenes.json`) opens on Finish as "takes only". Home's **What are we making?** starts a new film on its Idea step.
@@ -30,23 +30,9 @@ The director's storyboard (brief, shots, stills) is no longer shown in the studi
 
 **Skills** lists the saved skills (each runs in Claude Code or Codex as `/name` and through the MCP server), lets you add one from a folder on this Mac, and shows its instructions.
 
-## Chat
+## Agents
 
-The panel on the right of Studio is an assistant that uses the same tools as Claude Code and Codex: it can price a shot, generate it, wait for it, direct a film and finish it. Jobs it starts appear in the feed like any other.
-
-Connect it once, in the panel or in Settings:
-
-- **ChatGPT subscription:** install Codex (`npm install -g @openai/codex`) and run `codex login`. The studio runs Codex in the background; messages count against your ChatGPT plan, not an API bill.
-- **OpenAI API key:** paste the key in Settings, or set `OPENAI_API_KEY` before `npm run studio`. A pasted key is saved in `~/.config/kie/openai.key`, readable only by you, and the page only ever shows that a key is saved. Pick the model from the list your key can use. Each message is billed to that OpenAI account.
-
-The chat also needs the MCP server's packages: `npm --prefix mcp install` (once).
-
-What to expect:
-
-- It does not ask before spending. Your per-job limit and daily cap still apply to every job; when one refuses, the chat says so and stops.
-- One message runs at most 24 tool calls. **Stop** ends a reply at once.
-- Each film keeps its own conversation in `runs/<film>/chat.jsonl`, so reopening a film brings it back.
-- Through Codex, the chat sees only the motion-design tools. Codex's other tool servers, its shell, web search, browser and plugins are switched off, and it cannot change files. Nothing in `~/.codex/config.toml` is edited.
+There is no chat panel in the studio. To work by asking, use Claude Code, Codex or Claude Desktop with the MCP server: the **MCP** page shows the setup command for each, and jobs an agent starts appear in the studio like any other. The server still has the earlier chat backend (`server/chat/`), which the page no longer shows.
 
 ## Why it is safe to leave running
 
