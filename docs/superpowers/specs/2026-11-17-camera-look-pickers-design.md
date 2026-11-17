@@ -57,7 +57,7 @@ The same chip row sits under the prompt box, with all five chips in one row: Mov
 ### Keyboard and names
 
 - Each chip is a button that opens a listbox. Arrow keys move, Enter picks, Escape closes and returns focus to the chip.
-- A chip's accessible name is written in full in `aria-label`, for example "Stage 2 move: Push in, slow. Change". The remove button is "Remove stage 2 move".
+- A chip's accessible name is written in full in `aria-label`, for example "Stage 2 move: Push in · slow. Change" (it contains the chip's visible text). The remove button is "Remove stage 2 move".
 
 ## Data
 
