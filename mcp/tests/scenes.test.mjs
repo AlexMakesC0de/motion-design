@@ -128,4 +128,28 @@ describe("scenes through the tools", { skip: !hasFfmpeg && "needs ffmpeg" }, () 
     ok(await call(client, "delete_scene", { run: "film", id: "s1" }));
     assert.deepEqual(data(await call(client, "list_scenes", { run: "film" })).scenes, []);
   });
+
+  test("save_scene keeps picks, words them in the prompt, merges them by key and refuses an id the menu lacks", async () => {
+    const r = await call(client, "save_scene", {
+      run: "picks", title: "Box",
+      cards: { goal: "She opens the box.", picks: { light: "golden-hour" }, stages: [{ title: "Open", seconds: 4, camera: "on her hands", action: "", end: "", picks: { move: "push-in", speed: "slow", size: "close-up" } }] },
+    });
+    ok(r);
+    assert.deepEqual(data(r).cards.picks, { light: "golden-hour" });
+    assert.deepEqual(data(r).cards.stages[0].picks, { move: "push-in", speed: "slow", size: "close-up" });
+
+    const p = await call(client, "get_scene_prompt", { run: "picks", id: "s1" });
+    ok(p);
+    assert.match(data(p).prompt, /\[SCENE\]\nWarm, low golden-hour sunlight\.\n/);
+    assert.match(data(p).prompt, /\nCamera: Close-up; the camera slowly pushes in\. on her hands\n/);
+
+    const added = await call(client, "save_scene", { run: "picks", id: "s1", cards: { picks: { lens: "85mm" } } });
+    assert.deepEqual(data(added).cards.picks, { light: "golden-hour", lens: "85mm" });
+    const removed = await call(client, "save_scene", { run: "picks", id: "s1", cards: { picks: { light: null } } });
+    assert.deepEqual(data(removed).cards.picks, { lens: "85mm" });
+
+    const bad = await call(client, "save_scene", { run: "picks", id: "s1", cards: { picks: { light: "moonbeam" } } });
+    assert.equal(bad.isError, true);
+    assert.match(bad.content[0].text, /not on the director's lights menu/);
+  });
 });

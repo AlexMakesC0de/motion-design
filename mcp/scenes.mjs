@@ -35,12 +35,17 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     versions: z.array(Data),
     chosen: z.string().nullable(),
   };
+  const pickId = (what) => z.string().nullable().optional().describe(`${what} An id from get_menu; null removes it.`);
   const Stage = z.object({
     title: z.string(),
     seconds: z.number().int().min(1),
     camera: z.string(),
     action: z.string(),
     end: z.string(),
+    picks: z
+      .object({ move: pickId("The camera move."), speed: pickId("How fast the move is; needs a move other than static."), size: pickId("The shot size."), angle: pickId("The camera angle.") })
+      .optional()
+      .describe("This stage's camera, chosen from the director's menu. Its words are written before `camera` in the prompt."),
   });
   const Ref = z.object({
     id: z.string().describe("r1, r2…"),
@@ -107,7 +112,8 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
       title: "Save scene",
       description:
         "Create a scene (no id) or change one (with id). When changing, only the fields given are replaced: " +
-        "cards merge by key (goal, scene, stages, style, audio), and stages, when given, replace the whole list. " +
+        "cards merge by key (goal, scene, stages, style, audio, picks), and stages, when given, replace the whole list. " +
+        "A stage's picks (move, speed, size, angle) and the cards' picks (lens, light) are ids from get_menu; prefer a pick over typing the same move in words. " +
         "Change only what the user asked for. The length is the sum of the stages' seconds (4 to 30). " +
         MENTIONS +
         " Free.",
@@ -125,6 +131,10 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
             stages: z.array(Stage).optional(),
             style: z.string().optional(),
             audio: z.string().optional(),
+            picks: z
+              .object({ lens: pickId("The scene's lens."), light: pickId("The scene's lighting.") })
+              .optional()
+              .describe("The scene's lens and lighting, chosen from the director's menu. Merged by key."),
           })
           .optional(),
       },
@@ -134,9 +144,11 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     async ({ run, id, cards, ...fields }) => {
       const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
       const before = id ? findScene(run, id) : null;
+      const picks = cards?.picks ? { ...(before?.cards.picks ?? {}), ...cards.picks } : undefined;
+      const sent = picks ? { ...cards, picks } : (cards ?? {});
       const merged = before
-        ? { ...before, ...given, cards: { ...before.cards, ...(cards ?? {}) } }
-        : { title: "", ratio: "16:9", refs: [], ...given, cards: { goal: "", scene: "", stages: [], style: "", audio: "", ...(cards ?? {}) } };
+        ? { ...before, ...given, cards: { ...before.cards, ...sent } }
+        : { title: "", ratio: "16:9", refs: [], ...given, cards: { goal: "", scene: "", stages: [], style: "", audio: "", ...sent } };
       const saved = saveScene(run, { ...merged, id });
       return ok(`saved ${line(saved)}. Call get_scene_prompt to see what it would send.`, view(run, saved));
     },
