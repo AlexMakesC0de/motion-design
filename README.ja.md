@@ -8,7 +8,7 @@
 
 映画の企画、シーンの生成、仕上げまでを、Web スタジオ、ターミナル、または Claude Code と Codex から行えます。
 
-[![Validate](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml)
+[![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
@@ -45,8 +45,8 @@ Shard は、**[Chase の motion-design スキル](https://github.com/cth9191/mot
 1. **コードを取得してツールをインストールします。** インストーラーは `kie` を PATH に追加し、Claude Code、Codex、Kimi がインストールされていればスキルをリンクし、MCP サーバーを登録します。
 
    ```bash
-   git clone https://github.com/AlexMakesC0de/motion-design.git
-   cd motion-design
+   git clone https://github.com/AlexMakesC0de/shard-motion-design-studio.git
+   cd shard-motion-design-studio
    node install.mjs            # --dry-run shows what it would change first
    ```
 

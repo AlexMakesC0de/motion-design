@@ -8,7 +8,7 @@
 
 Planifica una película, genera sus escenas y termínala desde un estudio web, la terminal, o Claude Code y Codex.
 
-[![Validate](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml)
+[![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
@@ -45,8 +45,8 @@ Necesitas **Node 20+** y una **clave de API de kie.ai**. ffmpeg solo hace falta 
 1. **Descarga el código e instala las herramientas.** El instalador añade `kie` a tu PATH, enlaza las skills con Claude Code, Codex y Kimi si están instalados, y registra el servidor MCP.
 
    ```bash
-   git clone https://github.com/AlexMakesC0de/motion-design.git
-   cd motion-design
+   git clone https://github.com/AlexMakesC0de/shard-motion-design-studio.git
+   cd shard-motion-design-studio
    node install.mjs            # --dry-run shows what it would change first
    ```
 

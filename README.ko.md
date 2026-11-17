@@ -8,7 +8,7 @@
 
 웹 스튜디오, 터미널, 또는 Claude Code와 Codex에서 영상을 기획하고, 장면을 생성하고, 마무리까지 할 수 있습니다.
 
-[![Validate](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml)
+[![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
@@ -45,8 +45,8 @@ Shard는 **[Chase의 motion-design 스킬](https://github.com/cth9191/motion-des
 1. **코드를 받고 도구를 설치합니다.** 설치 프로그램이 `kie`를 PATH에 추가하고, Claude Code, Codex, Kimi가 설치되어 있으면 스킬을 연결하며, MCP 서버를 등록합니다.
 
    ```bash
-   git clone https://github.com/AlexMakesC0de/motion-design.git
-   cd motion-design
+   git clone https://github.com/AlexMakesC0de/shard-motion-design-studio.git
+   cd shard-motion-design-studio
    node install.mjs            # --dry-run shows what it would change first
    ```
 

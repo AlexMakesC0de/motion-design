@@ -8,7 +8,7 @@
 
 规划影片、生成分镜画面并完成成片，可以在网页工作室、终端里，或通过 Claude Code 和 Codex 来完成。
 
-[![Validate](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/motion-design/actions/workflows/validate.yml)
+[![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
@@ -45,8 +45,8 @@ Shard 最初是 **[Chase 的 motion-design skill](https://github.com/cth9191/mot
 1. **获取代码并安装工具。** 安装程序会把 `kie` 放进你的 PATH，在已安装 Claude Code、Codex 和 Kimi 时把 skills 链接进去，并注册 MCP 服务器。
 
    ```bash
-   git clone https://github.com/AlexMakesC0de/motion-design.git
-   cd motion-design
+   git clone https://github.com/AlexMakesC0de/shard-motion-design-studio.git
+   cd shard-motion-design-studio
    node install.mjs            # --dry-run shows what it would change first
    ```
 
