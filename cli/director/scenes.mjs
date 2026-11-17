@@ -6,8 +6,8 @@ import { RUNS_DIR, runDir } from "../lib/run.mjs";
 import { unknown, usage } from "../lib/errors.mjs";
 import { MAX_REFS, emptyCards } from "./mentions.mjs";
 import { RATIOS, DURATION } from "./scene-shape.mjs";
-import { loadMenu, entry } from "./menu.mjs";
 import { STAGE_PICKS, SCENE_PICKS } from "./picks.mjs";
+import { cleanPicks } from "./video-picks.mjs";
 export { emptyCards, parseDanPrompt } from "./mentions.mjs";
 export { RATIOS, DURATION, emptyScene, stageTimes } from "./scene-shape.mjs";
 
@@ -23,26 +23,6 @@ const text = (v, field) => {
 
 export function readScenes(film) {
   return readFilmJson(film, FILE) ?? { version: 1, idea: null, scenes: [] };
-}
-
-/**
- * A picks object, checked against the menu. `groups` is STAGE_PICKS or
- * SCENE_PICKS; `where` starts the message ("Stage 2", "The scene"). Empty
- * values are dropped. Returns null when nothing is picked.
- */
-function cleanPicks(input, groups, where) {
-  if (input == null) return null;
-  if (typeof input !== "object" || Array.isArray(input)) throw bad("picks", `${where === "The scene" ? "The scene's" : `${where}'s`} picks must be an object.`);
-  const menu = loadMenu();
-  const out = {};
-  for (const [key, id] of Object.entries(input)) {
-    if (id == null || id === "") continue;
-    if (!groups[key]) throw bad("picks", `${where} has no "${key}" pick. It takes: ${Object.keys(groups).join(", ")}.`);
-    entry(menu, groups[key], id); // refuses an unknown id, naming the menu's own
-    out[key] = id;
-  }
-  if (out.speed && (!out.move || out.move === "static")) throw bad("picks", `${where}: a speed needs a move other than static.`);
-  return Object.keys(out).length ? out : null;
 }
 
 /** Check and tidy what a caller sent. Versions and chosen are never taken from the caller. */
