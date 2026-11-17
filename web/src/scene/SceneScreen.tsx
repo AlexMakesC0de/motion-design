@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MAX_REFS, attachLibraryMentions, cardTexts, mapCardTexts, nextRefId, removeRef, toStored } from "../../../cli/director/mentions.mjs";
+import { hasPicks } from "../../../cli/director/picks.mjs";
 import { DURATION, RATIOS, emptyScene } from "../../../cli/director/scene-shape.mjs";
 import { api } from "../api/client";
 import type { AssetSummary, Cards, Ref, Scene, ScenePreview, Span } from "../api/types";
@@ -140,7 +141,7 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
   const onPasteWhole = (cards: Cards) => {
     const cur = latest.current;
     if (!cur) return;
-    if (cardTexts(cur.cards).some((t) => t.trim()) && !window.confirm("Replace this scene's cards with the pasted prompt?")) return;
+    if ((cardTexts(cur.cards).some((t) => t.trim()) || hasPicks(cur.cards)) && !window.confirm("Replace this scene's cards with the pasted prompt?")) return;
     update((s) => {
       let refs = s.refs;
       const settled = mapCardTexts(cards, (t) => {

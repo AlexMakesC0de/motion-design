@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import type { InputHTMLAttributes } from "react";
+import menu from "../../../cli/director/menu.json";
+import { setPick } from "../../../cli/director/picks.mjs";
 import { DURATION, stageTimes } from "../../../cli/director/scene-shape.mjs";
-import type { Cards, Ref, Scene, Span, Stage } from "../api/types";
+import type { Cards, Ref, Scene, ScenePicks, Span, Stage, StagePicks } from "../api/types";
 import { Icon } from "../app/icons";
 import { MentionField } from "./MentionField";
+import { PickChip } from "./PickChips";
 import "./scene.css";
 
 /**
@@ -116,9 +119,9 @@ export function StageTimeline({ scene, stage, onStage, onAdd }: { scene: Scene; 
 }
 
 const OPTIONAL = [
-  { key: "scene", label: "Scene", hint: "Where and when: the place, the light, the time of day." },
-  { key: "style", label: "Style", hint: "The look: lens, grade, film stock, references." },
-  { key: "audio", label: "Audio", hint: "Music in (), sound effects in <>, dialogue in {}." },
+  { key: "scene", label: "Scene", hint: "Where and when: the place, the light, the time of day.", pick: { key: "light", label: "Lighting", options: menu.lights } },
+  { key: "style", label: "Style", hint: "The look: lens, grade, film stock, references.", pick: { key: "lens", label: "Lens", options: menu.lenses } },
+  { key: "audio", label: "Audio", hint: "Music in (), sound effects in <>, dialogue in {}.", pick: null },
 ] as const;
 
 /** The notes column: the goal, the open stage, then Scene, Style and Audio when they have words or are asked for. */
@@ -144,8 +147,11 @@ export function SceneCards({ scene, items, stage, onText, onScene, onChoose, onP
 
   const setStage = (i: number, patch: Partial<Stage>) => (c: Cards): Cards => ({ ...c, stages: c.stages.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
   const removeStage = (i: number) => onScene((s) => ({ ...s, cards: { ...s.cards, stages: s.cards.stages.filter((_, j) => j !== i) } }));
+  const pickStage = (i: number, key: keyof StagePicks, id: string | undefined) =>
+    onText((c) => ({ ...c, stages: c.stages.map((s, j) => (j === i ? { ...s, picks: setPick(s.picks, key, id) } : s)) }), null);
+  const pickScene = (key: keyof ScenePicks, id: string | undefined) => onText((c) => ({ ...c, picks: setPick(c.picks, key, id) }), null);
 
-  const shownOptional = OPTIONAL.filter((o) => cards[o.key].trim() || opened.has(o.key));
+  const shownOptional = OPTIONAL.filter((o) => cards[o.key].trim() || opened.has(o.key) || (o.pick && cards.picks?.[o.pick.key]));
   const closedOptional = OPTIONAL.filter((o) => !shownOptional.includes(o));
   const st = stage != null ? stages[stage] : undefined;
   const n = (stage ?? 0) + 1;
@@ -174,6 +180,20 @@ export function SceneCards({ scene, items, stage, onText, onScene, onChoose, onP
               <SecondsInput label={`Stage ${n} seconds`} value={st.seconds} onValue={(v) => onText(setStage(stage, { seconds: v }), null)} />
             </label>
           </div>
+          <div className="pick-row" role="group" aria-label={`Stage ${n} camera picks`}>
+            <PickChip
+              label="Move"
+              scope={`Stage ${n} move`}
+              options={menu.moves}
+              value={st.picks?.move}
+              onPick={(id) => pickStage(stage, "move", id)}
+              speeds={menu.speeds}
+              speed={st.picks?.speed}
+              onSpeed={(id) => pickStage(stage, "speed", id)}
+            />
+            <PickChip label="Shot size" scope={`Stage ${n} shot size`} options={menu.sizes} value={st.picks?.size} onPick={(id) => pickStage(stage, "size", id)} />
+            <PickChip label="Angle" scope={`Stage ${n} angle`} options={menu.angles} value={st.picks?.angle} onPick={(id) => pickStage(stage, "angle", id)} />
+          </div>
           {(["camera", "action", "end"] as const).map((k) => (
             <div key={k} className="scene-stage__row">
               <span className="scene-stage__key" aria-hidden="true">{k === "end" ? "Ends on" : k[0].toUpperCase() + k.slice(1)}</span>
@@ -187,6 +207,11 @@ export function SceneCards({ scene, items, stage, onText, onScene, onChoose, onP
         <div key={o.key} className="scene-card">
           <h3 className="scene-card__head">{o.label}</h3>
           {o.key === "audio" && <p className="scene-hint">{o.hint}</p>}
+          {o.pick && (
+            <div className="pick-row">
+              <PickChip label={o.pick.label} scope={`Scene ${o.pick.label.toLowerCase()}`} options={o.pick.options} value={cards.picks?.[o.pick.key]} onPick={(id) => pickScene(o.pick.key, id)} />
+            </div>
+          )}
           {field(o.label, cards[o.key], (c, t) => ({ ...c, [o.key]: t }))}
         </div>
       ))}

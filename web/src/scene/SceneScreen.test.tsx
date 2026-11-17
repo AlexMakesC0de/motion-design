@@ -429,4 +429,52 @@ describe("SceneScreen", () => {
     await screen.findByRole("textbox", { name: "Goal" });
     expect(screen.queryByRole("group", { name: "Ask chat" })).toBeNull();
   });
+
+  test("a stage's move, speed, size and angle are picked as chips and saved with the scene", async () => {
+    const stage = { title: "Open", seconds: 8, camera: "on her hands", action: "", end: "" };
+    const fetchMock = stub({ scenes: [scene({ cards: { ...blankCards(), goal: "She opens the box.", stages: [stage] } })] });
+    render(<SceneScreen run="create" />);
+    const picks = await screen.findByRole("group", { name: "Stage 1 camera picks" });
+    fireEvent.click(within(picks).getByRole("button", { name: "Stage 1 move: none. Choose" }));
+    fireEvent.click(screen.getByRole("option", { name: /^Push in/ }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Stage 1 move speed" })).getByRole("button", { name: "Slow" }));
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    fireEvent.click(within(picks).getByRole("button", { name: "Stage 1 shot size: none. Choose" }));
+    fireEvent.click(screen.getByRole("option", { name: /^Close-up/ }));
+    expect(within(picks).getByRole("button", { name: "Stage 1 move: Push in, slow. Change" })).toBeInTheDocument();
+    await waitFor(() => {
+      const sent = JSON.parse(String(calls(fetchMock, `${BASE}/s1`, "PUT").at(-1)?.[1]?.body));
+      expect(sent.cards.stages[0].picks).toEqual({ move: "push-in", speed: "slow", size: "close-up" });
+      expect(sent.cards.stages[0].camera).toBe("on her hands");
+    });
+    fireEvent.click(within(picks).getByRole("button", { name: "Remove stage 1 move" }));
+    await waitFor(() => {
+      const sent = JSON.parse(String(calls(fetchMock, `${BASE}/s1`, "PUT").at(-1)?.[1]?.body));
+      expect(sent.cards.stages[0].picks).toEqual({ size: "close-up" });
+    });
+  });
+
+  test("lighting sits on the Scene card and lens on the Style card; a pick keeps its card shown", async () => {
+    const fetchMock = stub({ scenes: [scene({ cards: { ...blankCards(), goal: "She opens the box.", picks: { light: "golden-hour" } } })] });
+    render(<SceneScreen run="create" />);
+    expect(await screen.findByRole("button", { name: "Scene lighting: Golden hour. Change" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Scene lens/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Style" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scene lens: none. Choose" }));
+    fireEvent.click(screen.getByRole("option", { name: /^85mm portrait/ }));
+    await waitFor(() => {
+      const sent = JSON.parse(String(calls(fetchMock, `${BASE}/s1`, "PUT").at(-1)?.[1]?.body));
+      expect(sent.cards.picks).toEqual({ light: "golden-hour", lens: "85mm" });
+    });
+  });
+
+  test("pasting a whole prompt over a scene that has only chips asks first", async () => {
+    stub({ scenes: [scene({ cards: { ...blankCards(), picks: { light: "golden-hour" } } })] });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<SceneScreen run="create" />);
+    const goal = await screen.findByRole("textbox", { name: "Goal" });
+    fireEvent.paste(goal, { clipboardData: { getData: () => "[GOAL]\nHe jumps.", files: [] } });
+    expect(confirm).toHaveBeenCalledWith("Replace this scene's cards with the pasted prompt?");
+    expect(screen.getByRole("button", { name: "Scene lighting: Golden hour. Change" })).toBeInTheDocument();
+  });
 });
