@@ -26,6 +26,8 @@ export const job = (over: Partial<JobView> = {}): JobView => ({
   following: false,
   day: "2026-10-31",
   uncertainMessage: null,
+  picks: null,
+  typedPrompt: null,
   ...over,
 });
 

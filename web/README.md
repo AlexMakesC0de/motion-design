@@ -11,6 +11,10 @@ This builds the page if needed, starts a server on http://127.0.0.1:4317 (or the
 
 If you stop the server, the open page shows a banner and reconnects by itself when you start it again.
 
+## Create Video
+
+Video opens on Create Video: one prompt, one take. Under the prompt box is a row of chips from the director's menu: Move (with a speed), Shot size, Angle, Lens and Lighting. Pick any of them and Shard adds their words after your prompt, in the wording the chosen model reads best (a Hailuo model gets its bracket command, such as `[Push in]`). The chips do not change the price. **Reuse** on a take made with chips brings back what you typed and the chips.
+
 ## Films
 
 Each film in Films has four steps. Every step stays open, and nothing is paid for until you press a button with a price on it.

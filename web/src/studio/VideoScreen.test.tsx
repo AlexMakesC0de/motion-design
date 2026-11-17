@@ -174,6 +174,44 @@ describe("Video, Create Video", () => {
     expect(JSON.parse(call[1]!.body as string)).toMatchObject({ run: "zed", prompt: ready.prompt, duration_s: 4, aspect_ratio: "16:9" });
   });
 
+  test("chips under the prompt travel with Generate as picks; Static drops the speed", async () => {
+    const submitted = { localJobId: "j-20261031-abc123", job: job({ state: "submitted" }) };
+    const fetchMock = page({ more: { "/api/generate/video": () => submitted } });
+    const row = await screen.findByRole("group", { name: "Camera and look picks" });
+    fireEvent.click(within(row).getByRole("button", { name: "Move: none. Choose" }));
+    fireEvent.click(screen.getByRole("option", { name: /^Push in/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Slow" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Lighting: none. Choose" }));
+    fireEvent.click(screen.getByRole("option", { name: /^Golden hour/ }));
+    expect(getDraft().picks).toEqual({ move: "push-in", speed: "slow", light: "golden-hour" });
+    fireEvent.click(await generate());
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/generate/video")).toBe(true));
+    const call = fetchMock.mock.calls.find((c) => c[0] === "/api/generate/video")!;
+    expect(JSON.parse(call[1]!.body as string).picks).toEqual({ move: "push-in", speed: "slow", light: "golden-hour" });
+
+    fireEvent.click(within(row).getByRole("button", { name: "Move: Push in · slow. Change" }));
+    fireEvent.click(screen.getByRole("option", { name: /^Static/ }));
+    expect(getDraft().picks).toEqual({ move: "static", light: "golden-hour" });
+  });
+
+  test("with no chips Generate sends no picks", async () => {
+    const fetchMock = page({ more: { "/api/generate/video": () => ({ localJobId: "j-1", job: job({ state: "submitted" }) }) } });
+    fireEvent.click(await generate());
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/generate/video")).toBe(true));
+    const call = fetchMock.mock.calls.find((c) => c[0] === "/api/generate/video")!;
+    expect("picks" in JSON.parse(call[1]!.body as string)).toBe(false);
+  });
+
+  test("Reuse on a take made with chips brings back what was typed and the chips", async () => {
+    const chipped = job({ id: "j-20261031-dddddd", createdAt: "2026-10-31T11:00:00.000Z", prompt: "A fox runs.\n\nCamera: The camera pushes in.", typedPrompt: "A fox runs.", picks: { move: "push-in" } });
+    page({ jobs: [chipped] });
+    const feed = await screen.findByRole("region", { name: "Takes" });
+    fireEvent.click((await within(feed).findAllByRole("button", { name: /^Open / }))[0]);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Reuse" }));
+    expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("A fox runs.");
+    expect(screen.getByRole("button", { name: "Move: Push in. Change" })).toBeInTheDocument();
+  });
+
   test("a refusal at submit is shown as an alert", async () => {
     const refused = () => new Response(JSON.stringify({ error: { code: 2, message: "Refused, nothing spent. Over the cap." } }), { status: 402 });
     page({ more: { "/api/generate/video": refused } });

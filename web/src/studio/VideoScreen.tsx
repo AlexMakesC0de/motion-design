@@ -3,14 +3,17 @@
 // film's takes (History) or how it works. Scenes, the staged editor, is the
 // second tab and fills the page.
 import { useState } from "react";
+import menu from "../../../cli/director/menu.json";
+import { setPick } from "../../../cli/director/picks.mjs";
 import type { AssetSummary, JobView, PresetInfo } from "../api/types";
 import { Icon } from "../app/icons";
 import { modelName } from "../app/modelMeta";
+import { PickChip } from "../scene/PickChips";
 import { SceneScreen } from "../scene/SceneScreen";
 import { FilmPicker } from "./FilmPicker";
 import { GenerateMessages, ModelMenu, PresetNote, RefChips, RefPicker, SelectCard } from "./controls";
 import { isVideo } from "./format";
-import { setDraft, setRun, useRun } from "./promptStore";
+import { getDraft, setDraft, setRun, useRun, type VideoPicks } from "./promptStore";
 import { typicalSeconds } from "./format";
 import { TakeTile } from "./TakeTile";
 import { TakeViewer } from "./TakeViewer";
@@ -51,6 +54,9 @@ export function VideoScreen({ tab }: { tab: "create" | "scenes" }) {
 }
 
 type View = "history" | "how";
+
+// One chip changed. setPick drops the speed with its move (and for Static), so the draft never holds a speed alone.
+const pick = (key: keyof VideoPicks, id: string | undefined) => setDraft({ picks: setPick(getDraft().picks, key, id) ?? {} });
 
 function CreateVideo() {
   const run = useRun();
@@ -133,6 +139,22 @@ function CreateVideo() {
               value={draft.prompt}
               onChange={(e) => setDraft({ prompt: e.target.value })}
             />
+            <div className="pick-row" role="group" aria-label="Camera and look picks">
+              <PickChip
+                label="Move"
+                scope="Move"
+                options={menu.moves}
+                value={draft.picks.move}
+                onPick={(id) => pick("move", id)}
+                speeds={menu.speeds}
+                speed={draft.picks.speed}
+                onSpeed={(id) => pick("speed", id)}
+              />
+              <PickChip label="Shot size" scope="Shot size" options={menu.sizes} value={draft.picks.size} onPick={(id) => pick("size", id)} />
+              <PickChip label="Angle" scope="Angle" options={menu.angles} value={draft.picks.angle} onPick={(id) => pick("angle", id)} />
+              <PickChip label="Lens" scope="Lens" options={menu.lenses} value={draft.picks.lens} onPick={(id) => pick("lens", id)} />
+              <PickChip label="Lighting" scope="Lighting" options={menu.lights} value={draft.picks.light} onPick={(id) => pick("light", id)} />
+            </div>
             <PresetNote preset={draft.preset} title={look?.title} />
           </div>
 

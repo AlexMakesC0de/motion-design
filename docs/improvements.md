@@ -1,9 +1,9 @@
 # Improvements
 
-Agreed with Alex on 2026-11-17, after the camera and look pickers for Scenes shipped. In the order they should be done. Tick an item when it is merged into `main`.
+Agreed with Alex on 2026-11-17, after the camera and look pickers for Scenes shipped. In the order they should be done. An item is ticked when it is built, tested and committed.
 
-- [ ] **1. Pickers on Create Video.** The Move, Shot size, Angle, Lens and Lighting chips exist only in Scenes. Put the same row under the prompt box on Create Video, and give `kie video --pick` and the MCP `generate_video` tool the same option. Designed in [the pickers spec](superpowers/specs/2026-11-17-camera-look-pickers-design.md#on-create-video).
-- [ ] **2. Make the price shown match the price charged.** Per-second prices are already in `cli/models.json` for most video routes (read from kie on 2026-10-30). What is left: re-read the live pages, price the routes that still use one flat figure, and count the billing rules the estimate ignores (a reference video on Seedance, audio on Kling).
+- [x] **1. Pickers on Create Video.** The Move, Shot size, Angle, Lens and Lighting chips exist only in Scenes. Put the same row under the prompt box on Create Video, and give `kie video --pick` and the MCP `generate_video` tool the same option. Designed in [the pickers spec](superpowers/specs/2026-11-17-camera-look-pickers-design.md#on-create-video); built from [this plan](superpowers/plans/2026-11-17-camera-look-pickers-create-video.md) on 2026-11-17.
+- [x] **2. Make the price shown match the price charged.** Per-second prices are already in `cli/models.json` for most video routes (read from kie on 2026-10-30). What is left: re-read the live pages, price the routes that still use one flat figure, and count the billing rules the estimate ignores (a reference video on Seedance, audio on Kling). Done on 2026-11-17 for Kling 3.0's new rates, reference videos on Seedance 2 Fast, GPT Image 2 and speech; what is still not counted is listed in [the price research note](research/2026-10-30-catalog-and-prices.md#re-read-on-2026-11-17).
 - [ ] **3. Say when ffmpeg is missing or broken.** Check once at startup and show which steps are off and how to fix it, instead of failing after takes are paid for.
 - [ ] **4. Silent and Loop switches on a take.** Strip the audio Seedance adds even when asked for silence, and find the loop cut, without doing either by hand.
 - [ ] **5. A preview for each pick.** A short clip or still beside each option in a chip's list. Costs credits once per option (about 60).
