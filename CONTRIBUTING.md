@@ -43,7 +43,7 @@ npm run test:mcp     # MCP server
 npm run validate     # only if skills/motion-design changed (needs Python 3.10+)
 ```
 
-Add a test with every fix or feature. The page test "a job event for one of its versions reloads" can fail now and then; rerun it before you look for a bug of your own.
+Add a test with every fix or feature.
 
 ## Pull requests
 

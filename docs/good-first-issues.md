@@ -9,7 +9,6 @@ Small, well-defined tasks for a first pull request. None of them needs an API ke
 
 ## Studio and CLI
 
-- **Fix the flaky page test.** `web/src/scene/useScenes.test.ts`, "a job event for one of its versions reloads", fails now and then and passes on a rerun. Find the timing it depends on and make it wait for the right thing.
 - **Add a type check.** Add `npm run typecheck` (`tsc --noEmit` with `web/tsconfig.json`) and a step for it in `.github/workflows/ci.yml`. Fix or list the errors it finds.
 - **Say when ffmpeg is missing.** Check for ffmpeg once when the studio starts (`web/server/main.mjs`) and show which finishing steps are off and how to install it, instead of failing after takes are paid for. See item 3 in [improvements.md](improvements.md).
 - **Warn when words contradict a pick.** For example "pull out" typed under a Push in camera chip. See item 6 in [improvements.md](improvements.md).

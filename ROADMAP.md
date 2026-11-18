@@ -34,7 +34,7 @@ In rough order; [docs/improvements.md](docs/improvements.md) has the details.
 - Say when ffmpeg is missing or broken, at startup, before any take is paid for.
 - Silent and Loop switches on a take (strip added audio, find the loop cut).
 - Warn when typed words contradict a picked camera move, and keep an agent from wiping stage picks.
-- A type check in CI, and a fix for the page tests that fail now and then.
+- A type check in CI.
 - Compare two takes side by side, and keep a failed take with Retry.
 - Next beat and Coverage in Scenes.
 - Trim a reference video before upload, and export in the browser without ffmpeg.
