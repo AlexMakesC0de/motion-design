@@ -6,7 +6,7 @@
 
 **A motion-design studio for AI video and images, on your own computer.**
 
-Plan a film, generate its scenes and finish it, from a web studio, the terminal, or Claude Code and Codex.
+Plan a film shot by shot, generate it on today's video and image models, and finish it, from a web studio, the terminal, or by asking Claude Code or Codex. Every paid job shows its price first.
 
 [![CI](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -14,15 +14,26 @@ Plan a film, generate its scenes and finish it, from a web studio, the terminal,
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
-**English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
+**English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) <sub>(translations may lag behind English)</sub>
 
-[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [A look around](#a-look-around) · [Quick start](#quick-start) · [Set up with an agent](#set-it-up-with-an-ai-agent) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
+[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [A look around](#a-look-around) · [Demo](#demo) · [Feature status](#feature-status) · [Quick start](#quick-start) · [Set up with an agent](#set-it-up-with-an-ai-agent) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
 
 </div>
 
 ---
 
-Shard started as a fork of **[Chase's motion-design skill](https://github.com/cth9191/motion-design)**: ten motion styles with the prompts behind them, which live on here as the Ad templates. Thanks, Chase. The studio, the CLI, the MCP server, the 17 Looks and everything else were built for Shard. See [Credits](#credits).
+## What it is
+
+Shard is an open-source studio that runs on your computer and sends generation jobs to [kie.ai](https://kie.ai), one API key for many video, image and audio models (Seedance, Kling, Veo, Wan, MiniMax, GPT Image, Nano Banana, ElevenLabs, Suno and more). You bring the key and pay kie for what you generate; Shard itself is free.
+
+It is for people who want to make short films, ads and social clips with AI models without losing track of the plan, the characters or the bill:
+
+- **Direct a film, not a prompt.** Agree a brief, plan the shots with real camera terms, make a storyboard of stills, film each shot, review the takes and cut the result.
+- **Keep people consistent.** Save characters, products and places in a Library, and build character sheets so the same face comes back in every shot.
+- **Know the cost first.** Every paid job is priced before it is sent and checked against your daily and per-job limits.
+- **Work where you like.** The same tools are in the web studio, the `kie` command line and an MCP server for coding agents.
+
+Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9191/motion-design), whose ten styles live on here as the Ad templates. See [Credits](#credits).
 
 ## A look around
 
@@ -39,7 +50,7 @@ Shard started as a fork of **[Chase's motion-design skill](https://github.com/ct
   </tr>
   <tr>
     <td><img src="docs/images/product/image.jpg" alt="Image: conversations of image takes"><br><b>Image.</b> Pictures grouped into conversations, on GPT Image, Nano Banana and more.</td>
-    <td><img src="docs/images/product/mcp.jpg" alt="MCP: generate from Claude Code, Codex or Claude Desktop"><br><b>MCP.</b> The same tools in Claude Code, Codex and Claude Desktop, set up in one command.</td>
+    <td><img src="docs/images/product/mcp.jpg" alt="MCP: generate from Claude Code, Codex or Claude Desktop"><br><b>MCP.</b> The same tools in Claude Code and Codex, registered by the installer, and in Claude Desktop with a pasted config.</td>
   </tr>
 </table>
 
@@ -48,16 +59,41 @@ Shard started as a fork of **[Chase's motion-design skill](https://github.com/ct
 | Part | What it does |
 |---|---|
 | **Studio** (`web/`) | A local web app: Image and Video pages, films planned scene by scene, **Openjutsu** (beta: swap a person, outfit, object or background into any clip), **AI Influencers** with three-panel character sheets, a Library of characters, products and places, Looks, your skills, spend and settings. |
-| **`kie` CLI** (`cli/`) | Generates video, images and audio through [kie.ai](https://kie.ai) (with WaveSpeed as a fallback), prices every job first, and keeps a record of each one. |
-| **MCP server** (`mcp/`) | Gives Claude Code, Codex and Claude Desktop the same tools as the studio, so you can make films by asking. |
+| **`kie` CLI** (`cli/`) | Generates video, images and audio through [kie.ai](https://kie.ai) (WaveSpeed is an optional second route for some models), prices every job first, and keeps a record of each one. |
+| **MCP server** (`mcp/`) | Gives Claude Code and Codex (and Claude Desktop, with a pasted config) the same tools as the studio, so you can make films by asking. |
 | **Render and finish** (`render/`, `cli/`) | Draws exact graphics in code (titles, logos, numbers) with Remotion, and finishes films with ffmpeg: music, captions, loudness, other aspect ratios. |
-| **Skill library** (`skills/`) | Your favourite agent skills, each usable as a `/slash-command`, as an MCP prompt and in the studio. `motion-design` holds the looks. |
+| **Skill library** (`skills/`) | Your favourite agent skills, each usable as a `/slash-command`, as an MCP prompt and in the studio. `motion-design` holds the Ad templates and the film-making guides. |
 
 **Spending is guarded everywhere.** Every paid job is priced before it is sent and checked against a daily cap and an optional per-job limit, whether it comes from the studio, the CLI or an agent. Looking things up, planning and pricing are free.
 
+## Feature status
+
+| Status | Features |
+|---|---|
+| **Ready** | Studio (Image, Video, films scene by scene, Library, Looks, Skills, spend), AI Influencers and character sheets, the `kie` CLI, spending limits, the MCP server for Claude Code and Codex, the skill library, 17 Looks, Remotion graphics templates |
+| **Experimental** | Openjutsu (beta character swap), ffmpeg finishing (built and unit-tested, not yet verified on a full film), WaveSpeed routes, Claude Desktop (manual config), Linux and Windows (untested) |
+| **Planned** | ffmpeg check at startup, Silent and Loop switches, take comparison and Retry, Next beat and Coverage in Scenes, self-hosted Openjutsu |
+
+Prices come from each provider's page on the date in `cli/models.json` and can go stale; the CLI warns when they are old. [ROADMAP.md](ROADMAP.md) has the details.
+
+## Demo
+
+> **A full end-to-end demo film is still to be recorded.** It will show one real brief going through Shard: the plan, the storyboard, the takes, the finished cut, and the cost Shard recorded for each job. Until then, the screenshots above are the studio itself, running with no generations in it, and no third-party video is presented as Shard output.
+
+You can walk through most of the workflow without spending anything:
+
+```bash
+kie looks                                        # the 17 Looks
+kie plan --menu                                  # every shot size, lens, move and light the planner knows
+kie preflight --model seedance-2-5 --duration 10 # what a 10-second shot would cost, without generating
+kie video --run try --model seedance-2-5 --duration 5 --look neo-noir --prompt-file idea.txt --dry-run   # the prompt with the Look's words; sends nothing
+```
+
+In the studio, planning a film (brief, shot plan, checker) is free, and every Generate button shows its price before anything is sent.
+
 ## Quick start
 
-You need **Node 22+** and a **kie.ai API key**. ffmpeg is needed only for finishing, and Python 3.10+ only to rebuild the looks gallery.
+You need **Node 22+** and a **kie.ai API key**. ffmpeg is needed only for finishing, and Python 3.10+ only to check the Ad templates. [docs/setup.md](docs/setup.md) explains each step and has a troubleshooting table.
 
 1. **Get the code and install the tools.** The installer puts `kie` on your PATH, links the skills into Claude Code, Codex and Kimi when they are installed, and registers the MCP server.
 
@@ -122,6 +158,8 @@ kie render   --run launch --template logo-reveal --props brand.json
 kie assemble --run launch --shot out.mp4 --shot logo-reveal.mp4 --transition fade:0.5
 kie variants --run launch --video film.mp4 --ratios 9:16,1:1
 ```
+
+`kie render` needs Remotion, installed once with `npm --prefix render install`. `kie assemble`, `kie caption` and `kie variants` need ffmpeg.
 
 Generated video is photographic: it invents plausible pixels. Anything that has to be exactly right, like a headline, a logo or a price, is better drawn by `kie render` and laid over the film. [graphic-motion.md](skills/motion-design/references/graphic-motion.md) explains when to use which.
 
