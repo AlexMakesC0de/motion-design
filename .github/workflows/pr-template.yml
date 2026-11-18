@@ -1,0 +1,47 @@
+name: PR template
+
+# Fails a pull request whose description skips the template: every section must
+# be filled in, at least one test box ticked, and every Checklist box ticked.
+# The description is read inside the script (never passed to a shell), so its
+# text cannot run as a command.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.pull_request.body || "").replace(/<!--[\s\S]*?-->/g, "");
+            const sections = ["What this changes", "Why", "How I tested it", "Screenshots", "Checklist"];
+            const problems = [];
+            const parts = {};
+            for (const name of sections) {
+              const start = body.search(new RegExp(`^##\\s+${name}\\s*$`, "m"));
+              if (start === -1) { problems.push(`Missing the "${name}" section.`); continue; }
+              const rest = body.slice(start).split("\n").slice(1).join("\n");
+              const next = rest.search(/^##\s+/m);
+              parts[name] = (next === -1 ? rest : rest.slice(0, next)).trim();
+            }
+            for (const name of ["What this changes", "Why", "Screenshots"]) {
+              if (name in parts && !parts[name]) problems.push(`"${name}" is empty.`);
+            }
+            if ("How I tested it" in parts && !/^\s*-\s*\[[xX]\]/m.test(parts["How I tested it"])) {
+              problems.push('Tick at least one test you ran under "How I tested it".');
+            }
+            if ("Checklist" in parts) {
+              const open = (parts["Checklist"].match(/^\s*-\s*\[ \]/gm) || []).length;
+              const done = (parts["Checklist"].match(/^\s*-\s*\[[xX]\]/gm) || []).length;
+              if (!done || open) problems.push(`Tick every box under "Checklist" (${open} still open).`);
+            }
+            if (problems.length) {
+              core.setFailed(`This pull request does not follow the template (.github/pull_request_template.md):\n- ${problems.join("\n- ")}`);
+            } else {
+              core.info("The description follows the template.");
+            }
