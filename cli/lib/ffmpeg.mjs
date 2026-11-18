@@ -47,6 +47,7 @@ export function run(bin, args, { onLine, cwd, signal, killGraceMs = 3000 } = {})
     let stoppedByAbort = false; // the program has exited because of it
     let finished = false;
     let killer = null;
+    let forced = false; // SIGKILL has gone to the whole group
 
     const finish = (fn) => {
       if (finished) return;
@@ -79,6 +80,7 @@ export function run(bin, args, { onLine, cwd, signal, killGraceMs = 3000 } = {})
       kill("SIGTERM");
       // Whatever is still running when the grace is up is killed outright.
       killer = setTimeout(() => {
+        forced = true;
         kill("SIGKILL");
         if (exited) finish(() => reject(stopped()));
       }, killGraceMs);
@@ -104,7 +106,9 @@ export function run(bin, args, { onLine, cwd, signal, killGraceMs = 3000 } = {})
       stoppedByAbort = true;
       proc.stdout.destroy();
       proc.stderr.destroy();
-      if (groupGone()) finish(() => reject(stopped()));
+      // After SIGKILL the group may still answer for a moment as unreaped
+      // processes (Linux), and no timer is left to check again: count it as gone.
+      if (forced || groupGone()) finish(() => reject(stopped()));
     });
     proc.on("close", (code) => {
       if (stoppedByAbort) return;
