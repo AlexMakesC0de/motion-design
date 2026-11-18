@@ -20,6 +20,8 @@ Plan a film shot by shot, generate it on today's video and image models, and fin
 
 </div>
 
+<p align="center"><img src="docs/images/product/demo.gif" alt="A walkthrough of the Shard studio: type an idea, pick the Neo-noir look, plan the film, browse the Looks, set a push-in close-up on the Video page and see the price before generating, then the MCP page" width="100%"></p>
+
 ---
 
 ## What it is
@@ -78,7 +80,7 @@ Prices come from each provider's page on the date in `cli/models.json` and can g
 
 ## Demo
 
-> **A full end-to-end demo film is still to be recorded.** It will show one real brief going through Shard: the plan, the storyboard, the takes, the finished cut, and the cost Shard recorded for each job. Until then, the screenshots above are the studio itself, running with no generations in it, and no third-party video is presented as Shard output.
+> **A full end-to-end demo film is still to be recorded.** It will show one real brief going through Shard: the plan, the storyboard, the takes, the finished cut, and the cost Shard recorded for each job. Until then, the walkthrough at the top and the screenshots are the studio itself, recorded with no generations in it and nothing spent, and no third-party video is presented as Shard output.
 
 You can walk through most of the workflow without spending anything:
 
