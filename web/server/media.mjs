@@ -6,7 +6,8 @@ import { extname, join, relative, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../../cli/lib/run.mjs";
 import { confinePath } from "../../cli/core/inputs.mjs";
 import { HARDENING, HttpError, streamFile } from "./http.mjs";
-import { presetStills } from "./stills.mjs";
+import { lookStill, presetStills } from "./stills.mjs";
+import { loadLooks } from "../../cli/director/looks.mjs";
 
 const TYPES = {
   ".mp4": "video/mp4",
@@ -41,6 +42,13 @@ export async function serveMedia(req, res, pathname) {
     const file = presetStills().get(still[1]);
     if (!file) throw new HttpError(404, "Not found.");
     res.writeHead(200, { ...HARDENING, "content-type": "image/png", "content-length": statSync(file).size, "cache-control": "no-cache" });
+    return streamFile(res, file);
+  }
+  const lookPic = pathname.match(/^\/media\/looks\/([a-z0-9-]+)\.jpg$/);
+  if (lookPic) {
+    const file = loadLooks().looks.some((l) => l.id === lookPic[1]) ? lookStill(lookPic[1]) : null;
+    if (!file) throw new HttpError(404, "Not found.");
+    res.writeHead(200, { ...HARDENING, "content-type": "image/jpeg", "content-length": statSync(file).size, "cache-control": "no-cache" });
     return streamFile(res, file);
   }
   const m = pathname.match(/^\/media\/(runs|library)\/(.+)$/);

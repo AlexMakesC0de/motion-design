@@ -137,9 +137,9 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
       throw unknown(`Refused before submitting, nothing was spent. ${problems.join(" ")}`, { field, problems });
     }
     // After the request is checked and before anything is reserved: a bad pick or an over-long prompt costs nothing.
-    const worded = applyVideoPicks(a.prompt, body.picks, model);
+    const worded = applyVideoPicks(a.prompt, body.picks, model, { look: f.text(body, "look") });
     const sent = { ...a, prompt: worded.prompt };
-    const withPicks = worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {};
+    const withPicks = worded.typedPrompt !== null ? { picks: worded.picks, look: worded.look, typedPrompt: worded.typedPrompt } : {};
     return submit(
       "video",
       model,
@@ -158,6 +158,9 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
 
   router.post("/api/generate/image", async ({ body = {} }) => {
     const a = { ...common(body), model: f.text(body, "model"), quality: f.text(body, "quality"), background: f.text(body, "background") };
+    // The Image page's conversation this picture belongs to (an id the page made up, kept on the job).
+    const thread = f.text(body, "thread");
+    if (thread && !/^c-[a-z0-9]{4,32}$/.test(thread)) throw f.invalid("thread", "A conversation id is c- and 4 to 32 lowercase letters or digits.");
     const model = resolveModel(catalog, a.model ?? "gpt-image-2", "image");
     if (a.resolution && model.resolutions && !model.resolutions.includes(a.resolution)) {
       throw f.invalid("resolution", `${model.id} supports resolutions ${model.resolutions.join(", ")}.`);
@@ -170,7 +173,7 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
       model,
       a,
       { prompt: a.prompt, resolution: a.resolution, quality: a.quality, aspect_ratio: a.aspect_ratio, background: a.background },
-      { promptFile: "image-prompt.txt", inputsFile: "image-inputs.json", artifactBase: "ref", useI2v: (refs) => refs.length > 0 },
+      { promptFile: "image-prompt.txt", inputsFile: "image-inputs.json", artifactBase: "ref", useI2v: (refs) => refs.length > 0, jobRecord: thread ? { thread } : {} },
     );
   });
 

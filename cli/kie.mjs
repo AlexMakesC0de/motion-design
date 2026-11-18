@@ -24,6 +24,7 @@ import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
 import { openLibrary, KINDS } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
 import { VIDEO_PICKS, applyVideoPicks } from "./director/video-picks.mjs";
+import { loadLooks, lookView } from "./director/looks.mjs";
 import { allowedRoots, checkLocalFile } from "./core/inputs.mjs";
 import { doctor } from "./core/views.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
@@ -54,7 +55,8 @@ import { listSkills, getSkill, readSkillFile, addSkill, linkSkill } from "./core
 const HELP = `kie -- motion-design execution layer
 
   kie models     [--capability video|image|audio] [--json]
-  kie presets    [--json]
+  kie presets    [--json]                 whole-film ad templates to adapt
+  kie looks      [--json]                 short styles for kie video --look
   kie preflight  --model M [--duration N] [--resolution R] [--ar R] [--budget U]
   kie doctor
   kie providers
@@ -69,7 +71,8 @@ const HELP = `kie -- motion-design execution layer
   kie video      --run SLUG (--prompt-file F | --preset P) [--model M]
                  [--duration N] [--ar R] [--resolution R] [--ref URL|ASSET:ROLE]...
                  [--param KEY=VALUE]... [--budget U]
-                 [--pick KEY=ID]...      camera and look words added after the prompt (keys: move speed size angle lens light; ids: kie plan --menu)
+                 [--pick KEY=ID]...      camera and light words added after the prompt (keys: move speed size angle lens light; ids: kie plan --menu)
+                 [--look ID]             a style added after the prompt (ids: kie looks); --pick replaces its camera
                  [--provider kie|wavespeed] [--no-wait] [--dry-run]
   kie image      --run SLUG --prompt "..." [--model M] [--resolution R]
                  [--quality Q] [--ar R] [--ref URL|ASSET:ROLE]... [--background B]
@@ -145,6 +148,7 @@ const OPTS = {
   replace: { type: "boolean", default: false },
   param: { type: "string", multiple: true, default: [] },
   pick: { type: "string", multiple: true, default: [] },
+  look: { type: "string" },
   budget: { type: "string" },
   resolution: { type: "string" },
   quality: { type: "string" },
@@ -244,6 +248,17 @@ function cmdModels(catalog, args) {
   }
   say(`\nArrow marks the primary route. Later routes are fallbacks, tried only when`);
   say(`the provider errors — never after an uncertain result, which may already exist.`);
+}
+
+function cmdLooks(args) {
+  const { looks } = loadLooks();
+  if (args.json) return say(JSON.stringify(looks.map(lookView), null, 2));
+  for (const l of looks) {
+    say(`\n${l.id}  —  ${l.title} (${l.category})`);
+    say(`  ${l.tagline}  best for: ${l.bestFor}`);
+    say(`  picks: ${Object.entries(l.picks).map(([k, v]) => `${k}=${v}`).join(" ")}`);
+  }
+  say("\nUse: kie video --run SLUG --prompt-file F --look ID   (--pick KEY=ID replaces its camera)");
 }
 
 function cmdPresets(catalog, args) {
@@ -663,10 +678,11 @@ async function cmdVideo(catalog, args) {
   }
   // Words for the picks go after the typed prompt. Checked here, before any upload or spend.
   const typed = readFileSync(promptPath, "utf8");
-  const worded = applyVideoPicks(typed, parsePicks(args.pick), model);
+  const picked = parsePicks(args.pick);
+  const worded = applyVideoPicks(typed, args.look && !Object.keys(picked ?? {}).length ? undefined : picked, model, { look: args.look ?? null });
   const prompt = worded.prompt;
-  if (worded.picks && args["dry-run"]) {
-    say("picks added after the prompt:");
+  if (worded.typedPrompt !== null && args["dry-run"]) {
+    say(worded.look ? `look ${worded.look} and picks added after the prompt:` : "picks added after the prompt:");
     for (const line of prompt.slice(typed.trimEnd().length).trim().split("\n")) say(`  ${line}`);
   }
   const { refs, refMapping, assets } = await refsFor(catalog, args, parsedRefs);
@@ -684,7 +700,7 @@ async function cmdVideo(catalog, args) {
     refMapping,
     params,
     promptChars: prompt.length,
-    ...(worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {}),
+    ...(worded.typedPrompt !== null ? { picks: worded.picks, look: worded.look, typedPrompt: worded.typedPrompt } : {}),
     usedSourcePromptRaw,
     deliverable: !usedSourcePromptRaw,
     ...(usedSourcePromptRaw
@@ -712,7 +728,7 @@ async function cmdVideo(catalog, args) {
     },
     args,
     artifactBase: "out",
-    record: { refMapping, assets, ...(worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {}) },
+    record: { refMapping, assets, ...(worded.typedPrompt !== null ? { picks: worded.picks, look: worded.look, typedPrompt: worded.typedPrompt } : {}) },
   });
 }
 
@@ -1408,6 +1424,8 @@ async function main(argv) {
       return cmdModels(catalog, args) ?? EXIT.OK;
     case "presets":
       return cmdPresets(catalog, args) ?? EXIT.OK;
+    case "looks":
+      return cmdLooks(args) ?? EXIT.OK;
     case "doctor":
       return cmdDoctor(catalog);
     case "providers": {

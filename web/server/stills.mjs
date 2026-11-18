@@ -25,3 +25,12 @@ export function presetStills(dir = STILLS_DIR) {
 }
 
 export const stillUrl = (id, stills = presetStills()) => (stills.has(id) ? `/media/presets/${encodeURIComponent(id)}.png` : null);
+
+/** A look's preview picture: docs/images/looks/<id>.jpg, made from the look's own words. Only look ids are ever served. */
+export const LOOK_STILLS_DIR = join(STILLS_DIR, "looks");
+export function lookStill(id, dir = LOOK_STILLS_DIR) {
+  if (!/^[a-z0-9-]+$/.test(id)) return null;
+  const path = join(dir, `${id}.jpg`);
+  return existsSync(path) ? path : null;
+}
+export const lookStillUrl = (id) => (lookStill(id) ? `/media/looks/${encodeURIComponent(id)}.jpg` : null);

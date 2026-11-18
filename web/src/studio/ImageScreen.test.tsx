@@ -26,6 +26,11 @@ function page(jobs: unknown[] = [], more: Parameters<typeof routes>[0] = {}) {
   return fetchMock;
 }
 
+/** Pictures with no conversation id sit in "Earlier pictures"; opening it shows them. */
+async function openEarlier() {
+  fireEvent.click(await screen.findByRole("button", { name: /Earlier pictures/ }));
+}
+
 beforeEach(() => resetForTests({ prompt: "A red chair.", model: "seedance-2-5", durationS: 5, aspectRatio: "16:9", refs: [{ source: "zed", role: "first_frame" }] }, "zed"));
 
 describe("Image", () => {
@@ -35,6 +40,20 @@ describe("Image", () => {
     expect(getDraft()).toMatchObject({ durationS: null, aspectRatio: "1:1", refs: [{ source: "zed", role: "first_frame" }] });
     const chip = screen.getByRole("combobox", { name: "Model" });
     expect(within(chip).getAllByRole("option").map((o) => o.textContent)).toEqual(["GPT Image 2.5", "Nano Banana 2"]);
+  });
+
+  test("the prompt grows with its text up to half the window, then scrolls at that height", async () => {
+    page();
+    const box = await screen.findByRole("textbox", { name: "Prompt" });
+    let full = 120;
+    Object.defineProperty(box, "scrollHeight", { configurable: true, get: () => full });
+    fireEvent.change(box, { target: { value: "A cat.\nOn a roof." } });
+    expect(box.style.height).toBe("120px");
+    expect(box.style.overflowY).toBe("hidden");
+    full = window.innerHeight;
+    fireEvent.change(box, { target: { value: "A cat.\n".repeat(60) } });
+    expect(box.style.height).toBe(`${Math.round(window.innerHeight / 2)}px`);
+    expect(box.style.overflowY).toBe("auto");
   });
 
   test("before the first image take, the hero names the model", async () => {
@@ -63,6 +82,7 @@ describe("Image", () => {
 
   test("with image takes, the takes replace the hero; video takes stay on the Video page", async () => {
     page([still, job()]);
+    await openEarlier();
     const feed = await screen.findByRole("list", { name: "Takes" });
     const opens = await within(feed).findAllByRole("button", { name: /^Open / });
     expect(opens).toHaveLength(1);
@@ -73,6 +93,7 @@ describe("Image", () => {
     const older = job({ ...still, id: "j-20261031-aaaaaa", prompt: "A burger shop front.", model: "gpt-image-2-5", resolution: "1K", actualUsd: 0.03, createdAt: "2026-10-31T10:00:00Z" });
     const newer = job({ ...still, id: "j-20261031-bbbbbb", prompt: "The same shop at night.", createdAt: "2026-10-31T11:00:00Z" });
     page([newer, older]);
+    await openEarlier();
     const turns = within(await screen.findByRole("list", { name: "Takes" })).getAllByRole("listitem");
     expect(turns.map((t) => t.querySelector(".turn__prompt")?.textContent)).toEqual(["A burger shop front.", "The same shop at night."]);
     expect(turns[0].querySelector(".turn__meta")?.textContent).toBe("GPT Image 2.5 · 1:1 · 1K · $0.03");
@@ -80,6 +101,7 @@ describe("Image", () => {
 
   test("Edit attaches the picture to the next prompt; Use as style attaches it as a style; Vary brings its prompt back", async () => {
     page([still]);
+    await openEarlier();
     const turn = within(await screen.findByRole("list", { name: "Takes" })).getByRole("listitem");
     fireEvent.click(within(turn).getByRole("button", { name: /Edit/ }));
     expect(getDraft().refs).toContainEqual({ source: "zed/still.png", role: "identity" });
@@ -149,5 +171,50 @@ describe("Image", () => {
     const file = new File(["png"], "drop.png", { type: "image/png" });
     fireEvent.drop(dock, { dataTransfer: { types: ["Files"], files: [file] } });
     await waitFor(() => expect(getDraft().refs).toContainEqual({ source: "create/refs/drop.png", role: "identity" }));
+  });
+
+  test("opening the page starts a new conversation; earlier ones are listed and open on a click", async () => {
+    const a1 = job({ ...still, id: "j-20261031-aaaaa1", thread: "c-aaaa1", prompt: "A burger shop front.", createdAt: "2026-10-31T10:00:00Z" });
+    const a2 = job({ ...still, id: "j-20261031-aaaaa2", thread: "c-aaaa1", prompt: "The same shop at night.", createdAt: "2026-10-31T11:00:00Z" });
+    const b1 = job({ ...still, id: "j-20261031-bbbbb1", thread: "c-bbbb1", prompt: "A blue sofa.", createdAt: "2026-10-31T09:00:00Z" });
+    page([a2, a1, b1]);
+    const nav = await screen.findByRole("navigation", { name: "Conversations" });
+    expect(screen.getByRole("heading", { name: /Start creating/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: "New conversation" })).toHaveAttribute("aria-current", "true");
+    const items = within(nav).getAllByRole("button").filter((b) => b.classList.contains("convo"));
+    expect(items.map((b) => b.querySelector(".convo__title")?.textContent)).toEqual(["A burger shop front.", "A blue sofa."]);
+    expect(items[0].querySelector(".convo__meta")?.textContent).toMatch(/^2 pictures · /);
+    fireEvent.click(items[0]);
+    const turns = within(screen.getByRole("list", { name: "Takes" })).getAllByRole("listitem");
+    expect(turns.map((t) => t.querySelector(".turn__prompt")?.textContent)).toEqual(["A burger shop front.", "The same shop at night."]);
+    expect(items[0]).toHaveAttribute("aria-current", "true");
+    fireEvent.click(within(nav).getByRole("button", { name: "New conversation" }));
+    expect(screen.getByRole("heading", { name: /Start creating/ })).toBeInTheDocument();
+  });
+
+  test("Generate sends the conversation it was made in", async () => {
+    const fetchMock = page([{ ...still, thread: "c-aaaa1" }], { "/api/generate/image": () => ({ localJobId: "j-1", job: still }) });
+    fireEvent.click(await screen.findByRole("button", { name: /A still\./ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generate $0.04" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/generate/image")).toBe(true));
+    const body = JSON.parse(fetchMock.mock.calls.find((c) => c[0] === "/api/generate/image")![1]!.body as string);
+    expect(body.thread).toBe("c-aaaa1");
+  });
+
+  test("a new conversation gets a fresh id the server accepts", async () => {
+    const fetchMock = page([], { "/api/generate/image": () => ({ localJobId: "j-1", job: still }) });
+    fireEvent.click(await screen.findByRole("button", { name: "Generate $0.04" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === "/api/generate/image")).toBe(true));
+    const body = JSON.parse(fetchMock.mock.calls.find((c) => c[0] === "/api/generate/image")![1]!.body as string);
+    expect(body.thread).toMatch(/^c-[a-z0-9]{4,32}$/);
+  });
+
+  test("the panel folds to two small buttons and stays folded", async () => {
+    page([still]);
+    fireEvent.click(await screen.findByRole("button", { name: "Hide conversations" }));
+    expect(screen.queryByRole("navigation", { name: "Conversations" })).toBeNull();
+    expect(localStorage.getItem("image.conversations.folded")).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Show conversations" }));
+    expect(screen.getByRole("navigation", { name: "Conversations" })).toBeInTheDocument();
   });
 });

@@ -1,8 +1,8 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { VideoScreen } from "./VideoScreen";
-import { getDraft, resetForTests } from "./promptStore";
-import { estimate, job, model, routes } from "../test-fixtures";
+import { getDraft, resetForTests, setDraft } from "./promptStore";
+import { estimate, job, looksView, model, routes } from "../test-fixtures";
 import type { Estimate, ModelInfo } from "../api/types";
 
 const ready = { prompt: "A fox runs through snow.", model: "seedance-2-5", durationS: 4, resolution: "480p", aspectRatio: "16:9" };
@@ -22,6 +22,7 @@ function page({ answer = {}, models = [model(), model({ id: "nano-banana-2", cap
       "/api/library": () => [zed],
       "/api/vocab": () => ({ kinds: ["character"], roles: ["identity", "style"] }),
       "/api/presets": () => looks,
+      "/api/looks": () => looksView,
       "/api/jobs": () => jobs,
       "/api/estimate": () => estimate(answer),
       ...more,
@@ -259,12 +260,40 @@ describe("Video, Create Video", () => {
     expect(box.style.height).toBe("180px");
   });
 
-  test("the look card names the look in use and links to Looks", async () => {
+  test("an ad template shows its note, and Remove template takes it off with its untouched prompt", async () => {
     resetForTests({ ...ready, preset: "dolly" }, "zed");
     page();
-    expect(await screen.findByText("Dolly zoom", { selector: ".look-card__title" })).toBeInTheDocument();
-    expect(screen.getByText(/this is its source prompt/)).toHaveTextContent("From the look Dolly zoom");
-    expect(screen.getByRole("link", { name: "Change" })).toHaveAttribute("href", "#/presets");
+    expect(await screen.findByText(/From the ad template/)).toHaveTextContent("Dolly zoom");
+    fireEvent.click(screen.getByRole("button", { name: "Remove template" }));
+    expect(getDraft().preset).toBeNull();
+    expect(getDraft().prompt).toBe(ready.prompt);
+  });
+
+  test("with no look the card is an empty slot; a look from the picker fills the chips, and × takes it off with them", async () => {
+    page();
+    await generate();
+    expect(document.querySelector(".look-card__img")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add a look" }));
+    const picker = screen.getByRole("menu", { name: "Choose a look" });
+    fireEvent.click(within(within(picker).getByRole("group", { name: "Category" })).getByRole("button", { name: "Social" }));
+    expect(within(picker).queryByRole("menuitemradio", { name: /Neo-noir/ })).toBeNull();
+    fireEvent.click(within(picker).getByRole("menuitemradio", { name: /^Phone selfie/ }));
+    expect(getDraft()).toMatchObject({ look: "phone-selfie", picks: { size: "medium-close-up", move: "handheld" } });
+    expect(screen.getByText("Phone selfie", { selector: ".look-card__title" })).toBeInTheDocument();
+    act(() => setDraft({ picks: { size: "close-up", move: "handheld" } }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove the look Phone selfie" }));
+    expect(getDraft()).toMatchObject({ look: null, picks: { size: "close-up" } });
+    expect(screen.getByRole("button", { name: "Add a look" })).toBeInTheDocument();
+  });
+
+  test("Generate sends the look, and the chips even when they are all off", async () => {
+    resetForTests({ ...ready, look: "neo-noir", picks: {} }, "zed");
+    const fetchMock = page({ more: { "/api/generate/video": () => ({ localJobId: "j-1", state: "submitted", upstreamTaskId: "t", estimateUsd: 0.56 }) } });
+    fireEvent.click(await generate());
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => c[0] === "/api/generate/video");
+      expect(JSON.parse(call![1]!.body as string)).toMatchObject({ look: "neo-noir", picks: {} });
+    });
   });
 
   test("History shows the film's video takes, newest first, and Reuse fills the panel", async () => {

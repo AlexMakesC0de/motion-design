@@ -22,6 +22,7 @@ import { burnCaptions } from "../cli/lib/caption.mjs";
 import { render, TEMPLATES } from "../cli/lib/render.mjs";
 import { unknown, usage } from "../cli/lib/errors.mjs";
 import { applyVideoPicks } from "../cli/director/video-picks.mjs";
+import { loadLooks, lookView } from "../cli/director/looks.mjs";
 import { openJobs } from "../cli/core/jobs.mjs";
 import { readLimits } from "../cli/core/spend.mjs";
 import { submitJob, waitJob } from "../cli/core/generate.mjs";
@@ -283,6 +284,29 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
     );
 
     tool(
+    "list_looks",
+    {
+      title: "List looks",
+      description:
+        "Short styles for generate_video's look: each sets camera picks (used when you send no picks) and adds a look, pacing and sound line after the prompt. Unlike presets, a look never replaces your prompt. Free.",
+      inputSchema: {},
+      outputSchema: {
+        looks: z.array(
+          z.object({
+            id: z.string(), title: z.string(), category: z.string(), tagline: z.string(), bestFor: z.string(),
+            picks: z.record(z.string(), z.string()), look: z.string(), pacing: z.string(), sound: z.string(), swatch: z.array(z.string()),
+          }),
+        ),
+      },
+      annotations: LOOK,
+    },
+    async () => {
+      const looks = loadLooks().looks.map(lookView);
+      return ok(looks.map((l) => `${l.id}: ${l.title} (${l.category}) — ${l.tagline}`).join("\n"), { looks });
+    },
+  );
+
+  tool(
       "estimate",
       {
         title: "Estimate",
@@ -630,11 +654,13 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           "Spends kie credits. Generates a video. Reserves the estimate against the daily cap, submits, and returns a local job id at once; then call wait_job. " +
           "A preset supplies model, duration and aspect ratio defaults only: the prompt is always yours (adapt the preset's source prompt; never send it unmodified). " +
           "A first_frame ref makes it image-to-video. Write the prompt against the returned refMapping. " +
-          "picks adds a camera move, shot size, angle, lens and light from get_menu after your prompt, worded for the model.",
+          "picks adds a camera move, shot size, angle, lens and light from get_menu after your prompt, worded for the model. " +
+          "look adds a style from list_looks (its picks, unless you send picks, plus a look, pacing and sound line).",
         inputSchema: {
           ...common,
           model: z.string().optional(),
           preset: z.string().optional(),
+          look: z.string().optional().describe("An id from list_looks."),
           duration_s: z.number().int().positive().optional(),
           // passthrough: an unknown key reaches the check, which names the six.
           picks: z
@@ -673,9 +699,10 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
           throw unknown(`Refused before submitting — nothing was spent:\n${problems.map((p) => `  · ${p}`).join("\n")}`);
         }
         // Before any record is written or anything reserved: a bad pick or an over-long prompt costs nothing.
-        const worded = applyVideoPicks(a.prompt, a.picks, model);
-        const sent = { ...a, prompt: worded.prompt };
-        const withPicks = worded.picks ? { picks: worded.picks, typedPrompt: worded.typedPrompt } : {};
+        const worded = applyVideoPicks(a.prompt, a.picks, model, { look: a.look ?? null });
+        const { look: _look, ...rest } = a;
+        const sent = { ...rest, prompt: worded.prompt };
+        const withPicks = worded.typedPrompt !== null ? { picks: worded.picks, look: worded.look, typedPrompt: worded.typedPrompt } : {};
         return submit(
           "video",
           model,

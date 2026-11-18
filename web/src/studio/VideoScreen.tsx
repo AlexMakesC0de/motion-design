@@ -5,7 +5,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import menu from "../../../cli/director/menu.json";
 import { setPick } from "../../../cli/director/picks.mjs";
-import type { AssetSummary, JobView, PresetInfo } from "../api/types";
+import type { AssetSummary, JobView, LookInfo, PresetInfo } from "../api/types";
 import { Icon } from "../app/icons";
 import { modelName } from "../app/modelMeta";
 import { PickChip } from "../scene/PickChips";
@@ -13,8 +13,9 @@ import { SceneScreen } from "../scene/SceneScreen";
 import { FilmPicker } from "./FilmPicker";
 import { GenerateMessages, ModelMenu, PresetNote, SelectCard } from "./controls";
 import { RefTiles } from "./RefTiles";
+import { LookCard, swatchStyle } from "./LookPicker";
 import { isVideo } from "./format";
-import { getDraft, setDraft, setRun, useRun, type VideoPicks } from "./promptStore";
+import { clearPreset, getDraft, setDraft, setRun, useRun, type VideoPicks } from "./promptStore";
 import { typicalSeconds } from "./format";
 import { TakeTile } from "./TakeTile";
 import { TakeViewer } from "./TakeViewer";
@@ -61,7 +62,7 @@ const pick = (key: keyof VideoPicks, id: string | undefined) => setDraft({ picks
 
 function CreateVideo() {
   const run = useRun();
-  const { runs, models, assets, vocab, looks, loadRuns } = useStudioData();
+  const { runs, models, assets, vocab, looks, templates, loadRuns } = useStudioData();
   const { jobs, error, reload } = useJobs(run);
   const now = useNow();
   const [view, setView] = useState<View | null>(null);
@@ -84,8 +85,7 @@ function CreateVideo() {
 
   const takes = jobs.filter((j) => j.capability === "video");
   const shown: View = view ?? (takes.length ? "history" : "how");
-  const look = looks.find((l) => l.id === draft.preset) ?? null;
-  const cover = look?.still ?? looks.find((l) => l.still)?.still ?? null;
+  const template = templates.find((l) => l.id === draft.preset) ?? null;
   const open: JobView | null = takes.find((j) => j.id === openId) ?? null;
 
   return (
@@ -94,16 +94,7 @@ function CreateVideo() {
         <div className="video__scroll">
           <VideoTabs tab="create" />
 
-          <div className="look-card">
-            {cover && <img className="look-card__img" src={cover} alt="" />}
-            <a className="look-card__change" href="#/presets">
-              Change
-            </a>
-            <div className="look-card__words">
-              <p className="look-card__title">{look?.title ?? "General"}</p>
-              <p className="look-card__model">{draft.model ? modelName(draft.model) : "No model yet"}</p>
-            </div>
-          </div>
+          <LookCard data={looks} chosen={draft.look} model={draft.model ? modelName(draft.model) : "No model yet"} />
 
           <RefTiles refs={draft.refs} assets={assets} roles={g.roleChoices} />
 
@@ -136,7 +127,7 @@ function CreateVideo() {
               <PickChip label="Lens" scope="Lens" options={menu.lenses} value={draft.picks.lens} onPick={(id) => pick("lens", id)} />
               <PickChip label="Lighting" scope="Lighting" options={menu.lights} value={draft.picks.light} onPick={(id) => pick("light", id)} />
             </div>
-            <PresetNote preset={draft.preset} title={look?.title} />
+            <PresetNote preset={draft.preset} title={template?.title} onRemove={clearPreset} />
           </div>
 
           <ModelMenu models={g.pageModels} value={draft.model} onPick={g.pickModel} />
@@ -186,7 +177,7 @@ function CreateVideo() {
             )}
           </section>
         ) : (
-          <HowItWorks looks={looks} assets={assets} takes={takes} />
+          <HowItWorks looks={looks.looks} templates={templates} assets={assets} takes={takes} />
         )}
       </section>
       {open && <TakeViewer job={open} kinds={vocab.kinds} now={now} onClose={() => setOpenId(null)} />}
@@ -195,8 +186,9 @@ function CreateVideo() {
 }
 
 /** How it works: three steps with pictures from the user's own looks, Library and takes. */
-function HowItWorks({ looks, assets, takes }: { looks: PresetInfo[]; assets: AssetSummary[]; takes: JobView[] }) {
-  const stills = looks.map((l) => l.still).filter((s): s is string => Boolean(s));
+function HowItWorks({ looks, templates, assets, takes }: { looks: LookInfo[]; templates: PresetInfo[]; assets: AssetSummary[]; takes: JobView[] }) {
+  const stills = templates.map((l) => l.still).filter((s): s is string => Boolean(s));
+  const three = [looks[1], looks[0], looks[9]];
   const refCover = assets.find((a) => a.cover)?.cover ?? stills[3] ?? null;
   const latest = takes.find((j) => j.state === "succeeded" && j.media[0])?.media[0] ?? null;
   const result = latest ?? stills[4] ?? stills[0] ?? null;
@@ -204,7 +196,7 @@ function HowItWorks({ looks, assets, takes }: { looks: PresetInfo[]; assets: Ass
     <div className="how">
       <div className="how__main">
         <h2 className="display how__title">Make videos in one click</h2>
-        <p className="how__sub">Pick a look for the camera move and the mood, or stay on General and direct every shot yourself.</p>
+        <p className="how__sub">Pick a look for the camera, colour and pacing, or leave it empty and direct every shot yourself.</p>
         <ol className="how__steps">
           <li className="how-step">
             <div className="how-step__art how-step__art--refs">
@@ -219,12 +211,14 @@ function HowItWorks({ looks, assets, takes }: { looks: PresetInfo[]; assets: Ass
           </li>
           <li className="how-step">
             <div className="how-step__art how-step__art--looks">
-              {[stills[1], stills[0], stills[2]].map((s, i) =>
-                s ? <img key={i} className="how-step__look" data-mid={i === 1 || undefined} src={s} alt="" /> : <span key={i} className="how-step__look" data-mid={i === 1 || undefined} />,
-              )}
+              {three.map((l, i) => (
+                <span key={i} className="how-step__look" data-mid={i === 1 || undefined} style={l ? swatchStyle(l) : undefined}>
+                  {l && <span className="how-step__look-name">{l.title}</span>}
+                </span>
+              ))}
             </div>
             <h3 className="display how-step__title">Choose a look</h3>
-            <p className="how-step__text">A look sets the camera move, the pacing and the mood, with a prompt to adapt.</p>
+            <p className="how-step__text">A look sets the camera, colour, pacing and sound. Your prompt stays yours.</p>
           </li>
           <li className="how-step">
             <div className="how-step__art how-step__art--result">
@@ -241,13 +235,13 @@ function HowItWorks({ looks, assets, takes }: { looks: PresetInfo[]; assets: Ass
       </div>
       <a className="how__start" href="#/presets">
         <span className="how__start-stack" aria-hidden="true">
-          {stills.slice(0, 3).map((s, i) => (
-            <img key={s} src={s} alt="" data-i={i} />
+          {looks.slice(0, 3).map((l, i) => (
+            <span key={l.id} className="how__start-swatch" style={swatchStyle(l)} data-i={i} />
           ))}
         </span>
         <span className="how__start-words">
           <span className="how__start-title">Don't know where to start?</span>
-          <span className="how__start-sub">Pick a look and adapt its prompt</span>
+          <span className="how__start-sub">Browse {looks.length} looks by category</span>
         </span>
         <Icon name="arrow" size={18} />
       </a>

@@ -26,8 +26,10 @@ export const JUTSU_RUN = "jutsu";
 export const INFLUENCER_RUN = "influencers";
 /** Sheets made from the Library's own popup. Hidden from film lists. */
 export const LIBRARY_RUN = "library";
+/** The looks' preview pictures. Hidden from film lists. */
+export const LOOKS_RUN = "looks";
 /** Runs that are pages' workspaces, not films. */
-export const SIDE_RUNS = new Set([SCRATCH_RUN, JUTSU_RUN, INFLUENCER_RUN, LIBRARY_RUN]);
+export const SIDE_RUNS = new Set([SCRATCH_RUN, JUTSU_RUN, INFLUENCER_RUN, LIBRARY_RUN, LOOKS_RUN]);
 
 /**
  * Every generation is scoped to a run directory. There is no such thing as a

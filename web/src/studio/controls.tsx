@@ -375,11 +375,16 @@ export function GenerateMessages({ g, reasonId }: { g: Generate; reasonId: strin
 }
 
 /** The preset note under the prompt: the source prompt is to adapt, not to send as is. */
-export function PresetNote({ preset, title }: { preset: string | null; title?: string }) {
+export function PresetNote({ preset, title, onRemove }: { preset: string | null; title?: string; onRemove?: () => void }) {
   if (!preset) return null;
   return (
     <p className="preset-note">
-      From the look <span className="mono">{title ?? preset}</span>: this is its source prompt. Adapt it to your subject before generating.
+      From the ad template <span className="mono">{title ?? preset}</span>: its whole source prompt, written for another brand. Rewrite it for your subject before generating.
+      {onRemove && (
+        <button type="button" className="preset-note__remove" onClick={onRemove}>
+          Remove template
+        </button>
+      )}
     </p>
   );
 }

@@ -4,9 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { RATIOS } from "../../../cli/director/scene-shape.mjs";
-import type { FilmSummary, PresetDetail, PresetInfo } from "../api/types";
+import type { FilmSummary, LookInfo, LooksView } from "../api/types";
 import { Icon } from "../app/icons";
-import { applyPreset } from "../studio/promptStore";
+import { applyLook } from "../studio/promptStore";
+import { swatchStyle } from "../studio/LookPicker";
 import { filmHref } from "../app/route";
 import { FilmCard } from "../projects/FilmCard";
 import { filmSlug } from "./slug";
@@ -31,7 +32,7 @@ export function HomeScreen() {
   const [text, setText] = useState("");
   const [aspect, setAspect] = useState("16:9");
   const [length, setLength] = useState(15);
-  const [presets, setPresets] = useState<PresetInfo[] | null>(null);
+  const [presets, setPresets] = useState<LookInfo[] | null>(null);
   const [look, setLook] = useState<string | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
@@ -42,8 +43,8 @@ export function HomeScreen() {
       .then(setFilms)
       .catch((e) => setListError(`Couldn't load your films, so a new one can't be named yet: ${e instanceof ApiError ? e.message : String(e)}`));
     // The looks are optional decoration for the page: a failed load just leaves the row out.
-    api<PresetInfo[]>("/api/presets")
-      .then(setPresets)
+    api<LooksView>("/api/looks")
+      .then((v) => setPresets(v.looks))
       .catch(() => setPresets([]));
   }, []);
 
@@ -75,8 +76,9 @@ export function HomeScreen() {
         setFilms(fresh);
         slug = await save(filmSlug(takeaway, [...fresh.map((f) => f.run), slug]));
       }
-      // The film's idea has no look field, so a chosen look goes where the Presets screen sends one: the Create prompt bar.
-      if (look) await api<PresetDetail>(`/api/presets/${encodeURIComponent(look)}`).then(applyPreset).catch(() => {});
+      // The film's idea has no look field, so a chosen look goes where the Looks page sends one: Video's look.
+      const picked = presets?.find((p) => p.id === look);
+      if (picked) applyLook(picked);
       window.location.hash = filmHref(slug, "idea");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -129,7 +131,7 @@ export function HomeScreen() {
             </label>
             {chosen && (
               <button type="button" className="home__look-chip" aria-label={`Look: ${chosen.title}. Remove`} onClick={() => setLook(null)}>
-                {chosen.still && <img src={chosen.still} alt="" />}
+                <span className="home__look-dot" style={swatchStyle(chosen)} aria-hidden="true" />
                 {chosen.title}
                 <Icon name="close" size={14} />
               </button>
@@ -162,7 +164,7 @@ export function HomeScreen() {
           <div className="home__looks">
             {presets.map((p) => (
               <button key={p.id} type="button" className="home__look" aria-pressed={look === p.id} onClick={() => setLook(look === p.id ? null : p.id)}>
-                <span className="home__look-thumb">{p.still && <img src={p.still} alt="" loading="lazy" />}</span>
+                <span className="home__look-thumb" style={swatchStyle(p)} />
                 <span className="home__look-name">{p.title}</span>
                 {p.tagline && <span className="home__look-tag">{p.tagline}</span>}
               </button>

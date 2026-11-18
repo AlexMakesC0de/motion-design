@@ -28,6 +28,9 @@ export function jobView(j, following = () => false) {
     prompt: typeof input.prompt === "string" ? input.prompt : null,
     // Create Video's picks and what was typed before the picks' words were added.
     picks: j.picks ?? null,
+    look: typeof j.look === "string" ? j.look : null,
+    // The Image page's conversation (null for pictures made before conversations, or outside the page).
+    thread: typeof j.thread === "string" ? j.thread : null,
     typedPrompt: typeof j.typedPrompt === "string" ? j.typedPrompt : null,
     durationS: input.duration ?? input.duration_s ?? j.durationS ?? null,
     resolution: input.resolution != null ? String(input.resolution) : input.mode != null ? String(input.mode) : null,

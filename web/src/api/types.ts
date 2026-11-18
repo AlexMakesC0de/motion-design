@@ -21,6 +21,10 @@ export interface JobView {
   picks: Partial<Record<"move" | "speed" | "size" | "angle" | "lens" | "light", string>> | null;
   /** What was typed, before the picks' words were added to `prompt`. */
   typedPrompt: string | null;
+  /** The look (id) whose words were added, when one was used. */
+  look?: string | null;
+  /** The Image page conversation it belongs to; null before conversations or outside the page. */
+  thread?: string | null;
   /** Some routes record the duration as text ("5"); show it with Number(). */
   durationS: number | string | null;
   resolution: string | null;
@@ -134,6 +138,28 @@ export interface RunSummary {
   modified: string;
   files: number;
   takes: number;
+}
+
+/** A look: a short style added after a video prompt. Its picks fill the chips; its lines follow them. */
+export interface LookInfo {
+  id: string;
+  title: string;
+  category: string;
+  tagline: string;
+  bestFor: string;
+  picks: Partial<Record<"move" | "speed" | "size" | "angle" | "lens" | "light", string>>;
+  look: string;
+  pacing: string;
+  sound: string;
+  /** Three colours for its card, shown when it has no preview picture. */
+  swatch: string[];
+  /** Its preview picture, made from its own words; null until one is made. */
+  still?: string | null;
+}
+
+export interface LooksView {
+  categories: string[];
+  looks: LookInfo[];
 }
 
 export interface PresetInfo {

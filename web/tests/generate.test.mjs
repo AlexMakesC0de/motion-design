@@ -71,6 +71,23 @@ describe("POST /api/generate/video", () => {
     await app.follower.idle();
   });
 
+  test("a look adds its lines after the chips; the job keeps the look and what was typed; an unknown look is refused", async () => {
+    const r = await post("/api/generate/video", { ...video, run: "gen-look", provider: "kie", look: "neo-noir", picks: { lens: "50mm" } });
+    assert.equal(r.status, 200, r.text);
+    const prompt = calls.create.at(-1).input.prompt;
+    assert.ok(prompt.startsWith(`${video.prompt}\n\n`));
+    assert.match(prompt, /50mm/);
+    assert.doesNotMatch(prompt, /trucks right/, "chips sent replace the look's own picks");
+    assert.match(prompt, /\nLook: Inky blacks.*\nPacing: .*\nSound: /s);
+    assert.equal(r.json.job.look, "neo-noir");
+    assert.equal(r.json.job.typedPrompt, video.prompt);
+    await app.follower.idle();
+    const sent = calls.create.length;
+    const bad = await post("/api/generate/video", { ...video, run: "gen-look", provider: "kie", look: "nope" });
+    assert.equal(bad.json.error.field, "look");
+    assert.equal(calls.create.length, sent);
+  });
+
   test("an unknown pick id is refused with nothing sent or written", async () => {
     const sent = calls.create.length;
     const jobs = store.list().length;
@@ -179,6 +196,16 @@ describe("POST /api/generate/image", () => {
     assert.equal(r.json.job.model, "gpt-image-2");
     assert.ok(existsSync(join(RUNS, "gen-image", "image-prompt.txt")));
     await app.follower.idle();
+  });
+
+  test("the Image page's conversation id is kept on the job; a malformed one is refused before spending", async () => {
+    const r = await post("/api/generate/image", { run: "gen-image", prompt: "A blue robot.", provider: "kie", thread: "c-abc123" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.job.thread, "c-abc123");
+    await app.follower.idle();
+    const bad = await post("/api/generate/image", { run: "gen-image", prompt: "x", thread: "../etc" });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json.error.field, "thread");
   });
 
   test("a resolution the model does not offer is 400 with code 3 on that field", async () => {
