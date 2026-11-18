@@ -39,8 +39,6 @@ Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9
 
 ## A look around
 
-<p align="center"><img src="docs/images/product/explore.jpg" alt="Explore: describe a film in a sentence and pick a look" width="100%"></p>
-
 <table>
   <tr>
     <td width="50%"><img src="docs/images/product/video.jpg" alt="Video: add a look and references, see the price, generate"><br><b>Video.</b> Pick a look, add references from your Library, see the price before you generate.</td>
