@@ -1,8 +1,13 @@
 import { KEY, RUNS, tmp, req, generateStubs } from "./helpers.mjs";
-import { test, describe } from "node:test";
+import { after, test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+
+// The studio's timers are unref()ed so they never keep it running. Node 22's test
+// runner then ends a test that is waiting on one; this interval holds the file open.
+const keepAlive = setInterval(() => {}, 60_000);
+after(() => clearInterval(keepAlive));
 
 const { createFollower } = await import("../server/follow.mjs");
 const { createApp } = await import("../server/app.mjs");
