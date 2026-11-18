@@ -68,8 +68,10 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
   }
 
   // `_durationS` prices a job whose length is not a request field (motion
-  // control bills the reference video's seconds); it is never sent.
-  const { _useI2v, _durationS, ...inputValues } = values;
+  // control bills the reference video's seconds). `_inputS` is a reference
+  // video's length where the provider bills it on top of the output (H3
+  // reference-to-video). Neither is sent.
+  const { _useI2v, _durationS, _inputS, ...inputValues } = values;
   const attempts = [];
   let lastError = null;
   const refusals = []; // each route's own refusal, so the final error names them all
@@ -117,6 +119,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       modelId: model.id,
       capability,
       durationS: built.input.duration ?? _durationS,
+      inputS: _inputS,
       resolution: built.input.resolution,
       quality: built.input.quality,
       input: built.input,

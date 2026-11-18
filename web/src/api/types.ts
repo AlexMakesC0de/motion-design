@@ -584,6 +584,14 @@ export interface JutsuModel {
   defaultResolution: string | null;
   usdPerSecond: Record<string, number>;
   prompt: boolean;
+  /** The longest prompt it takes, when it takes one. */
+  promptMax?: number | null;
+  /** What is sent when the prompt is left empty (H3 always needs one). */
+  defaultPrompt?: string | null;
+  /** Billed on the clip's seconds on top of its own output (H3). */
+  billsInput?: boolean;
+  /** What a swap can change (H3): person, outfit, object, background. */
+  targets?: ("person" | "outfit" | "object" | "background")[] | null;
   orientations: ("video" | "image")[] | null;
   videoS: [number, number];
   imageOrientationMaxS: number | null;
@@ -601,6 +609,8 @@ export interface JutsuClip {
   bytes: number;
   addedAt: string;
   uses: number;
+  /** The Motion Library shelf it is filed under, or null. */
+  category?: string | null;
 }
 
 export interface JutsuCast {
@@ -635,6 +645,8 @@ export interface JutsuGeneration {
 
 export interface JutsuView {
   run: string;
+  /** The Motion Library's shelves. */
+  categories?: string[];
   models: JutsuModel[];
   clips: JutsuClip[];
   cast: JutsuCast[];
@@ -644,6 +656,8 @@ export interface JutsuView {
 
 export interface JutsuEstimate {
   usd: number | null;
+  /** H3 only: the written edit it would get for what is picked. */
+  instruction?: string | null;
   basis: string | null;
   durationS: number | null;
   problems: string[];

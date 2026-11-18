@@ -71,15 +71,24 @@ describe("JutsuScreen", () => {
     expect(screen.getByRole("button", { name: "Upload video" })).toBeInTheDocument();
   });
 
-  test("the Motion Library holds no personal clips: categories, Trending and Latest, and an empty state", async () => {
-    setup();
+  test("the Motion Library shows only filed clips, by shelf, and Recreate uses one", async () => {
+    const filed = view().clips.map((c) => (c.name === "dance.mp4" ? { ...c, category: "Dance" } : c));
+    const fetch = setup({ "/api/jutsu": () => view({ clips: filed, categories: ["Dance", "Action", "Sports", "Comedy", "Fashion", "Lifestyle"] }), "/api/jutsu/files/video/dance.mp4": () => ({ name: "dance.mp4", category: null }) });
     await ready();
-    expect(screen.queryByText(/dance\.mp4/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Trending", pressed: true })).toBeInTheDocument();
+    const all = await screen.findByRole("list", { name: "All clips" });
+    // walk.mp4 is not filed under anything, so only the reference-video picker lists it.
+    expect(within(all).getAllByRole("button", { name: /^Recreate / }).map((b) => b.getAttribute("aria-label"))).toEqual(["Recreate dance.mp4"]);
+    // Just the picture and Recreate: no name, use count or shelf menu.
+    expect(within(all).queryByText("dance.mp4")).toBeNull();
+    expect(within(all).queryByText(/Used in/)).toBeNull();
+    expect(within(all).queryByRole("combobox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dance" }));
-    expect(screen.getByText("No shared dance clips yet")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Latest" }));
-    expect(screen.getByRole("button", { name: "Latest", pressed: true })).toBeInTheDocument();
+    const dance = screen.getByRole("list", { name: "Dance clips" });
+    expect(within(dance).getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.click(within(dance).getByRole("button", { name: "Recreate dance.mp4" }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate").video).toBe("dance.mp4"));
+    fireEvent.click(screen.getByRole("button", { name: "Comedy" }));
+    expect(screen.getByText("No comedy clips yet")).toBeInTheDocument();
   });
 
   test("picking a clip and a character prices it from the server and sends exactly that", async () => {
@@ -108,6 +117,85 @@ describe("JutsuScreen", () => {
     expect(screen.queryByRole("button", { name: /^Faces:/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Mode:/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Quality: 480p" })).toBeInTheDocument();
+  });
+
+  test("Swap's Quality lists 2K too, and picking it switches Mode to H3", async () => {
+    const h3: JutsuModel = { ...base, id: "minimax-h3-swap", label: "MiniMax H3", mode: "swap", tier: "pro", resolutions: ["768P", "2K"], defaultResolution: "768P", usdPerSecond: { "768P": 0.04, "2K": 0.065 }, prompt: true, promptMax: 7000, billsInput: true, videoS: [2, 15], maxVideoBytes: 50_000_000, maxImageBytes: 30_000_000 };
+    const fetch = setup({ "/api/jutsu": () => view({ models: [...MODELS, h3] }) });
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: "Swap" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Quality: 480p" }));
+    const menu = screen.getByRole("menu", { name: "Quality" });
+    expect(within(menu).getAllByRole("menuitemradio").map((b) => b.textContent?.match(/^\d+[pPK]/)?.[0])).toEqual(["480p", "580p", "720p", "768P", "2K"]);
+    expect(within(menu).getByRole("menuitemradio", { name: /^2K/ })).toHaveTextContent("Pro, MiniMax H3");
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /^2K/ }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate")).toMatchObject({ model: "minimax-h3-swap", resolution: "2K" }));
+    expect(screen.getByRole("button", { name: "Mode: Pro" })).toBeInTheDocument();
+  });
+
+  test("with H3 there, Swap offers Standard (Wan) and Pro (H3); H3's prompt starts from the edit it would send", async () => {
+    const h3: JutsuModel = { ...base, id: "minimax-h3-swap", label: "MiniMax H3", mode: "swap", tier: "pro", resolutions: ["768P", "2K"], defaultResolution: "768P", usdPerSecond: { "768P": 0.04, "2K": 0.065 }, prompt: true, promptMax: 7000, defaultPrompt: "Video edit. Replace the main person.", billsInput: true, videoS: [2, 15], maxVideoBytes: 50_000_000, maxImageBytes: 30_000_000 };
+    const fetch = setup({ "/api/jutsu": () => view({ models: [...MODELS, h3] }), "/api/jutsu/generate": () => ({ localJobId: "j-1" }) });
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: "Swap" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mode: Standard" }));
+    const menu = screen.getByRole("menu", { name: "Mode" });
+    expect(within(menu).getAllByRole("menuitemradio").map((b) => b.textContent)).toEqual(["Standard · Wan 2.2from $0.03/s", "Pro · MiniMax H3from $0.04/s + clip"]);
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /Pro · MiniMax H3/ }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate")).toMatchObject({ model: "minimax-h3-swap", resolution: "768P" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Prompt" }));
+    const text = screen.getByRole("textbox", { name: "Prompt text" });
+    expect(text).toHaveValue("Video edit. Replace the main person.");
+    fireEvent.change(text, { target: { value: "Swap the dancer; keep the gold jacket." } });
+    pickClip(/Use the motion of dance\.mp4/);
+    pickCharacter("Upload zed.png");
+    fireEvent.click(await screen.findByRole("button", { name: /^Generate · / }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/generate")).toMatchObject({ model: "minimax-h3-swap", prompt: "Swap the dancer; keep the gold jacket." }));
+  });
+
+  test("H3 can change only the outfit: words are enough, the picture tile turns optional, and both go to the server", async () => {
+    const h3: JutsuModel = { ...base, id: "minimax-h3-swap", label: "MiniMax H3", mode: "swap", tier: "pro", resolutions: ["768P", "2K"], defaultResolution: "768P", usdPerSecond: { "768P": 0.04, "2K": 0.065 }, prompt: true, promptMax: 7000, defaultPrompt: "Video edit. Replace the main person.", billsInput: true, targets: ["person", "outfit", "object", "background"], videoS: [2, 15], maxVideoBytes: 50_000_000, maxImageBytes: 30_000_000 };
+    const fetch = setup({
+      "/api/jutsu": () => view({ models: [...MODELS, h3] }),
+      "/api/jutsu/estimate": () => estimate({ instruction: "Video edit. Change only the clothes of the main person, to a red coat." }),
+      "/api/jutsu/generate": () => ({ localJobId: "j-1" }),
+    });
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: "Swap" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mode: Standard" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Mode" })).getByRole("menuitemradio", { name: /Pro · MiniMax H3/ }));
+    const group = await screen.findByRole("radiogroup", { name: "What to change" });
+    fireEvent.click(within(group).getByRole("radio", { name: "Outfit" }));
+    pickClip(/Use the motion of dance\.mp4/);
+    expect(await screen.findByText(/Describe the new outfit, or add a picture of it/)).toBeInTheDocument();
+    expect(screen.getByText("Outfit picture")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "The new outfit" }), { target: { value: "a red coat" } });
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate")).toMatchObject({ model: "minimax-h3-swap", target: "outfit", detail: "a red coat" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Prompt" }));
+    expect(screen.getByRole("textbox", { name: "Prompt text" })).toHaveValue("Video edit. Change only the clothes of the main person, to a red coat.");
+    fireEvent.click(screen.getByRole("switch", { name: "Prompt" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Generate · / }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/generate")).toMatchObject({ model: "minimax-h3-swap", target: "outfit", detail: "a red coat" }));
+    expect(lastBody(fetch, "/api/jutsu/generate")).not.toHaveProperty("image");
+  });
+
+  test("a clip longer than the model takes opens Part to use; Cut posts the part and picks the new clip", async () => {
+    const long = { name: "long.mp4", media: "/media/runs/jutsu/clips/long.mp4", durationS: 40, width: 720, height: 1280, bytes: 3e6, addedAt: "2026-11-18T12:00:00.000Z", uses: 0 };
+    const cut = { ...long, name: "long-5s-12s.mp4", durationS: 12, addedAt: "2026-11-18T13:00:00.000Z" };
+    let clips = [long];
+    const fetch = setup({ "/api/jutsu": () => view({ clips }), "/api/jutsu/trim": () => ((clips = [cut, long]), { name: cut.name }) });
+    await ready();
+    pickClip(/Use the motion of long\.mp4/);
+    expect(await screen.findByRole("switch", { name: "Part to use" })).toBeChecked();
+    expect(screen.getByText(/over 30s, cut it/)).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Length (seconds)" })).toHaveValue(30);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Starts at (seconds)" }), { target: { value: "5" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Length (seconds)" }), { target: { value: "12" } });
+    expect(screen.getByText(/Keeps 5\.0s to 17\.0s of 40\.0s/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cut this part" }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/trim")).toEqual({ video: "long.mp4", startS: 5, lengthS: 12 }));
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate").video).toBe("long-5s-12s.mp4"));
+    expect(screen.getByRole("switch", { name: "Part to use" })).not.toBeChecked();
   });
 
   test("a problem the server names is shown and keeps Generate off", async () => {

@@ -243,6 +243,8 @@ Flat. There is no `box-shadow` anywhere in the build. Depth is tonal: `bg` to `s
 ### Named Rules
 **The Tone Not Shadow Rule.** A surface that needs to sit above another takes the next surface step and a hairline. No shadows, no glass, no backdrop blur.
 
+**The On Screen Rule.** No dropdown, menu or popover may run past the edge of the window. Each keeps its own placement (level with its button, or under its field) and is moved back in only as far as it must, 12px from the edge; one taller than the window is capped at the window's height and scrolls. Menus beside a side panel (Create Video, Openjutsu) are placed by `useSideMenu` (`web/src/studio/useSideMenu.ts`); every other popup calls `useOnScreen` (`web/src/app/useOnScreen.ts`). A new popup uses one of the two.
+
 **The Hairline Rule.** Borders are 1px `line`. Hover may lighten a card's border to `text-3`; selection lightens it to `text-2`. Borders change state by tone, not by weight.
 
 ## Shapes
@@ -314,6 +316,7 @@ Fourteen day columns on hairline gridlines with Mono axis labels in `text-3`; ba
 - **Do** make secondary actions quiet text buttons, and keep one filled primary.
 - **Do** use `warn` orange for caution so it reads apart from the green.
 - **Do** keep text tokens at 4.5:1 or better on every surface.
+- **Do** keep every dropdown, menu and popover inside the window (The On Screen Rule).
 
 ### Don't:
 - **Don't** use green anywhere except action, meter and cost: not for decoration, hover, active tabs, headings or links.

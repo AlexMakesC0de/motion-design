@@ -4,6 +4,7 @@
 // saved in the Library. A row of "Use it as" pills sets the reference's role
 // first. Pictures dropped anywhere on the dock arrive the same way as Upload.
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useOnScreen } from "../app/useOnScreen";
 import { api, ApiError } from "../api/client";
 import type { AssetSummary } from "../api/types";
 import { Icon } from "../app/icons";
@@ -39,6 +40,8 @@ export function AttachMenu({ run, assets, roles, onError }: { run: string; asset
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useOnScreen(panel, open);
   const picked = roles.includes(role) ? role : (roles[0] ?? "");
 
   const close = (focus = true) => {
@@ -119,7 +122,7 @@ export function AttachMenu({ run, assets, roles, onError }: { run: string; asset
       <input ref={fileInput} className="sr-only" type="file" accept={ACCEPT} tabIndex={-1} aria-label="Picture to upload" onChange={(e) => void upload(e.target.files?.[0])} />
 
       {open && (
-        <div className="attach__panel" data-view={view}>
+        <div ref={panel} className="attach__panel" data-view={view}>
           {roles.length > 1 && (
             <div className="attach__roles" role="radiogroup" aria-label="Use it as">
               <span className="attach__roles-label">Use it as</span>

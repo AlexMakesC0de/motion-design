@@ -301,7 +301,7 @@ export function TopBar({ current, spend, children }: { current: NavId; spend: Sp
         {NAV.studio.map((n) => (
           <a key={n.id} className="topnav__link topnav__link--studio" href={navHref(n.id)} aria-current={current === n.id ? "page" : undefined} onMouseEnter={() => intent("close")} onFocus={shut}>
             {n.label}
-            {n.badge && <span className="topnav__badge">{n.badge}</span>}
+            {n.badge && <span className="topnav__badge" data-tone={n.badge === "Beta" ? "quiet" : undefined}>{n.badge}</span>}
           </a>
         ))}
       </nav>

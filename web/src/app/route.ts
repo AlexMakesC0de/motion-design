@@ -34,12 +34,12 @@ export const NAV: { main: { id: NavId; label: string }[]; studio: { id: NavId; l
     { id: "mcp", label: "MCP" },
   ],
   studio: [
-    { id: "jutsu", label: "Openjutsu", badge: "New" },
+    { id: "jutsu", label: "Openjutsu", badge: "Beta" },
     { id: "influencers", label: "AI Influencers", badge: "New" },
     { id: "projects", label: "Films" },
     { id: "library", label: "Library" },
     { id: "presets", label: "Looks" },
-    { id: "skills", label: "Skills", badge: "New" },
+    { id: "skills", label: "Skills" },
   ],
 };
 /** Reached from the top bar's right side: the spend meter and the settings button. */
