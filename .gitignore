@@ -27,6 +27,9 @@ node_modules/
 # Saved reference assets (characters, products, screens). Private material,
 # like runs/.
 /library/
+# Example character sheets are made from Library characters: private, kept on
+# this machine only. Generations and assets we use never go in the repository.
+/skills/character-sheet/assets/
 .superpowers/
 
 # Local agent and tool state (Claude Code launch config, gstack logs, design hook cache)
