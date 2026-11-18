@@ -92,7 +92,7 @@ describe("tools over the in-process MCP client", () => {
   });
 
   test("the instructions are the MCP server's own", async () => {
-    assert.match(await tools.instructions(), /^Motion-design studio over kie\.ai\./);
+    assert.match(await tools.instructions(), /^Shard, a motion-design studio over kie\.ai\./);
   });
 
   test("calls a tool, and an unknown tool comes back as an error result instead of a throw", async () => {

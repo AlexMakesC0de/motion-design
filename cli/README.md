@@ -1,6 +1,6 @@
-# `kie` — the execution layer
+# `kie`: Shard's command line
 
-The skill decides **what** film to make. This decides **how** it reaches
+The studio, an agent or a skill decides **what** film to make. This decides **how** it reaches
 kie.ai, what it costs, and where the record lands.
 
 ## The one structural rule

@@ -14,7 +14,7 @@ export function skillPrompt(name, request) {
   const s = getSkill(name);
   const others = s.files.filter((f) => f !== "SKILL.md");
   return [
-    `Use the "${s.name}" skill from the motion-design skill library for this request. Its instructions follow.`,
+    `Use the "${s.name}" skill from the Shard skill library for this request. Its instructions follow.`,
     others.length
       ? `Its folder is ${s.path}. Files it links to (read them with get_skill, file set to the path, or from disk): ${others.join(", ")}.`
       : null,

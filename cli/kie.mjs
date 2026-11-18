@@ -52,7 +52,7 @@ import { MAX_REDOS, afterReview, saveProduction } from "./director/redo.mjs";
 import { UNSETTLED } from "./core/jobs.mjs";
 import { listSkills, getSkill, readSkillFile, addSkill, linkSkill } from "./core/skills.mjs";
 
-const HELP = `kie -- motion-design execution layer
+const HELP = `kie -- the Shard command line (generation, planning and finishing over kie.ai)
 
   kie models     [--capability video|image|audio] [--json]
   kie presets    [--json]                 whole-film ad templates to adapt

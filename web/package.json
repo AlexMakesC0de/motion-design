@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Local studio web app over the kie harness. The server has no dependencies; the page is built with Vite.",
+  "description": "Shard's local studio web app. The server has no dependencies; the page is built with Vite.",
   "scripts": {
     "build": "vite build",
     "codex-protocol": "node scripts/codex-protocol.mjs",
