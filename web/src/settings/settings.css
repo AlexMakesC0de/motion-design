@@ -49,7 +49,23 @@
 
 /* Providers: one row each, a letter tile, where the key goes, and whether it is set. */
 .providers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.provider { display: flex; align-items: center; gap: var(--space-3); padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.provider { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.provider__row { display: flex; align-items: center; gap: var(--space-3); }
+.provider__action { flex: none; }
+.provider__form { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 2px 48px; border-top: 1px solid var(--surface-3); }
+.provider__steps { display: flex; gap: 10px; margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: 1.5; }
+.provider__step {
+  display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 999px; background: var(--surface-3);
+  color: var(--text); font-size: 12px; font-weight: 600;
+}
+.provider__paste { display: flex; align-items: center; gap: 10px; }
+.provider__input {
+  flex: 1; min-width: 0; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--surface-3);
+  background: var(--bg); color: var(--text); font-size: var(--text-sm);
+}
+.provider__input:focus-visible { outline: 2px solid var(--text-3); outline-offset: 1px; }
+.provider__fine { margin: 0 0 0 32px; }
+.provider__msg { margin: 0 0 0 48px; }
 .provider__mark {
   display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--surface-3);
   color: var(--text); font-weight: 700;
@@ -63,7 +79,7 @@
   background: rgb(239 138 71 / 0.12); color: var(--warn); font-size: var(--text-sm); font-weight: 500;
 }
 .provider__key[data-ok="true"] { background: var(--surface-3); color: var(--text); }
-.provider__signup { flex: none; color: var(--text); font-size: var(--text-sm); text-underline-offset: 3px; }
+.provider__signup { color: var(--text); font-weight: 500; white-space: nowrap; text-underline-offset: 3px; }
 
 /* Doctor: one line per check, an icon in the level's colour. */
 .doctor { list-style: none; margin: 0; padding: 4px 0 0; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); }
@@ -76,6 +92,7 @@
 
 @media (max-width: 640px) {
   .limits { grid-template-columns: 1fr; }
-  .provider { flex-wrap: wrap; }
+  .provider__row { flex-wrap: wrap; }
+  .provider__form, .provider__msg { padding-left: 0; margin-left: 0; }
   .set-card__links { padding-left: 0; }
 }

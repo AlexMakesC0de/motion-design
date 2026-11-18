@@ -157,3 +157,59 @@
   .how { overflow: visible; }
   .how__start-stack { display: none; }
 }
+
+/* References, like Openjutsu's inputs: one large dashed tile, then picture tiles with their role. */
+.ref-tiles { position: relative; flex: none; }
+.ref-tiles__empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%; height: 112px; padding: 10px;
+  border: 1.5px dashed var(--line); border-radius: 14px; background: var(--surface-2); color: var(--text); font: inherit; text-align: center; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.ref-tiles__empty:hover:not(:disabled), .ref-tiles__empty[aria-expanded="true"] { border-color: var(--text-3); background: var(--surface-3); }
+.ref-tiles__empty:disabled { cursor: not-allowed; opacity: 0.6; }
+.ref-tiles__icon { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 4px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); }
+.ref-tiles__title { font-weight: 500; }
+.ref-tiles__hint { color: var(--text-3); font-size: var(--text-xs); line-height: 1.35; }
+.ref-tiles__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ref-tile { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; background: #000; overflow: hidden; }
+.ref-tile__media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--surface-3); }
+.ref-tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgb(0 0 0 / 0.7)); pointer-events: none; }
+.ref-tile__caption {
+  position: absolute; z-index: 1; left: 8px; right: 8px; bottom: 6px; display: flex; flex-direction: column;
+  font-size: var(--text-xs); line-height: 1.3; text-shadow: 0 1px 2px rgb(0 0 0 / 0.7);
+}
+.ref-tile__name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-tile__role { color: var(--text-2); }
+.ref-tile__remove {
+  position: absolute; z-index: 2; top: 6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px;
+  border: 0; border-radius: 999px; background: rgb(0 0 0 / 0.65); color: var(--text); cursor: pointer;
+}
+.ref-tile__remove:hover { background: rgb(0 0 0 / 0.9); }
+.ref-tile--add { background: none; }
+.ref-tile--add::after { content: none; }
+.ref-tile__add {
+  display: grid; place-items: center; width: 100%; height: 100%; border: 1.5px dashed var(--line); border-radius: 12px;
+  background: var(--surface-2); color: var(--text-2); cursor: pointer;
+}
+.ref-tile__add:hover:not(:disabled), .ref-tile__add[aria-expanded="true"] { border-color: var(--text-3); color: var(--text); background: var(--surface-3); }
+
+/* The reference picker: Openjutsu's picker, beside the panel (useSideMenu with fill). */
+.ref-pop {
+  position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; right: 0; height: 70vh;
+  display: flex; flex-direction: column; width: auto; padding: 10px;
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1); box-shadow: 0 24px 60px rgb(0 0 0 / 0.55);
+}
+.ref-pop[data-side] { width: min(620px, calc(100vw - 440px)); right: auto; animation: side-menu-in var(--dur-fast) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .ref-pop[data-side] { animation: none; } }
+
+/* Compact, like Openjutsu's panel. */
+.video__panel { gap: 10px; padding: 12px; border-radius: 18px; }
+.video__scroll { gap: 8px; }
+.look-card { height: 116px; }
+.look-card__title { font-size: 22px; }
+.prompt-card { gap: 4px; padding: 10px 12px; }
+.prompt-card__label { font-size: var(--text-md); }
+.prompt-card__text { min-height: 0; max-height: 34vh; resize: none; overflow-y: auto; font-size: var(--text-md); line-height: 1.5; }
+.field-card { min-height: 50px; padding: 7px 12px; }
+.field-card__value { font-size: var(--text-md); }
+.big-generate { height: 48px; font-size: 16px; }

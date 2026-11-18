@@ -10,6 +10,7 @@ import { readBrief } from "./brief.mjs";
 import { readPlan, findShot } from "./plan.mjs";
 import { checkPlan } from "./check.mjs";
 import { shotMedia } from "./media.mjs";
+import { sheetPrompt } from "../core/sheets.mjs";
 
 const FILM = {
   "product-ui": "a product film",
@@ -140,10 +141,10 @@ export async function makeStill(catalog, film, shotId, ctx) {
 }
 
 const SHEETS = {
+  // The same three panels as the Library's ChatGPT prompt: close-up, front with the face covered, back.
   character: {
     model: "nano-banana-2",
-    words: (d) =>
-      `Character reference sheet of ${d}. Two views side by side on a plain neutral grey background: a front view of the face and shoulders, and a full-body front view standing straight. Even, soft studio light. No props, no text, no logos.`,
+    words: (d, photos) => sheetPrompt({ kind: "character", description: d, photos }),
   },
   product: {
     model: "gpt-image-2-5",
@@ -156,11 +157,11 @@ const SHEETS = {
   },
 };
 
-/** The words for an asset's reference sheet, by its kind; a style asset has no sheet. */
-export function sheetWording(asset) {
+/** The words for an asset's reference sheet, by its kind; a style asset has no sheet. `photos`: how many of its images go along as references. */
+export function sheetWording(asset, { photos = 0 } = {}) {
   const sheet = SHEETS[asset.kind];
   if (!sheet) throw usage(`${asset.name} is a ${asset.kind} asset; only characters, products and locations get a reference sheet.`);
-  return { prompt: sheet.words(trim(asset.description)), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
+  return { prompt: sheet.words(trim(asset.description), photos), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
 }
 
 /**
@@ -171,10 +172,18 @@ export function sheetWording(asset) {
 export async function makeSheet(catalog, film, assetName, ctx) {
   const { store, limits, library, roots = null, upload, deps, via = "cli", onEvent = () => {}, dryRun = false, model: chosenModel } = ctx;
   const asset = library.get(assetName);
-  const sheet = sheetWording(asset);
-  const model = resolveModel(catalog, chosenModel ?? sheet.model, "image");
-  const refs = takesReferences(catalog, model.id) ? [{ source: asset.name, role: "identity" }] : [];
+  const model = resolveModel(catalog, chosenModel ?? sheetWording(asset).model, "image");
+  // The item's own photos go along, never the sheet being replaced: an old
+  // sheet would steer the layout and show the face more than once. An item
+  // with nothing but a sheet sends that.
+  const sources = asset.images.filter((im) => im.role === "source");
+  const refs = !takesReferences(catalog, model.id)
+    ? []
+    : sources.length
+      ? sources.map((im) => ({ source: `${asset.name}#${im.n}`, role: "identity" }))
+      : [{ source: asset.name, role: "identity" }];
   const expanded = await expandRefs(refs, { catalog, library, roots, baseDir: RUNS_DIR, upload, dryRun });
+  const sheet = sheetWording(asset, { photos: expanded.refs.length });
   const sub = await submitJob(
     catalog,
     {
@@ -192,16 +201,18 @@ export async function makeSheet(catalog, film, assetName, ctx) {
 }
 
 /**
- * Put a finished sheet first in its Library item, keeping up to three of the
- * item's earlier images after it; the previous version moves to the item's
- * history, as every Library replace does.
+ * Put a finished sheet first in its Library item, marked as its sheet, with up
+ * to three of the item's photos after it; the previous version (an older sheet
+ * included) moves to the item's history, as every Library replace does.
  */
 export function adoptSheet(library, store, jobId) {
   const job = store.get(jobId);
   if (job.stage !== "sheet" || !job.sheetFor) throw usage(`Job ${jobId} is not a reference sheet.`);
   if (job.state !== "succeeded" || !job.artifacts?.length) throw usage(`The sheet job ${jobId} has not finished (${job.state}).`);
   const asset = library.get(job.sheetFor);
-  const images = [job.artifacts[0], ...asset.images.map((im) => im.path)].slice(0, 4);
-  library.save({ name: asset.name, kind: asset.kind, description: asset.description, images, replace: true });
+  // The new sheet is marked as the sheet; the item's photos follow it. A sheet it replaces goes to history only.
+  const sources = asset.images.filter((im) => im.role === "source").map((im) => ({ path: im.path, role: "source" }));
+  const images = [{ path: job.artifacts[0], role: "sheet" }, ...sources].slice(0, 4);
+  library.save({ name: asset.name, kind: asset.kind, description: asset.description, keep: asset.keep, images, replace: true });
   return library.get(asset.name);
 }

@@ -50,7 +50,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       .filter((n) => ASSET_NAME.test(n) && existsSync(join(dir, n, "asset.json")))
       .map((n) => {
         const r = read(n);
-        return { name: r.name, kind: r.kind, description: r.description, imageCount: r.images.length, hasSheet: r.images.some((im) => roleOf(im) === "sheet"), updatedAt: r.updatedAt };
+        return { name: r.name, kind: r.kind, description: r.description, persona: r.persona ?? null, imageCount: r.images.length, hasSheet: r.images.some((im) => roleOf(im) === "sheet"), updatedAt: r.updatedAt };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -61,10 +61,15 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       throw unknown(`No asset "${name}". Saved assets: ${list().map((a) => a.name).join(", ") || "none"}.`);
     }
     const r = read(name);
-    return { ...r, keep: r.keep ?? null, images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })) };
+    return { ...r, keep: r.keep ?? null, persona: r.persona ?? null, images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })) };
   }
 
-  function save({ name, kind, description, keep, images, replace = false }, { roots = null } = {}) {
+  /**
+   * persona: an AI influencer's traits ({ displayName, traits, extra }), or
+   * null. Left out on a replace, the earlier version's persona is kept, so
+   * adopting a sheet never turns an influencer back into a plain character.
+   */
+  function save({ name, kind, description, keep, images, replace = false, persona }, { roots = null } = {}) {
     const target = assetDir(name);
     checkKind(kind);
     checkDescription(description);
@@ -89,10 +94,12 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     const at = now().toISOString();
     let createdAt = at;
     let usedIn = [];
+    let keptPersona = persona ?? null;
     if (exists) {
       const prev = read(name);
       createdAt = prev.createdAt;
       usedIn = prev.usedIn ?? [];
+      if (persona === undefined) keptPersona = prev.persona ?? null;
       const history = join(target, ".history", at.replace(/[:.]/g, "-"));
       mkdirSync(history, { recursive: true });
       renameSync(join(target, "asset.json"), join(history, "asset.json"));
@@ -117,7 +124,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
         upload: null,
       };
     });
-    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), images: stored, createdAt, updatedAt: at, usedIn });
+    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), ...(keptPersona ? { persona: keptPersona } : {}), images: stored, createdAt, updatedAt: at, usedIn });
   }
 
   /**

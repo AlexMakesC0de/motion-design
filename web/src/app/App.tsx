@@ -7,6 +7,8 @@ import { ProjectsScreen } from "../projects/ProjectsScreen";
 import { FilmWorkspace } from "../film/FilmWorkspace";
 import { ImageScreen } from "../studio/ImageScreen";
 import { VideoScreen } from "../studio/VideoScreen";
+import { JutsuScreen } from "../jutsu/JutsuScreen";
+import { InfluencerScreen } from "../influencers/InfluencerScreen";
 import { McpScreen } from "../mcp/McpScreen";
 import { LibraryScreen } from "../library/LibraryScreen";
 import { PresetsScreen } from "../presets/PresetsScreen";
@@ -20,6 +22,8 @@ const TITLES: Record<Exclude<Place["screen"], "film">, string> = {
   projects: "Films",
   image: "Image",
   video: "Video",
+  jutsu: "Openjutsu",
+  influencers: "AI Influencers",
   mcp: "MCP",
   library: "Library",
   presets: "Looks",
@@ -40,6 +44,10 @@ function Screen({ place }: { place: Place }) {
       return <ImageScreen />;
     case "video":
       return <VideoScreen tab={place.tab ?? "create"} />;
+    case "jutsu":
+      return <JutsuScreen />;
+    case "influencers":
+      return <InfluencerScreen />;
     case "mcp":
       return <McpScreen host={place.host} />;
     case "library":

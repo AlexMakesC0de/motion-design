@@ -1,7 +1,7 @@
 import { KEY, deps, req, tmp } from "./helpers.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const { createApp } = await import("../server/app.mjs");
@@ -17,8 +17,16 @@ const keys = Object.keys(catalog.providers)
 
 let app, port;
 let reads = 0;
+let refuse = false;
 before(async () => {
-  const counting = { ...deps, credits: async () => (reads += 1, 100) };
+  const counting = {
+    ...deps,
+    credits: async () => {
+      reads += 1;
+      if (refuse) throw new Error("kie.ai credit check failed (HTTP 401).");
+      return 100;
+    },
+  };
   app = createApp({ key: KEY, deps: counting, distDir: join(tmp, "nodist"), pollMs: 60_000 });
   await new Promise((r) => app.listen(0, "127.0.0.1", r));
   port = app.address().port;
@@ -34,7 +42,19 @@ describe("GET /api/settings", () => {
     assert.equal(r.status, 200);
     assert.deepEqual(r.json.limits, { dailyUsd: 10, perJobUsd: null, file: LIMITS });
     const kie = r.json.providers.find((p) => p.name === "kie");
-    assert.deepEqual(kie, { name: "kie", label: "kie.ai", keyConfigured: true, keyEnv: "KIE_API_KEY", keyFile: "~/.config/kie/key", signup: "https://kie.ai/api-key", balanceReadable: true });
+    assert.deepEqual(kie, {
+      name: "kie",
+      label: "kie.ai",
+      keyConfigured: true,
+      keySource: "env",
+      keyEnv: "KIE_API_KEY",
+      keyFile: "~/.config/kie/key",
+      signup: "https://kie.ai/api-key",
+      keySteps: kie.keySteps,
+      balanceReadable: true,
+    });
+    assert.match(kie.keySteps, /API Key/);
+    assert.equal(r.json.providers.find((p) => p.name === "wavespeed").signup, "https://wavespeed.ai/accesskey");
     assert.equal(r.json.providers.find((p) => p.name === "wavespeed").balanceReadable, false);
     assert.ok(noKeys(r.text));
     assert.equal(reads, 0, "reading settings never calls a provider");
@@ -118,5 +138,60 @@ describe("POST /api/settings/doctor", () => {
     assert.ok(r.json.ranAt);
     assert.ok(noKeys(r.text));
     assert.ok(existsSync(LIMITS));
+  });
+});
+
+describe("PUT and DELETE /api/settings/keys/:name", () => {
+  const KIE_FILE = join(tmp, ".config/kie/key");
+  const WAVE_FILE = join(tmp, ".config/wavespeed/key");
+  const saveKey = (name, key) => req(port, `/api/settings/keys/${name}`, { method: "PUT", body: { key } });
+
+  test("saves a pasted WaveSpeed key to its key file, mode 600, and never returns it", async () => {
+    const key = "ws-0123456789abcdef0123456789";
+    const r = await saveKey("wavespeed", `  ${key}\n`);
+    assert.equal(r.status, 200, r.text);
+    assert.equal(readFileSync(WAVE_FILE, "utf8"), `${key}\n`);
+    assert.equal(statSync(WAVE_FILE).mode & 0o777, 0o600);
+    assert.equal(r.json.provider.keySource, "file");
+    assert.equal(r.json.checked, false, "WaveSpeed has no free balance read");
+    assert.ok(!r.text.includes(key));
+    const view = await req(port, "/api/settings");
+    assert.equal(view.json.providers.find((p) => p.name === "wavespeed").keyConfigured, true);
+  });
+
+  test("a kie key is tried with the balance read first; an env key in use is reported", async () => {
+    const before = reads;
+    const r = await saveKey("kie", "kie-0123456789abcdef0123");
+    assert.equal(r.status, 200, r.text);
+    assert.equal(reads, before + 1);
+    assert.equal(r.json.checked, true);
+    assert.equal(r.json.balance, 100);
+    assert.match(r.json.warning, /KIE_API_KEY is set in the environment/);
+  });
+
+  test("a key kie.ai refuses is not written", async () => {
+    rmSync(KIE_FILE, { force: true });
+    refuse = true;
+    try {
+      const r = await saveKey("kie", "kie-bad-key-0123456789");
+      assert.equal(r.status, 400);
+      assert.equal(r.json.error.field, "key");
+      assert.ok(!existsSync(KIE_FILE));
+    } finally {
+      refuse = false;
+    }
+  });
+
+  test("a key with spaces or too short is refused; an unknown provider is 404", async () => {
+    assert.equal((await saveKey("wavespeed", "short")).status, 400);
+    assert.equal((await saveKey("wavespeed", "has a space in the middle of it")).status, 400);
+    assert.equal((await saveKey("muapi", "0123456789abcdef0123")).status, 404);
+  });
+
+  test("DELETE removes the saved file only", async () => {
+    const r = await req(port, "/api/settings/keys/wavespeed", { method: "DELETE" });
+    assert.equal(r.status, 200, r.text);
+    assert.ok(!existsSync(WAVE_FILE));
+    assert.equal(r.json.provider.keyConfigured, false);
   });
 });

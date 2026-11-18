@@ -1,8 +1,10 @@
 // The pieces the Image and Video pages build their prompt controls from:
-// the reference picker and chips, the settings cards and chips (native selects,
-// so they work from the keyboard and with screen readers), the video model
-// menu, and the messages that say why Generate is off.
+// the reference picker and chips, Image's settings chips (native selects),
+// Video's settings cards and model menu (listboxes that open beside the panel,
+// driven by the arrow keys, Enter and Escape), and the messages that say why
+// Generate is off.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useSideMenu } from "./useSideMenu";
 import type { AssetSummary, ModelInfo } from "../api/types";
 import { Icon } from "../app/icons";
 import { modelBadge, modelBlurb, modelName } from "../app/modelMeta";
@@ -40,20 +42,96 @@ function pick<T extends string | number>(options: T[], raw: string, onChange: (v
   if (hit != null) onChange(hit);
 }
 
-/** Video's settings card: the label above the value and a chevron, with the native select laid over it all. */
+/** The arrow keys, Home, End, Enter and Escape over a listbox of `count` options. */
+function listKeys(e: KeyboardEvent, count: number, active: number, setActive: (i: number) => void, choose: (i: number) => void, close: () => void) {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    setActive((active + (e.key === "ArrowDown" ? 1 : count - 1)) % count);
+  } else if (e.key === "Home" || e.key === "End") {
+    e.preventDefault();
+    setActive(e.key === "Home" ? 0 : count - 1);
+  } else if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    choose(active);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    close();
+  }
+}
+
+/** Video's settings card: the label above the value and a chevron; its list opens beside the panel. */
 export function SelectCard<T extends string | number>({ label, value, options, format = String, empty = "—", onChange }: SelectProps<T>) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  const { menu, style, side } = useSideMenu<HTMLUListElement>(open, button);
+
+  useEffect(() => {
+    if (!open) return;
+    menu.current?.focus({ preventScroll: true });
+    const away = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open, menu]);
+
   if (!options.length) return null;
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  const choose = (i: number) => {
+    if (options[i] != null) onChange(options[i]);
+    close();
+  };
+  const shown = value == null ? empty : `${format(value)}${options.includes(value) ? "" : " (not offered)"}`;
   return (
-    <label className="field-card">
-      <span className="field-card__label">{label}</span>
-      <span className="field-card__value">{value == null ? empty : format(value)}</span>
-      <span className="field-card__chevron">
-        <Icon name="down" size={16} />
-      </span>
-      <select className="field-card__select" aria-label={label} value={value == null ? "" : String(value)} onChange={(e) => pick(options, e.target.value, onChange)}>
-        <Options value={value} options={options} format={format} empty={empty} />
-      </select>
-    </label>
+    <div className="select-card" ref={wrap}>
+      <button
+        ref={button}
+        type="button"
+        className="field-card field-card--button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? `${id}-list` : undefined}
+        aria-label={`${label}: ${shown}`}
+        onClick={() => {
+          setActive(Math.max(0, options.findIndex((o) => o === value)));
+          setOpen((o) => !o);
+        }}
+      >
+        <span className="field-card__label">{label}</span>
+        <span className="field-card__value">{shown}</span>
+        <span className="field-card__chevron">
+          <Icon name="down" size={16} />
+        </span>
+      </button>
+      {open && (
+        <ul
+          ref={menu}
+          id={`${id}-list`}
+          className="select-menu"
+          data-side={side}
+          style={style}
+          role="listbox"
+          aria-label={label}
+          tabIndex={-1}
+          aria-activedescendant={`${id}-${active}`}
+          onKeyDown={(e) => listKeys(e, options.length, active, setActive, choose, close)}
+          onBlur={(e) => {
+            if (e.relatedTarget && !wrap.current?.contains(e.relatedTarget as Node)) setOpen(false);
+          }}
+        >
+          {options.map((o, i) => (
+            <li key={String(o)} id={`${id}-${i}`} role="option" aria-selected={o === value} data-active={i === active || undefined} className="select-menu__item" onMouseEnter={() => setActive(i)} onClick={() => choose(i)}>
+              <span>{format(o)}</span>
+              {o === value && <Icon name="check" size={16} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -85,10 +163,11 @@ export function ModelMenu({ models, value, onPick }: { models: ModelInfo[]; valu
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
   const badge = modelBadge(value);
+  const placed = useSideMenu<HTMLUListElement>(open, button);
 
   useEffect(() => {
     if (!open) return;
-    list.current?.focus();
+    list.current?.focus({ preventScroll: true });
     const away = (e: MouseEvent) => !wrap.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
@@ -145,7 +224,16 @@ export function ModelMenu({ models, value, onPick }: { models: ModelInfo[]; valu
         </span>
       </button>
       {open && (
-        <ul ref={list} id={`${id}-list`} className="model-menu" role="listbox" aria-label="Video models" tabIndex={-1} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
+        <ul
+          ref={(el) => {
+            list.current = el;
+            placed.menu.current = el;
+          }}
+          id={`${id}-list`}
+          className="model-menu"
+          data-side={placed.side}
+          style={placed.style}
+          role="listbox" aria-label="Video models" tabIndex={-1} aria-activedescendant={`${id}-${active}`} onKeyDown={keys}>
           {models.map((m, i) => (
             <li
               key={m.id}

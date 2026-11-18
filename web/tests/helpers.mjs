@@ -13,6 +13,8 @@ process.env.KIE_RUNS_DIR = RUNS;
 process.env.KIE_LIBRARY_DIR = LIBRARY;
 process.env.KIE_LIMITS_FILE = join(tmp, "limits.json");
 process.env.KIE_API_KEY = "test-key-not-real";
+// Provider key files (~/.config/kie/key and the like) are written under the temp folder, never the real home.
+process.env.KIE_KEY_HOME = tmp;
 // The chat's connection file and OpenAI key file live in the temp folder too; a real key in the environment is ignored.
 process.env.KIE_CHAT_FILE = join(tmp, "chat.json");
 process.env.KIE_OPENAI_KEY_FILE = join(tmp, "openai.key");

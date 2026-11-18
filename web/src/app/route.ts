@@ -3,7 +3,7 @@
 // old hashes from the six-tab studio redirect so links in docs keep working.
 import type { FilmStep } from "../api/types";
 
-export type NavId = "home" | "image" | "video" | "mcp" | "projects" | "library" | "presets" | "skills" | "spend" | "settings";
+export type NavId = "home" | "image" | "video" | "jutsu" | "influencers" | "mcp" | "projects" | "library" | "presets" | "skills" | "spend" | "settings";
 /** Kept for older imports: the place a top-bar item opens. */
 export type RailId = NavId;
 export type Screen = NavId | "film";
@@ -34,6 +34,8 @@ export const NAV: { main: { id: NavId; label: string }[]; studio: { id: NavId; l
     { id: "mcp", label: "MCP" },
   ],
   studio: [
+    { id: "jutsu", label: "Openjutsu", badge: "New" },
+    { id: "influencers", label: "AI Influencers", badge: "New" },
     { id: "projects", label: "Films" },
     { id: "library", label: "Library" },
     { id: "presets", label: "Looks" },
@@ -47,7 +49,7 @@ export const navHref = (id: NavId) => (id === "home" ? "#/" : `#/${id}`);
 
 const NAV_IDS = new Set<string>([...NAV.main.map((r) => r.id), ...NAV.studio.map((r) => r.id), ...UTILITY]);
 // Create split into Image and Video; its scene editor is Video's Scenes tab.
-const REDIRECTS: Record<string, string> = { studio: "#/video", create: "#/video", films: "#/projects", chat: "#/mcp" };
+const REDIRECTS: Record<string, string> = { studio: "#/video", create: "#/video", films: "#/projects", chat: "#/mcp", genjutsu: "#/jutsu", openjutsu: "#/jutsu", influencer: "#/influencers" };
 // A film's steps before Shard: Brief became Idea, Shots became Scenes.
 const OLD_STEPS: Record<string, FilmStep> = { brief: "idea", shots: "scenes" };
 

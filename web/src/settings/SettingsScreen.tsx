@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
-import type { DoctorResult, LimitsView, SettingsView } from "../api/types";
+import type { DoctorResult, LimitsView, ProviderInfo, SavedKey, SettingsView } from "../api/types";
 import { Icon } from "../app/icons";
 import { usd } from "../studio/format";
 import "./settings.css";
@@ -191,34 +191,163 @@ function Doctor() {
   );
 }
 
+const SOURCE = { env: "From the environment", dotenv: "From this project's .env", file: "Saved on this computer" } as const;
+
+/** One provider: whether a key is set, and a paste box with the exact page to get one. */
+function ProviderRow({ initial }: { initial: ProviderInfo }) {
+  const [p, setP] = useState(initial);
+  const [open, setOpen] = useState(!initial.keyConfigured);
+  const [key, setKey] = useState("");
+  const [sending, setSending] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputId = `key-${p.name}`;
+
+  async function send(method: "PUT" | "DELETE") {
+    setSending(true);
+    setNote(null);
+    setError(null);
+    try {
+      if (method === "PUT") {
+        const r = await api<SavedKey>(`/api/settings/keys/${p.name}`, { method, body: { key } });
+        setP(r.provider);
+        setKey("");
+        setOpen(false);
+        setNote(
+          r.warning ??
+            (r.checked ? `Key saved and working${r.balance != null ? `: ${r.balance.toLocaleString()} credits left` : ""}.` : "Key saved. It is checked on the first job."),
+        );
+      } else {
+        const r = await api<{ provider: ProviderInfo }>(`/api/settings/keys/${p.name}`, { method });
+        setP(r.provider);
+        setOpen(!r.provider.keyConfigured);
+        setNote(r.provider.keyConfigured ? `Saved key removed. A key from ${r.provider.keySource === "env" ? "the environment" : ".env"} is still in use.` : "Key removed.");
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <li className="provider">
+      <div className="provider__row">
+        <span className="provider__mark" aria-hidden="true">
+          {p.label.slice(0, 1)}
+        </span>
+        <span className="provider__main">
+          <span className="provider__name">{p.label}</span>
+          <span className="provider__where">
+            {p.keySource ? (
+              <>
+                {SOURCE[p.keySource]}
+                {p.keySource === "file" ? (
+                  <>
+                    {" "}
+                    in <span className="mono">{p.keyFile}</span>
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    as <span className="mono">{p.keyEnv}</span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                Paste a key below, or set <span className="mono">{p.keyEnv}</span>
+              </>
+            )}
+          </span>
+        </span>
+        <span className="provider__key" data-ok={p.keyConfigured}>
+          <Icon name={p.keyConfigured ? "check" : "minus"} size={14} />
+          {p.keyConfigured ? "Key found" : "No key"}
+        </span>
+        {p.keyConfigured && !open && (
+          <button type="button" className="button button--quiet provider__action" onClick={() => setOpen(true)}>
+            {p.keySource === "file" ? "Replace" : "Save a key"}
+          </button>
+        )}
+        {p.keySource === "file" && !open && (
+          <button type="button" className="button button--quiet provider__action" disabled={sending} onClick={() => send("DELETE")} aria-label={`Remove the saved ${p.label} key`}>
+            Remove
+          </button>
+        )}
+      </div>
+      {open && (
+        <form
+          className="provider__form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (key.trim()) void send("PUT");
+          }}
+        >
+          <p className="provider__steps">
+            <span className="provider__step">1</span>
+            <span>
+              {p.keySteps ?? `Sign in to ${p.label} and copy your API key.`}{" "}
+              <a className="provider__signup" href={p.signup} target="_blank" rel="noreferrer" aria-label={`Open the ${p.label} key page (new tab)`}>
+                Open the key page <span aria-hidden="true">↗</span>
+              </a>
+            </span>
+          </p>
+          <div className="provider__paste">
+            <span className="provider__step" aria-hidden="true">
+              2
+            </span>
+            <label className="sr-only" htmlFor={inputId}>
+              {`${p.label} API key`}
+            </label>
+            <input
+              id={inputId}
+              className="provider__input mono"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={`Paste your ${p.label} key`}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+            />
+            <button type="submit" className="button button--light" disabled={!key.trim() || sending}>
+              {sending ? "Checking…" : "Save key"}
+            </button>
+            {p.keyConfigured && (
+              <button type="button" className="button button--quiet" onClick={() => (setOpen(false), setKey(""), setError(null))}>
+                Cancel
+              </button>
+            )}
+          </div>
+          <p className="settings__hint provider__fine">
+            Saved to <span className="mono">{p.keyFile}</span> (only you can read it), the file the CLI and MCP server read too.
+            {p.balanceReadable ? " The key is tried with a free balance read before it is saved." : ""}
+          </p>
+        </form>
+      )}
+      {error && (
+        <p className="settings__error provider__msg" role="alert">
+          {error}
+        </p>
+      )}
+      {note && (
+        <p className="settings__note provider__msg" role="status">
+          {note}
+        </p>
+      )}
+    </li>
+  );
+}
+
 function Providers({ view }: { view: SettingsView }) {
   return (
     <section className="set-card" aria-labelledby="providers-title">
       <CardHead id="providers-title" icon="plug" title="Providers">
-        Keys stay on this computer. The studio only says whether one is set.
+        Paste a key to start generating. Start with kie.ai; WaveSpeed is an optional backup. Keys stay on this computer and are never shown again.
       </CardHead>
       <ul className="providers" aria-label="Providers">
         {view.providers.map((p) => (
-          <li key={p.name} className="provider">
-            <span className="provider__mark" aria-hidden="true">
-              {p.label.slice(0, 1)}
-            </span>
-            <span className="provider__main">
-              <span className="provider__name">{p.label}</span>
-              <span className="provider__where">
-                Set <span className="mono">{p.keyEnv}</span> or put the key in <span className="mono">{p.keyFile}</span>
-              </span>
-            </span>
-            <span className="provider__key" data-ok={p.keyConfigured}>
-              <Icon name={p.keyConfigured ? "check" : "minus"} size={14} />
-              {p.keyConfigured ? "Key found" : "No key"}
-            </span>
-            {!p.keyConfigured && (
-              <a className="provider__signup" href={p.signup} target="_blank" rel="noreferrer">
-                Get a {p.label} key
-              </a>
-            )}
-          </li>
+          <ProviderRow key={p.name} initial={p} />
         ))}
       </ul>
     </section>

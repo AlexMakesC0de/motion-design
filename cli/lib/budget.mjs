@@ -13,7 +13,9 @@ export function estimateUsd(route, { durationS, resolution, quality, input } = {
   if (pricing?.per === "characters") return scriptPrice(route, input);
   if (pricing?.per !== "second") return { usd: route.priceUsd ?? 0, basis: "per-job" };
 
-  const res = resolution ?? route.input?.defaults?.resolution;
+  // Kling's motion control names its resolution `mode`; the route says which field holds it.
+  const field = pricing.resolutionField;
+  const res = resolution ?? (field ? input?.[field] ?? route.input?.defaults?.[field] : undefined) ?? route.input?.defaults?.resolution;
   const seconds = Number(durationS ?? route.input?.defaults?.duration);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return { usd: route.priceUsd ?? 0, basis: "per-job-fallback" };

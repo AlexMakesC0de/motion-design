@@ -52,7 +52,7 @@ describe("model resolution refuses rather than forwards", () => {
 
   test("every model declares a capability and at least one usable-looking route", () => {
     for (const m of catalog.list) {
-      assert.ok(["video", "image", "audio"].includes(m.capability), `${m.id} capability`);
+      assert.ok(["video", "image", "audio", "jutsu"].includes(m.capability), `${m.id} capability`);
       assert.ok(m.routes?.length, `${m.id} has at least one route`);
       for (const r of m.routes) {
         assert.ok(catalog.providers[r.provider], `${m.id}: provider "${r.provider}" is configured`);

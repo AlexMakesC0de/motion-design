@@ -25,20 +25,33 @@ export function getProvider(catalog, name) {
   return { name, ...p };
 }
 
+/** The provider's key file. KIE_KEY_HOME stands in for the home folder (tests). */
+export const providerKeyPath = (prov) => join(process.env.KIE_KEY_HOME || homedir(), prov.keyFile);
+
+const dotenvKey = (prov) => {
+  const dotenv = join(process.cwd(), ".env");
+  if (!existsSync(dotenv)) return null;
+  const m = readFileSync(dotenv, "utf8").match(new RegExp(`^\\s*${prov.keyEnv}\\s*=\\s*(.+)\\s*$`, "m"));
+  return m ? m[1].replace(/^["']|["']$/g, "").trim() || null : null;
+};
+
+/** Where the key comes from, in the order providerKey reads them, without reading it out: "env", "dotenv", "file" or null. */
+export function keySource(prov) {
+  if (process.env[prov.keyEnv]?.trim()) return "env";
+  if (dotenvKey(prov)) return "dotenv";
+  const file = providerKeyPath(prov);
+  return existsSync(file) && readFileSync(file, "utf8").trim() ? "file" : null;
+}
+
 /** Per-provider key. Never a flag: argv lands in shell history and the transcript. */
 export function providerKey(prov, { required = true } = {}) {
   const fromEnv = process.env[prov.keyEnv];
   if (fromEnv?.trim()) return fromEnv.trim();
 
-  const dotenv = join(process.cwd(), ".env");
-  if (existsSync(dotenv)) {
-    const m = readFileSync(dotenv, "utf8").match(
-      new RegExp(`^\\s*${prov.keyEnv}\\s*=\\s*(.+)\\s*$`, "m"),
-    );
-    if (m) return m[1].replace(/^["']|["']$/g, "").trim();
-  }
+  const fromDotenv = dotenvKey(prov);
+  if (fromDotenv) return fromDotenv;
 
-  const keyfile = join(homedir(), prov.keyFile);
+  const keyfile = providerKeyPath(prov);
   if (existsSync(keyfile)) return readFileSync(keyfile, "utf8").trim();
 
   if (!required) return null;

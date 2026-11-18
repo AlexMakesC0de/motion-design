@@ -20,6 +20,12 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
 
 /** Create's own run: one-off scenes that belong to no film. Hidden from film lists. */
 export const SCRATCH_RUN = "create";
+/** Openjutsu's run: uploaded clips and pictures, and the takes made from them. Hidden from film lists. */
+export const JUTSU_RUN = "jutsu";
+/** Faces and sheets made in the AI influencer builder. Hidden from film lists. */
+export const INFLUENCER_RUN = "influencers";
+/** Runs that are pages' workspaces, not films. */
+export const SIDE_RUNS = new Set([SCRATCH_RUN, JUTSU_RUN, INFLUENCER_RUN]);
 
 /**
  * Every generation is scoped to a run directory. There is no such thing as a
