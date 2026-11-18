@@ -1,6 +1,6 @@
 {
   "name": "motion-design-studio",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Local studio web app over the kie harness. The server has no dependencies; the page is built with Vite.",
