@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in the studio, the kie CLI or the MCP server doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. Please never paste an API key, the contents of `~/.config/kie/key`, or your own generations or Library images here.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where did it happen?
+      options:
+        - Studio (web page)
+        - kie CLI
+        - MCP server (Claude Code, Codex, Claude Desktop)
+        - Installer (node install.mjs)
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: I clicked Generate on the Video page with Seedance 2.5 and…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Error output
+      description: The message on the page, or the terminal output. Remove any key or personal path first.
+      render: text
+  - type: dropdown
+    id: spent
+    attributes:
+      label: Was money spent?
+      description: For example a job that was charged but failed, or a price that didn't match the bill.
+      options:
+        - "No"
+        - "Yes"
+        - Not sure
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Shard version (package.json), `node --version`, and your OS.
+      placeholder: Shard 0.3.0, Node 24.1, macOS 26
+    validations:
+      required: true
