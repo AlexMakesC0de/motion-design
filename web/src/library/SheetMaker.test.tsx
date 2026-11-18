@@ -35,6 +35,7 @@ describe("SheetMaker", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Prop" }));
     fill("Name", "jumpsuit");
     fill("What it is", "A neon green jumpsuit");
+    fireEvent.click(screen.getByRole("tab", { name: "ChatGPT (free)" }));
     expect(await screen.findByText(/Two views of the same object/)).toBeInTheDocument();
     const call = fetchMock.mock.calls.map((c) => String(c[0])).find((u) => u.startsWith("/api/library/sheet-prompt"));
     expect(call).toContain("kind=product");
@@ -51,6 +52,7 @@ describe("SheetMaker", () => {
     fill("Name", "jumpsuit");
     fill("What it is", "A neon green jumpsuit");
     fill("When a scene uses it, keep", "the chest logo");
+    fireEvent.click(screen.getByRole("tab", { name: "I have one" }));
     fireEvent.drop(screen.getByLabelText("Drop the sheet here"), { dataTransfer: { files: [new File(["x"], "sheet.png", { type: "image/png" })] } });
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
     const post = fetchMock.mock.calls.find((c) => c[0] === "/api/library" && c[1]?.method === "POST");
@@ -63,25 +65,63 @@ describe("SheetMaker", () => {
   test("a sheet dropped before the name is filled waits, with the reason", async () => {
     stub();
     render(<SheetMaker asset={null} onSaved={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "I have one" }));
     fireEvent.drop(screen.getByLabelText("Drop the sheet here"), { dataTransfer: { files: [new File(["x"], "sheet.png", { type: "image/png" })] } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Give it a name and say what it is, then save.");
     expect(screen.getByRole("button", { name: "Save sheet" })).toBeInTheDocument();
   });
 
-  test("editing: the name is fixed, Save changes sends a PATCH, a new sheet goes to /sheet", async () => {
+  test("editing: the sheet comes first, Save changes sends a PATCH, a new sheet goes to /sheet", async () => {
     const fetchMock = stub({ "/api/library/jumpsuit": () => saved, "/api/library/jumpsuit/sheet": () => saved });
     render(<SheetMaker asset={saved} onSaved={() => {}} onClose={() => {}} />);
-    expect(screen.getByLabelText("Name")).toHaveAttribute("readonly");
+    expect(screen.getByRole("img", { name: "Sheet for jumpsuit" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy prompt for ChatGPT" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
     fill("When a scene uses it, keep", "the logo and the black panels");
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => {
       const p = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit" && c[1]?.method === "PATCH");
       expect(JSON.parse(p![1]!.body as string)).toEqual({ kind: "product", description: "A neon green jumpsuit.", keep: "the logo and the black panels" });
     });
+    fireEvent.click(screen.getByRole("button", { name: /Replace the sheet/ }));
     fireEvent.drop(screen.getByLabelText("Drop the sheet here"), { dataTransfer: { files: [new File(["x"], "s.png", { type: "image/png" })] } });
     await waitFor(() => {
       const s = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit/sheet");
       expect(JSON.parse(s![1]!.body as string)).toEqual({ image: token });
+    });
+  });
+
+  test("the text boxes grow with their text instead of being dragged", () => {
+    stub();
+    render(<SheetMaker asset={null} onSaved={() => {}} onClose={() => {}} />);
+    const box = screen.getByLabelText("What it is");
+    expect(box.tagName).toBe("TEXTAREA");
+    expect(box).toHaveClass("field--grow");
+    Object.defineProperty(box, "scrollHeight", { configurable: true, get: () => 96 });
+    fill("What it is", "A tall man.\nShort dark hair.\nGlasses.");
+    expect(box.style.height).toBe("96px");
+  });
+
+  test("Make it here spends only on the click, with the price on the button, and the finished sheet is kept on request", async () => {
+    const offer = { ...saved, kind: "character", images: [{ ...saved.images[0], role: "source" as const }], makeSheet: { model: "nano-banana-2", usd: 0.06 } };
+    const job = { id: "job-1", state: "succeeded", model: "nano-banana-2", media: ["/media/runs/library/sheet.png"], updatedAt: "2", error: null };
+    const made = { ...offer, sheetJob: job, sheetJobKept: false };
+    const fetchMock = stub({ "/api/library/jumpsuit/make-sheet": () => made, "/api/library/jumpsuit/adopt": () => ({ ...made, sheetJobKept: true }) });
+    const onSaved = vi.fn();
+    const { rerender } = render(<SheetMaker asset={offer as AssetDetail} onSaved={onSaved} onClose={() => {}} />);
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("make-sheet"))).toBe(false);
+    fill("Outfit, head to toe", "a green jumpsuit");
+    fireEvent.click(screen.getByRole("button", { name: "Make the sheet · $0.06" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(made));
+    const post = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit/make-sheet");
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ outfit: "a green jumpsuit" });
+    rerender(<SheetMaker asset={made as unknown as AssetDetail} onSaved={onSaved} onClose={() => {}} />);
+    expect(screen.getByRole("img", { name: "The new sheet" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Keep this sheet" }));
+    await waitFor(() => {
+      const keep = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit/adopt");
+      expect(JSON.parse(keep![1]!.body as string)).toEqual({ job: "job-1" });
     });
   });
 });

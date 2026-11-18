@@ -31,26 +31,19 @@
 .card-item__meta { padding: 2px var(--space-3) var(--space-3); color: var(--text-3); font-size: var(--text-sm); }
 
 /* The sheet maker: a popup that floats in from the right over a dimmed page,
-   so the grid keeps its width. Esc, the dimmed page or × closes it. One green
-   button (Copy prompt). */
+   so the grid keeps its width. Esc, the dimmed page or × closes it. Its
+   header and footer stay put; only the body between them scrolls. */
 .library-pop__scrim { position: absolute; inset: 0; z-index: 20; background: rgb(0 0 0 / 0.45); animation: library-scrim-in 180ms var(--ease-out); }
 .sheet-maker {
   position: absolute; z-index: 21; top: var(--space-3); right: var(--space-3); bottom: var(--space-3); width: min(540px, calc(100% - 2 * var(--space-3)));
-  display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-5) var(--space-5);
-  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1); box-shadow: -24px 0 70px rgb(0 0 0 / 0.5);
-  overflow-y: auto; overscroll-behavior: contain; outline: none;
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1); box-shadow: -24px 0 70px rgb(0 0 0 / 0.5); outline: none;
   animation: library-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.sheet-maker > * { flex-shrink: 0; } /* it scrolls; nothing squeezes to fit */
 @keyframes library-pop-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
 @keyframes library-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sheet-maker, .library-pop__scrim { animation: none; } }
-/* The header stays put while the popup scrolls, so × is always in reach. */
-.sheet-maker__head {
-  position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3);
-  margin: 0 calc(-1 * var(--space-5)); padding: var(--space-4) var(--space-5) var(--space-3);
-  background: color-mix(in srgb, var(--surface-1) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid transparent;
-}
+.sheet-maker__head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5) var(--space-3); border-bottom: 1px solid var(--line); }
 .sheet-maker__heading { min-width: 0; }
 .sheet-maker__title { margin: 0; font-size: var(--text-xl); font-weight: 600; overflow-wrap: anywhere; }
 .sheet-maker__sub { margin: 2px 0 0; color: var(--text-3); font-size: var(--text-sm); }
@@ -59,34 +52,62 @@
   background: var(--surface-2); color: var(--text-2); cursor: pointer;
 }
 .sheet-maker__close:hover { color: var(--text); background: var(--surface-3); }
-.sheet-maker__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sheet-maker__hero { margin: 0 0 var(--space-2); border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.sheet-maker__close:focus-visible, .sheet-maker__replace:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sheet-maker__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) var(--space-5) var(--space-5); }
+.sheet-maker__body > * { flex-shrink: 0; }
+.sheet-maker__foot { flex: none; display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--line); background: var(--surface-1); }
+.sheet-maker__foot-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.button--danger { border-color: color-mix(in srgb, var(--bad-ink) 45%, transparent); background: transparent; color: var(--bad-ink); }
+.button--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--bad-ink) 12%, transparent); }
+
+/* The sheet: shown first, and a drop target for a replacement. */
+.sheet-maker__hero { margin: 0; border-radius: 14px; overflow: hidden; background: var(--surface-2); outline: 2px dashed transparent; outline-offset: -2px; }
+.sheet-maker__hero[data-over="true"] { outline-color: var(--text-2); }
 .sheet-maker__hero img { display: block; width: 100%; height: auto; }
-.seg { display: flex; padding: 3px; border-radius: var(--radius-md); background: var(--surface-2); margin: var(--space-2) 0; }
+.sheet-maker__replace { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 6px var(--space-3); border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); font-size: var(--text-sm); cursor: pointer; }
+.sheet-maker__replace:hover { color: var(--text); border-color: var(--text-3); }
+
+/* A sheet being made here, or made and waiting to be kept. */
+.sheet-made { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.sheet-made[data-phase="done"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.sheet-made__img { display: block; width: 100%; border-radius: 10px; }
+.sheet-made__note { margin: 0; display: flex; align-items: center; gap: var(--space-2); color: var(--text-2); font-size: var(--text-sm); line-height: 1.45; }
+.sheet-made__note--bad { color: var(--bad-ink); }
+.sheet-made__spin { flex: none; width: 14px; height: 14px; border: 2px solid var(--surface-3); border-top-color: var(--accent); border-radius: 50%; animation: sheet-spin 0.9s linear infinite; }
+@keyframes sheet-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sheet-made__spin { animation-duration: 3s; } }
+
+/* Three ways to get a sheet. */
+.sheet-get { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.sheet-get__top { display: flex; align-items: center; justify-content: space-between; }
+.sheet-get__title, .sheet-maker__section { margin: 0; font-size: var(--text-title); font-weight: 600; color: var(--text); }
+.sheet-get__fold { padding: 0; border: 0; background: none; color: var(--text-2); font-size: var(--text-sm); cursor: pointer; }
+.sheet-get__fold:hover { color: var(--text); }
+.sheet-get__panel { display: flex; flex-direction: column; gap: var(--space-2); }
+.sheet-get__panel .field { background: var(--surface-1); }
+.sheet-get__go { align-self: flex-start; }
+.sheet-get .seg { background: var(--surface-1); }
+.sheet-maker__details { display: flex; flex-direction: column; gap: var(--space-2); }
+.seg { display: flex; padding: 3px; border-radius: var(--radius-md); background: var(--surface-2); }
+.seg--tight { margin: 0; }
 .seg__item { flex: 1; padding: 7px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font-size: var(--text-md); font-weight: 500; cursor: pointer; }
-.seg__item[aria-checked="true"] { background: var(--surface-3); color: var(--text); }
-.field__label { margin: var(--space-2) 0 0; color: var(--text-3); font-size: var(--text-sm); font-weight: 500; }
+.seg__item[aria-checked="true"], .seg__item[aria-selected="true"] { background: var(--surface-3); color: var(--text); }
+.field__label { margin: var(--space-1) 0 0; color: var(--text-3); font-size: var(--text-sm); font-weight: 500; }
 .field { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: 400 var(--text-md)/1.45 var(--font-sans); }
+/* Grows a row at a time with its text; no drag handle. */
+.field--grow { resize: none; overflow: hidden; min-height: 0; }
 .field.mono { font-family: var(--font-mono); }
 .field[readonly] { color: var(--text-2); }
-.field__hint { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.field__hint { margin: 0; color: var(--text-3); font-size: var(--text-sm); line-height: 1.45; }
 .sheet-maker__photos { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .sheet-maker__photos img, .sheet-maker__photo { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-3); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); color: var(--text-2); }
 .sheet-maker__add { height: 48px; padding: 0 var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font-size: var(--text-sm); cursor: pointer; }
-.sheet-maker__steps { list-style: none; counter-reset: step; margin: var(--space-4) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
-.sheet-maker__steps > li { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; column-gap: var(--space-3); row-gap: var(--space-2); }
-.sheet-maker__steps > li > * { grid-column: 2; }
-.sheet-maker__steps > li::before { content: counter(step); grid-column: 1; grid-row: 1; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-3); color: var(--text); font-size: var(--text-sm); font-weight: 600; display: flex; align-items: center; justify-content: center; }
-.sheet-maker__step { margin: 0; font-size: var(--text-title); font-weight: 600; color: var(--text); }
-.sheet-maker__prompt { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); color: var(--text-2); font-size: var(--text-md); line-height: 1.55; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+.sheet-maker__prompt { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-1); color: var(--text-2); font-size: var(--text-md); line-height: 1.55; max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .sheet-maker__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .sheet-maker__drop { padding: var(--space-5); border: 1px dashed var(--text-3); border-radius: var(--radius-md); text-align: center; color: var(--text-2); font-size: var(--text-md); }
-.sheet-maker__drop[data-over="true"] { border-color: var(--text); background: var(--surface-2); }
+.sheet-maker__drop[data-over="true"] { border-color: var(--text); background: var(--surface-3); }
 .sheet-maker__drop strong { color: var(--text); font-weight: 500; }
 .sheet-maker__pick { background: none; border: 0; padding: 0; color: var(--text); text-decoration: underline; cursor: pointer; font-size: inherit; }
 .sheet-maker__error { margin: 0; color: var(--bad-ink); font-size: var(--text-md); }
-/* Quiet and last: a text button in the bad colour, away from Save. */
-.sheet-maker__remove { align-self: flex-start; margin-top: var(--space-4); padding: 0; border: 0; background: none; color: var(--bad-ink); font: 400 var(--text-sm) var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-.sheet-maker__remove:disabled { color: var(--text-3); cursor: default; }
 .library__back { align-self: flex-start; color: var(--text-2); font-size: var(--text-sm); text-decoration: none; }
 .library__back:hover { color: var(--text); text-decoration: underline; }

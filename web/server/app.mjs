@@ -74,7 +74,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerJutsu(router, { catalog, deps, follower });
   registerInfluencers(router, { catalog, deps, follower });
   registerFrames(router);
-  registerLibrary(router, { catalog, following });
+  registerLibrary(router, { catalog, deps, follower, following });
   registerPresets(router, { catalog });
   registerSkills(router);
   registerMcp(router);

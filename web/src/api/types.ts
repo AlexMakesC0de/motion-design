@@ -75,6 +75,12 @@ export interface AssetDetail {
   usedIn: string[];
   /** Jobs whose refs used this asset, newest first. */
   takes: JobView[];
+  /** What making its sheet here costs; null for a kind with no sheet (a style). */
+  makeSheet?: { model: string; usd: number } | null;
+  /** The latest sheet job made for it, from any page. */
+  sheetJob?: JobView | null;
+  /** That job's picture is already the item's sheet. */
+  sheetJobKept?: boolean;
 }
 
 export interface IncomingFile {

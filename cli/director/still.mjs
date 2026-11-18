@@ -144,7 +144,7 @@ const SHEETS = {
   // The same three panels as the Library's ChatGPT prompt: close-up, front with the face covered, back.
   character: {
     model: "nano-banana-2",
-    words: (d, photos) => sheetPrompt({ kind: "character", description: d, photos }),
+    words: (d, photos, { outfit = "" } = {}) => sheetPrompt({ kind: "character", description: d, outfit, photos }),
   },
   product: {
     model: "gpt-image-2-5",
@@ -157,11 +157,11 @@ const SHEETS = {
   },
 };
 
-/** The words for an asset's reference sheet, by its kind; a style asset has no sheet. `photos`: how many of its images go along as references. */
-export function sheetWording(asset, { photos = 0 } = {}) {
+/** The words for an asset's reference sheet, by its kind; a style asset has no sheet. `photos`: how many of its images go along as references; `outfit`: a character's clothes, head to toe. */
+export function sheetWording(asset, { photos = 0, outfit = "" } = {}) {
   const sheet = SHEETS[asset.kind];
   if (!sheet) throw usage(`${asset.name} is a ${asset.kind} asset; only characters, products and locations get a reference sheet.`);
-  return { prompt: sheet.words(trim(asset.description), photos), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
+  return { prompt: sheet.words(trim(asset.description), photos, { outfit: trim(outfit ?? "") }), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
 }
 
 /**
@@ -170,7 +170,7 @@ export function sheetWording(asset, { photos = 0 } = {}) {
  * filed under a film's run. adoptSheet then saves the result into the item.
  */
 export async function makeSheet(catalog, film, assetName, ctx) {
-  const { store, limits, library, roots = null, upload, deps, via = "cli", onEvent = () => {}, dryRun = false, model: chosenModel } = ctx;
+  const { store, limits, library, roots = null, upload, deps, via = "cli", onEvent = () => {}, dryRun = false, model: chosenModel, outfit = "" } = ctx;
   const asset = library.get(assetName);
   const model = resolveModel(catalog, chosenModel ?? sheetWording(asset).model, "image");
   // The item's own photos go along, never the sheet being replaced: an old
@@ -183,7 +183,7 @@ export async function makeSheet(catalog, film, assetName, ctx) {
       ? sources.map((im) => ({ source: `${asset.name}#${im.n}`, role: "identity" }))
       : [{ source: asset.name, role: "identity" }];
   const expanded = await expandRefs(refs, { catalog, library, roots, baseDir: RUNS_DIR, upload, dryRun });
-  const sheet = sheetWording(asset, { photos: expanded.refs.length });
+  const sheet = sheetWording(asset, { photos: expanded.refs.length, outfit });
   const sub = await submitJob(
     catalog,
     {
