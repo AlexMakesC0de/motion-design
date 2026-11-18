@@ -61,14 +61,14 @@ describe("LibraryScreen", () => {
   test("+ New sheet opens the sheet maker; a card opens it for that item", async () => {
     render(<LibraryScreen />);
     fireEvent.click(await screen.findByRole("button", { name: /New sheet/ }));
-    expect(screen.getByRole("region", { name: "New sheet" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "New sheet" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: /@library:alexandros/ }));
-    expect(await screen.findByRole("region", { name: "@library:alexandros" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "@library:alexandros" })).toBeInTheDocument();
   });
 
   test("newName opens New sheet with the Name filled in", async () => {
     render(<LibraryScreen newName="maya" />);
-    expect(await screen.findByRole("region", { name: "New sheet" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "New sheet" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("maya");
   });
 
@@ -89,20 +89,35 @@ describe("LibraryScreen", () => {
     );
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     render(<LibraryScreen item="alexandros" />);
-    const panel = await screen.findByRole("region", { name: "@library:alexandros" });
+    const panel = await screen.findByRole("dialog", { name: "@library:alexandros" });
     fireEvent.click(within(panel).getByRole("button", { name: "Remove @library:alexandros from the Library" }));
     expect(confirm).toHaveBeenLastCalledWith(
       "Remove @library:alexandros? It is used in 1 film; scenes that mention it will show it in red. Its files move to library/.trash, so it can be put back.",
     );
     expect(calls).not.toContain("DELETE");
     fireEvent.click(within(panel).getByRole("button", { name: "Remove @library:alexandros from the Library" }));
-    await waitFor(() => expect(screen.queryByRole("region", { name: "@library:alexandros" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "@library:alexandros" })).toBeNull());
     expect(calls).toContain("DELETE");
     confirm.mockRestore();
   });
 
+  test("the sheet maker floats over the grid and Esc or the dimmed page closes it", async () => {
+    const { container } = render(<LibraryScreen />);
+    const card = await screen.findByRole("button", { name: /@library:alexandros/ });
+    fireEvent.click(card);
+    const pop = await screen.findByRole("dialog", { name: "@library:alexandros" });
+    expect(pop).toHaveAttribute("aria-modal", "true");
+    expect(container.querySelector(".library")).not.toHaveAttribute("data-open");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(card).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: /New sheet/ }));
+    fireEvent.mouseDown(container.querySelector(".library-pop__scrim")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   test("item opens that item's sheet", async () => {
     render(<LibraryScreen item="alexandros" />);
-    expect(await screen.findByRole("region", { name: "@library:alexandros" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "@library:alexandros" })).toBeInTheDocument();
   });
 });

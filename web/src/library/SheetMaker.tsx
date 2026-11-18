@@ -4,6 +4,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { AssetDetail, IncomingFile } from "../api/types";
+import { Icon } from "../app/icons";
 import { KIND_ORDER, kindLabel } from "./kinds";
 
 interface Props {
@@ -39,6 +40,11 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
   const [over, setOver] = useState(false);
   const pick = useRef<HTMLInputElement>(null);
   const pickSources = useRef<HTMLInputElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  // Opening moves focus into the popup, so Tab starts inside it.
+  useEffect(() => {
+    panel.current?.focus({ preventScroll: true });
+  }, []);
 
   const existingSources = asset?.images.filter((im) => im.role === "source") ?? [];
   const sheet = asset?.images.find((im) => im.role === "sheet") ?? null;
@@ -162,13 +168,22 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
   });
 
   return (
-    <section className="sheet-maker" aria-label={asset ? `@library:${asset.name}` : "New sheet"}>
+    <section ref={panel} tabIndex={-1} className="sheet-maker" role="dialog" aria-modal="true" aria-label={asset ? `@library:${asset.name}` : "New sheet"}>
       <header className="sheet-maker__head">
-        <h2 className="sheet-maker__title">{asset ? <span className="mono">@library:{asset.name}</span> : "New sheet"}</h2>
-        <button type="button" className="button button--quiet" aria-label="Close" onClick={onClose}>
-          ×
+        <div className="sheet-maker__heading">
+          <h2 className="sheet-maker__title">{asset ? <span className="mono">@library:{asset.name}</span> : "New sheet"}</h2>
+          <p className="sheet-maker__sub">{asset ? `${kindLabel(asset.kind)} · ${sheet ? "has a sheet" : "no sheet yet"}` : "Write the prompt here, make the image in ChatGPT, bring it back."}</p>
+        </div>
+        <button type="button" className="sheet-maker__close" aria-label="Close" title="Close (Esc)" onClick={onClose}>
+          <Icon name="close" size={16} />
         </button>
       </header>
+
+      {sheet?.url && (
+        <figure className="sheet-maker__hero">
+          <img src={sheet.url} alt={`Sheet for ${asset?.name}`} />
+        </figure>
+      )}
 
       <div className="seg" role="radiogroup" aria-label="Kind">
         {KIND_ORDER.map((k) => (
@@ -277,7 +292,6 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
         </li>
         <li>
           <h3 className="sheet-maker__step">{sheet ? "Replace the sheet" : "Bring the best one back"}</h3>
-          {sheet?.url && <img className="sheet-maker__sheet" src={sheet.url} alt={`Sheet for ${asset?.name}`} />}
           <div
             className="sheet-maker__drop"
             data-over={over}
