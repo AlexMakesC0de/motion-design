@@ -41,7 +41,7 @@ import { stoppable } from "./stop.mjs";
 const VERSION = "0.1.0";
 
 const INSTRUCTIONS =
-  "Motion-design studio over kie.ai. Look first (status, list_models, list_presets, estimate), " +
+  "Shard, a motion-design studio over kie.ai. Look first (status, list_models, list_presets, estimate), " +
   "then generate_image or generate_video, then wait_job until it finishes. Generating spends real money " +
   "against a per-job budget and a daily cap. Error 2 means nothing was spent: ask the user. " +
   "Error 5 means a job may exist: never resubmit it. " +

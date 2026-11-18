@@ -67,7 +67,7 @@ function linkInto(dir, name, target, hostName) {
   log(`  linked   ${hostName}: ${dest}`);
 }
 
-log(`${UNINSTALL ? "Uninstalling" : "Installing"} motion-design${DRY ? " (dry run)" : ""}\n`);
+log(`${UNINSTALL ? "Uninstalling" : "Installing"} Shard${DRY ? " (dry run)" : ""}\n`);
 
 log("skills");
 let installedAny = false;

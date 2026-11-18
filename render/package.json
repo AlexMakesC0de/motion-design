@@ -2,7 +2,7 @@
   "name": "motion-design-render",
   "version": "0.3.0",
   "private": true,
-  "description": "Code-rendered graphic motion. Deliberately separate from the CLI so the CLI stays zero-dependency; nothing here is needed to generate video through kie.ai.",
+  "description": "Shard's code-rendered graphic motion (Remotion). Deliberately separate from the CLI so the CLI stays zero-dependency; nothing here is needed to generate video through kie.ai.",
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts"

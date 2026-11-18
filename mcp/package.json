@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "MCP server over the kie harness for Claude Code and Codex. A separate package so the CLI stays zero-dependency.",
+  "description": "Shard's MCP server for Claude Code and Codex. A separate package so the CLI stays zero-dependency.",
   "bin": {
     "motion-design-mcp": "./server.mjs"
   },

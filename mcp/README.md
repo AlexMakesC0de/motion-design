@@ -1,6 +1,6 @@
-# motion-design MCP server
+# Shard MCP server
 
-Lets Claude Code and Codex use the kie harness as tools: look at models and
+Lets Claude Code and Codex use Shard as tools: look at models and
 costs, save reference assets, generate stills and videos inside the spend
 limits, wait for them, direct a film from brief to cut, and finish films. It runs locally over stdio and calls
 the same code as the `kie` CLI.
@@ -23,6 +23,10 @@ the same code as the `kie` CLI.
    removes only these two entries. A `motion-design` entry in Claude Code at
    local or project scope is never touched. `--no-mcp` skips this step.
 3. Restart the host and ask it to call `status`.
+
+The server keeps the id `motion-design` from before the project was called Shard, so existing setups keep working.
+
+**Claude Desktop** is not registered by the installer. Open the studio's MCP page and paste the config it shows into Claude Desktop's settings.
 
 ## Tools
 

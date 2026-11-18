@@ -1,6 +1,6 @@
-# Studio web app
+# Shard studio
 
-A local page for everything the `kie` CLI and the MCP tools do. It runs on your Mac only.
+A local page for everything the `kie` CLI and the MCP tools do. It runs on your own machine and only answers it.
 
 ## Start
 

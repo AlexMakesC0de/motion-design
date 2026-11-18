@@ -11,7 +11,7 @@ describe("connectInProcess", () => {
     const { tools } = await client.listTools();
     assert.equal(tools.length, 51);
     assert.ok(tools.some((t) => t.name === "generate_video"));
-    assert.match(client.getInstructions(), /^Motion-design studio over kie\.ai\./);
+    assert.match(client.getInstructions(), /^Shard, a motion-design studio over kie\.ai\./);
     const r = await call(client, "estimate", { model: "seedance-2-5", duration_s: 4, resolution: "480p" });
     assert.equal(r.isError, undefined, JSON.stringify(r));
     assert.equal(typeof r.structuredContent.estimateUsd, "number");
