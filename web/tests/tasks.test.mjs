@@ -3,6 +3,11 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
+// The studio's timers are unref()ed so they never keep it running. Node 22's test
+// runner then ends a test that is waiting on one; this interval holds the file open.
+const keepAlive = setInterval(() => {}, 60_000);
+after(() => clearInterval(keepAlive));
+
 const { createTasks, progressSeconds, TASK_TIMEOUTS_MS } = await import("../server/tasks.mjs");
 const { createApp } = await import("../server/app.mjs");
 
