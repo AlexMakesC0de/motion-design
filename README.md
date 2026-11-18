@@ -16,7 +16,7 @@ Plan a film, generate its scenes and finish it, from a web studio, the terminal,
 
 **English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
 
-[Quick start](#quick-start) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
+[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [Quick start](#quick-start) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
 
 </div>
 
@@ -28,7 +28,7 @@ Shard started as a fork of **[Chase's motion-design skill](https://github.com/ct
 
 | Part | What it does |
 |---|---|
-| **Studio** (`web/`) | A local web app: Image and Video pages, films planned scene by scene, a Library of characters, products and places, Looks, your skills, spend and settings. |
+| **Studio** (`web/`) | A local web app: Image and Video pages, films planned scene by scene, **Openjutsu** (beta: swap a person, outfit, object or background into any clip), **AI Influencers** with three-panel character sheets, a Library of characters, products and places, Looks, your skills, spend and settings. |
 | **`kie` CLI** (`cli/`) | Generates video, images and audio through [kie.ai](https://kie.ai) (with WaveSpeed as a fallback), prices every job first, and keeps a record of each one. |
 | **MCP server** (`mcp/`) | Gives Claude Code, Codex and Claude Desktop the same tools as the studio, so you can make films by asking. |
 | **Render and finish** (`render/`, `cli/`) | Draws exact graphics in code (titles, logos, numbers) with Remotion, and finishes films with ffmpeg: music, captions, loudness, other aspect ratios. |
