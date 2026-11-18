@@ -8,12 +8,16 @@
 // library/.incoming/ under a name this server picks; the client's file name is
 // only ever used as a label in messages. Core then checks it, and a refused
 // file is deleted at once.
-import { createWriteStream, existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { basename, isAbsolute, join } from "node:path";
-import { LIBRARY_DIR, RUNS_DIR } from "../../../cli/lib/run.mjs";
+import { LIBRARY_DIR, LIBRARY_RUN, RUNS_DIR } from "../../../cli/lib/run.mjs";
+import { resolveModel, routesFor } from "../../../cli/lib/models.mjs";
+import { estimateUsd } from "../../../cli/lib/budget.mjs";
+import { uploadFile } from "../../../cli/lib/upload.mjs";
+import { makeSheet, adoptSheet, sheetWording } from "../../../cli/director/still.mjs";
 import { KINDS, sheetOf } from "../../../cli/core/assets.mjs";
 import { sheetPrompt } from "../../../cli/core/sheets.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
@@ -98,9 +102,29 @@ function imageList(body, incoming) {
   return { images, uploads };
 }
 
-export function assetDetail(name, following) {
+const sha = (path) => (path && existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : null);
+
+/** What making this item's sheet here costs, or null when its kind has no sheet (a style). */
+export function sheetOffer(catalog, asset) {
+  if (!catalog) return null;
+  let wording;
+  try {
+    wording = sheetWording(asset);
+  } catch {
+    return null;
+  }
+  const model = resolveModel(catalog, wording.model, "image");
+  const route = routesFor(catalog, model).find((r) => r.usable) ?? model.routes[0];
+  return { model: model.id, usd: estimateUsd(route, {}).usd };
+}
+
+export function assetDetail(name, following, catalog = null) {
   const { library, store } = context();
   const a = library.get(name);
+  const jobs = store.list();
+  // The latest sheet made for this item, from any page (here, AI Influencers, the CLI).
+  const sheetJob = jobs.filter((j) => j.stage === "sheet" && j.sheetFor === a.name).at(-1) ?? null;
+  const sheet = sheetOf(a);
   return {
     name: a.name,
     kind: a.kind,
@@ -112,15 +136,20 @@ export function assetDetail(name, following) {
     // Runs come from the asset record; takes from job records, which keep the
     // assets each job's refs used (the CLI, MCP and this server all record them).
     usedIn: a.usedIn ?? [],
-    takes: store
-      .list()
+    makeSheet: sheetOffer(catalog, a),
+    sheetJob: sheetJob ? jobView(sheetJob, following) : null,
+    // Its picture is the sheet in the Library already: nothing new to keep.
+    sheetJobKept: Boolean(sheet?.sha256 && sheetJob?.artifacts?.[0] && sha(sheetJob.artifacts[0]) === sheet.sha256),
+    takes: jobs
       .filter((j) => Array.isArray(j.assets) && j.assets.includes(a.name))
       .reverse()
       .map((j) => jobView(j, following)),
   };
 }
 
-export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, following } = {}) {
+export function registerLibrary(router, { catalog, deps = {}, follower = null, maxUploadBytes = MAX_UPLOAD, following } = {}) {
+  const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
+  const detail = (name) => assetDetail(name, following, catalog);
   router.get("/api/vocab", () => ({ kinds: KINDS, roles: catalog.roles }));
 
   router.get("/api/library", () => {
@@ -141,10 +170,12 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
         view: query.get("view") ?? "",
         photos: Number.isInteger(photos) && photos > 0 ? photos : 0,
       }),
+      // What making it here would cost, for a new item not saved yet.
+      makeSheet: sheetOffer(catalog, { name: "new", kind: query.get("kind") ?? "character", description: "x" }),
     };
   });
 
-  router.get("/api/library/:name", ({ params }) => assetDetail(params.name, following));
+  router.get("/api/library/:name", ({ params }) => detail(params.name));
 
   router.post(
     "/api/library/incoming",
@@ -198,7 +229,7 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
     // incoming first: it sits inside library/ under a hidden name, which the library root would refuse.
     library.save({ name, kind, description, keep, images, replace }, { roots: [incoming, ...roots] });
     for (const p of uploads) rmSync(p, { force: true });
-    return assetDetail(name, following);
+    return detail(name);
   });
 
   router.patch("/api/library/:name", ({ params, body = {} }) => {
@@ -211,7 +242,7 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
       changes[field] = v;
     }
     library.update(params.name, changes);
-    return assetDetail(params.name, following);
+    return detail(params.name);
   });
 
   /** Out of the Library: the folder moves to library/.trash/, so it can be moved back. */
@@ -229,6 +260,31 @@ export function registerLibrary(router, { catalog, maxUploadBytes = MAX_UPLOAD, 
       { roots: [incoming, ...roots] },
     );
     rmSync(path, { force: true });
-    return assetDetail(params.name, following);
+    return detail(params.name);
+  });
+
+  /** Spends: make this item's sheet here, from its own photos and description. Keeping it is a separate, free step. */
+  router.post("/api/library/:name/make-sheet", async ({ params, body = {} }) => {
+    const outfit = f.text(body, "outfit") ?? "";
+    const { library, store, limits, roots } = context();
+    const r = await makeSheet(catalog, LIBRARY_RUN, params.name, { store, limits, library, roots, upload, deps: deps.generate, via: "studio", outfit });
+    follower?.follow(r.job.id);
+    return detail(params.name);
+  });
+
+  /** Free: a finished sheet becomes the item's sheet; the old one goes to its history. */
+  router.post("/api/library/:name/adopt", ({ params, body = {} }) => {
+    const jobId = f.text(body, "job", { required: true });
+    const { library, store } = context();
+    let job;
+    try {
+      job = store.get(jobId);
+    } catch {
+      throw f.invalid("job", `No job ${jobId}.`);
+    }
+    if (job.stage !== "sheet" || job.sheetFor !== params.name) throw f.invalid("job", `${jobId} is not ${params.name}'s sheet.`);
+    if (job.state !== "succeeded" || !job.artifacts?.length) throw f.invalid("job", "That sheet has not finished.");
+    adoptSheet(library, store, jobId);
+    return detail(params.name);
   });
 }
