@@ -22,7 +22,7 @@ Plan a film, generate its scenes and finish it, from a web studio, the terminal,
 
 ---
 
-Shard started as a fork of **[Chase's motion-design skill](https://github.com/cth9191/motion-design)**, ten great-looking motion styles with the prompts behind them. Huge thanks to Chase: the looks in this repo are his. Everything built around them is new. See [Credits](#credits).
+Shard started as a fork of **[Chase's motion-design skill](https://github.com/cth9191/motion-design)**: ten motion styles with the prompts behind them, which live on here as the Ad templates. Thanks, Chase. The studio, the CLI, the MCP server, the 17 Looks and everything else were built for Shard. See [Credits](#credits).
 
 ## A look around
 
@@ -114,7 +114,8 @@ Do not generate any image, video or audio, and do not spend money at any step. F
 ## Make something from the terminal
 
 ```bash
-kie presets                                        # the ten looks
+kie looks                                          # the 17 Looks
+kie presets                                        # the ten Ad templates
 kie preflight --model seedance-2-5 --duration 10   # what a job would cost, without spending
 kie video    --run launch --preset kinetic-typography --duration 10
 kie render   --run launch --template logo-reveal --props brand.json
@@ -126,93 +127,51 @@ Generated video is photographic: it invents plausible pixels. Anything that has 
 
 Your films, takes and spend records stay in `runs/`, and saved references in `library/`. Both are ignored by git.
 
-## The looks
+## The Looks
 
-<!-- The gallery below is Chase's material, kept as he made it. -->
-<p align="center"><sub>The ten looks and these previews come from <a href="https://github.com/cth9191/motion-design">Chase's motion-design repo</a>. Click an image to play its source film.</sub></p>
-
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/fee13558-1de4-46cb-80c6-443935cb8257.mp4"><img src="docs/images/glass-ui-launch.png" alt="Glass UI launch — Higgsfield source preview" width="432" /></a><br />
-      <strong>Glass UI launch</strong><br />
-      <sub>Software & product launches</sub>
-    </td>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/a95756c8-1f3f-4d93-9ea9-a14832aba4bd.mp4"><img src="docs/images/tropical-product.png" alt="Tropical product — Higgsfield source preview" width="432" /></a><br />
-      <strong>Tropical product</strong><br />
-      <sub>Products & ingredients</sub>
-    </td>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/75a6c434-a18a-4484-81b0-387308743279.mp4"><img src="docs/images/kinetic-typography.png" alt="Kinetic typography — Higgsfield source preview" width="432" /></a><br />
-      <strong>Kinetic typography</strong><br />
-      <sub>Announcements & animated type</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/4e68af0a-c12e-4dd2-9f69-3b523e534ee4.mp4"><img src="docs/images/blueprint-to-building.png" alt="Blueprint to building — Higgsfield source preview" width="432" /></a><br />
-      <strong>Blueprint to building</strong><br />
-      <sub>Architecture & property</sub>
-    </td>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/9eb4a7a5-d79c-459a-8a8d-593e912aa7a3.mp4"><img src="docs/images/exploded-product.png" alt="Exploded product — Higgsfield source preview" width="432" /></a><br />
-      <strong>Exploded product</strong><br />
-      <sub>Hardware & component reveals</sub>
-    </td>
-    <td width="33%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/eda55630-7def-48c7-b4a8-f73e6022b653.mp4"><img src="docs/images/flat-vector-explainer.png" alt="Flat vector explainer — Higgsfield source preview" width="432" /></a><br />
-      <strong>Flat vector explainer</strong><br />
-      <sub>Apps & simple explanations</sub>
-    </td>
-  </tr>
-</table>
-
-<details>
-<summary><strong>Explore four more styles</strong> — hyper-motion, hybrid 2D + 3D, collage and footage</summary>
+A Look sets the camera, light, colour, pacing and sound for a shot in one pick, on any video model. Shard ships 17, listed by `kie looks`, in the studio's Looks page and through MCP. The previews below were made for Shard.
 
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/d1e752b7-ea6b-4553-98c6-15c8f3bf0cb4.mp4"><img src="docs/images/product-hyper-motion.png" alt="Product hyper-motion — Higgsfield source preview" width="432" /></a><br />
-      <strong>Product hyper-motion</strong><br />
-      <sub>Food & product assembly</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/4d56be98-74fb-4616-9269-db37ea998171.mp4"><img src="docs/images/hybrid-2d-3d.png" alt="Hybrid 2D + 3D — Higgsfield source preview" width="432" /></a><br />
-      <strong>Hybrid 2D + 3D</strong><br />
-      <sub>Playful brand stories</sub>
-    </td>
+    <td width="16%" valign="top"><img src="docs/images/looks/golden-hour-drama.jpg" alt="Golden hour drama look preview" width="160"><br><sub>Golden hour drama</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/neo-noir.jpg" alt="Neo-noir night look preview" width="160"><br><sub>Neo-noir night</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/epic-scale.jpg" alt="Epic scale look preview" width="160"><br><sub>Epic scale</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/studio-hero.jpg" alt="Studio hero look preview" width="160"><br><sub>Studio hero</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/clean-tech.jpg" alt="Clean tech look preview" width="160"><br><sub>Clean tech</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/appetite-macro.jpg" alt="Appetite macro look preview" width="160"><br><sub>Appetite macro</sub></td>
   </tr>
   <tr>
-    <td width="50%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/61a1f7e8-0a71-4f07-87de-8c75b4c69c34.mp4"><img src="docs/images/editorial-collage.png" alt="Editorial collage — Higgsfield source preview" width="432" /></a><br />
-      <strong>Editorial collage</strong><br />
-      <sub>Ideas & educational shorts</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="https://d2ol7oe51mr4n9.cloudfront.net/user_3DiY2MbHSIvzM3FG2DOgC6Cf2MM/d94bfad5-165f-4c27-ba85-bd169b1e3408.mp4"><img src="docs/images/footage-overlays.png" alt="Footage + graphics — Higgsfield source preview" width="432" /></a><br />
-      <strong>Footage + graphics</strong><br />
-      <sub>Presenters & existing footage</sub>
-    </td>
+    <td width="16%" valign="top"><img src="docs/images/looks/hyper-promo.jpg" alt="Hyper promo look preview" width="160"><br><sub>Hyper promo</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/phone-selfie.jpg" alt="Phone selfie look preview" width="160"><br><sub>Phone selfie</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/sunny-lifestyle.jpg" alt="Sunny lifestyle look preview" width="160"><br><sub>Sunny lifestyle</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/verite.jpg" alt="Vérité look preview" width="160"><br><sub>Vérité</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/fashion-editorial.jpg" alt="Fashion editorial look preview" width="160"><br><sub>Fashion editorial</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/intimate-portrait.jpg" alt="Intimate portrait look preview" width="160"><br><sub>Intimate portrait</sub></td>
+  </tr>
+  <tr>
+    <td width="16%" valign="top"><img src="docs/images/looks/claymation.jpg" alt="Claymation look preview" width="160"><br><sub>Claymation</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/anime-cel.jpg" alt="Anime cel look preview" width="160"><br><sub>Anime cel</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/soft-3d-toon.jpg" alt="Soft 3D toon look preview" width="160"><br><sub>Soft 3D toon</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/vintage-16mm.jpg" alt="Vintage 16mm look preview" width="160"><br><sub>Vintage 16mm</sub></td>
+    <td width="16%" valign="top"><img src="docs/images/looks/retro-camcorder.jpg" alt="Retro camcorder look preview" width="160"><br><sub>Retro camcorder</sub></td>
   </tr>
 </table>
 
-</details>
+Shard also keeps the ten **Ad templates** from Chase's original skill (`kie presets`): full source prompts with adaptation guides, for example a glass UI launch or an exploded product. They are his work and are not under the MIT licence; see [Licence](#licence).
 
 ## Credits
 
-- **Chase ([@cth9191](https://github.com/cth9191))** made the original [motion-design](https://github.com/cth9191/motion-design) skill this project grew out of: the ten looks, their source prompts, the adaptation guides and templates, the playable gallery, the preview stills and the "Motion Design" wordmark. Thank you, Chase. If you like the looks, go give his repo a star.
-- The source prompts first appeared in a [Higgsfield Marketing Studio article](https://higgsfield.ai/@adilinthewildtempo/blogs/claude-fable-5-1-higgsfield-marketing-studio-300-day).
-- Brand icons for Claude and OpenAI on the MCP page are from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT).
+- **Chase ([@cth9191](https://github.com/cth9191))** made the original [motion-design](https://github.com/cth9191/motion-design) skill this project grew out of: the ten Ad templates, their source prompts and the adaptation guides. If you like them, give his repo a star.
+- The Ad templates' source prompts first appeared in a [Higgsfield Marketing Studio article](https://higgsfield.ai/@adilinthewildtempo/blogs/claude-fable-5-1-higgsfield-marketing-studio-300-day).
+- The Claude and OpenAI icons on the MCP page are from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT).
 
 [ATTRIBUTION.md](ATTRIBUTION.md) lists exactly which files came from Chase's repo.
 
 ## Licence
 
-Everything I wrote is under the [MIT licence](LICENSE): the studio, the `kie` CLI, the MCP server, the render and finishing engines, the installer, the director guides, the tests and the docs.
+Shard's own code and docs are under the [MIT licence](LICENSE): the studio, the `kie` CLI, the MCP server, the render and finishing engines, the installer, the Looks and their previews, the director guides, the tests and the docs.
 
-The looks and the other files from Chase's repo are **not** covered by the MIT licence. They are his, shared here with credit, and his repo has no licence of its own. [ATTRIBUTION.md](ATTRIBUTION.md) lists them.
+The Ad templates and the other files from Chase's repo are **not** covered by the MIT licence. His repo has no licence, so they are his, included here with credit until he grants permission or they are replaced. [ATTRIBUTION.md](ATTRIBUTION.md) lists them. If you redistribute Shard, leave them out or ask him first.
 
 ## Tests
 
@@ -220,5 +179,5 @@ The looks and the other files from Chase's repo are **not** covered by the MIT l
 npm test             # CLI
 npm run test:mcp     # MCP server
 npm run test:web     # studio
-npm run validate     # the looks: source hashes, templates and gallery
+npm run validate     # the Ad templates: source hashes, templates and gallery
 ```

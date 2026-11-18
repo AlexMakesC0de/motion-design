@@ -1,38 +1,43 @@
-# Validation and next steps
+# Roadmap
 
-The shared workflow is implemented for Codex and Claude Code. This page separates shipped instructions and tooling from creative results that still need recorded trials. It is not a promise that all ten presets reproduce their source examples reliably.
+What Shard does today, what is still experimental, and what comes next. The detailed, ordered to-do list is [docs/improvements.md](docs/improvements.md); an item there is ticked when it is built, tested and committed.
 
 ## Implemented
 
-- [x] Ten presets, exact archived source prompts with hash checks, separate adaptation guides and a playable gallery.
-- [x] One shared skill with Codex and Claude Code installation instructions and the appropriate invocation in gallery requests.
-- [x] Host-aware reference images: Codex built-in image generation when available; Claude Code via Higgsfield MCP, preferring GPT Image 2 after live capability checks.
-- [x] Before/after production review using each preset's existing fidelity requirements, with observed timestamps and pass/fail/not-inspected status. See [quality-review.md](skills/motion-design/references/quality-review.md).
-- [x] Separate correction guidance for motion, identity, exact text/data, audio and export problems, with bounded retries.
-- [x] README source-preview stills and links, setup walkthrough and source attribution.
+These are built, covered by the test suites and used day to day.
 
-These items mean the instructions and package exist. They do not establish generation quality, production cost or successful end-to-end execution in both clients.
+- **The studio** (`web/`): Image and Video pages, films planned scene by scene (brief, shot plan, storyboard stills, takes, review, cut), the Library of characters, products and places, Looks, your skills, spend and settings.
+- **AI Influencers**: build a face from a few choices, then a three-panel character sheet that keeps the person the same in later images and videos.
+- **The `kie` CLI** (`cli/`): images, video and audio through [kie.ai](https://kie.ai), a priced preflight for every job, and a record of each one in `runs/`.
+- **Spending guard**: every paid job is priced first and checked against a daily cap and an optional per-job limit, from the studio, the CLI and MCP alike.
+- **The MCP server** (`mcp/`): the studio's tools in Claude Code and Codex, which `node install.mjs` registers for you. Claude Desktop works by pasting the config shown on the studio's MCP page.
+- **Skill library** (`skills/`): skills linked into Claude Code, Codex and Kimi, usable as slash commands, MCP prompts and in the studio.
+- **17 Looks**: camera, light, colour, pacing and sound in one pick, on any video model.
+- **Exact graphics** (`render/`): six Remotion templates (captions, kinetic type, logo reveal, lower third, stat reveal, UI demo) drawn in code instead of generated.
 
-## Before the public walkthrough
+## Experimental
 
-| Trial | Evidence to retain | Done when |
-|---|---|---|
-| Typography announcement | Original reference, adapted prompt, resulting film, exact copy and timing review | The headline reads correctly and the defining graphic phases and ending are inspected. |
-| One real product | Supplied identity asset, its declared role, prompt, resulting film | Appearance remains recognizable and the product-specific action matches the chosen guide. |
-| One-idea explainer | Verified concept/claims, copy inventory, resulting film | The animation explains the intended idea without unsupported claims or invented chart data. |
-| Claude Code image handoff | GPT Image 2 image request/result, actual video input binding, film and review | A needed image reaches a complete film through the Claude Code MCP route. |
+These work, but have known limits or have not been checked end to end.
 
-For each trial record host/version, model, exact native settings, source departures, assets and roles, generation time, retries, actual cost if available (estimates labeled separately), and remaining defects. Keep private campaign files outside the public repository. Publish only examples intended for public sharing, labeling source examples and our adaptations separately.
+- **Openjutsu** (beta): swaps a person, outfit, object or background into a clip through kie's MiniMax H3 or Wan 2.2 Animate. H3 keeps more detail but can drift from the original motion; Wan follows the motion but is softer. See [the self-hosting plan](docs/research/2026-11-18-openjutsu-self-hosting-plan.md) for the mask-guided approach, which is parked.
+- **Finishing with ffmpeg**: `kie assemble`, captions, loudness and `kie variants` (other aspect ratios) are built and unit-tested, but not yet verified on a complete film.
+- **WaveSpeed as a second provider**: used only for some routes (MiniMax H3, Seedance 2.0 and 2.5) and only when you have a WaveSpeed key.
+- **Prices**: read from the providers' pages on the date in `cli/models.json`. The CLI warns when the catalog is older than its `staleAfterDays`; check the provider's page before a large job.
+- **Platforms**: developed and used on macOS. Linux and Windows are untested as places to run the studio.
+- **Translated READMEs**: the six translations are older than the English README.
+- **The Ad templates**: ten prompts from Chase's original skill. Their licence is unresolved; see [ATTRIBUTION.md](ATTRIBUTION.md).
 
-The source previews are usable as style demonstrations now. They are not completion evidence for the trials above. No paid trials were run as part of the documentation/compatibility update.
+## Planned
 
-## Experiments after the baseline
+In rough order; [docs/improvements.md](docs/improvements.md) has the details.
 
-| Question | Useful comparison | Evidence needed before claiming an improvement |
-|---|---|---|
-| Does a style frame improve fidelity? | Prompt-only versus one composed style reference, holding other settings and product inputs steady | Repeated reviews against the same preset requirements; report variations and costs. |
-| Does a video reference preserve motion better? | Same campaign with and without a supported motion-reference input | Verified model support and playback evidence, separate from identity-reference effects. |
-| Can fact-heavy films preserve exact graphics? | Generated text/data versus a supported exact overlay or replacement | Delivered frames matching the verified source text, values and geometry. No pixel-exact claim from conditioning alone. |
-| Can CLI-only Claude Code use the same workflow? | Verify equivalent discovery, uploads, image/video jobs, waits and inspection through the official CLI | A documented adapter and a complete trial; do not silently substitute CLI commands for MCP calls. |
+- Say when ffmpeg is missing or broken, at startup, before any take is paid for.
+- Silent and Loop switches on a take (strip added audio, find the loop cut).
+- Warn when typed words contradict a picked camera move, and keep an agent from wiping stage picks.
+- A type check in CI, and a fix for the page tests that fail now and then.
+- Compare two takes side by side, and keep a failed take with Retry.
+- Next beat and Coverage in Scenes.
+- Trim a reference video before upload, and export in the browser without ffmpeg.
+- Self-hosted Openjutsu on an NVIDIA GPU, if someone picks up the parked plan.
 
-Exact text/chart finishing is a disclosed conditional fallback today, not a universally tested automatic compositor. Failure-routing instructions exist; their success rate remains unmeasured. A passing catalog validator establishes package consistency, not creative reliability.
+Ideas are welcome as [issues](https://github.com/AlexMakesC0de/shard-motion-design-studio/issues).

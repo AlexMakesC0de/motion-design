@@ -1,111 +1,76 @@
-# Set up Codex or Claude Code
+# Setting up Shard
 
-Install the same `skills/motion-design/` folder in either app. It includes the prompt library, adaptation guides and gallery. App-specific image routes live in [tool-routing.md](../skills/motion-design/references/tool-routing.md).
+The [Quick start](../README.md#quick-start) is the short version. This page explains each step, what it changes on your computer, and what to do when something goes wrong.
 
-## Updating an earlier installation
+## What you need
 
-Earlier versions used the name `higgsfield-motion-design`. Install the updated folder as `motion-design`, then archive the old folder outside your app's skills directory after preserving any customizations. This avoids loading both names. Your commands become `$motion-design` in Codex and `/motion-design` in Claude Code. The repository is now `cth9191/motion-design`; update the Git remote in existing checkouts if needed.
+- **Node 20 or newer.** Check with `node --version`.
+- **A kie.ai API key**, only to generate. Planning, pricing and the tests are free and need no key.
+- **ffmpeg**, only to finish films (music, captions, other aspect ratios). On macOS: `brew install ffmpeg`.
+- **Python 3.10+**, only to run `npm run validate` on the Ad templates.
 
-## 1. Install the skill
+Shard is developed on macOS. Linux and Windows have not been tested as places to run it.
 
-### Codex
+## 1. Get the code and run the installer
 
-Paste this into Codex:
-
-```text
-$skill-installer
-
-Install the skill from:
-https://github.com/cth9191/motion-design/tree/main/skills/motion-design
+```bash
+git clone https://github.com/AlexMakesC0de/shard-motion-design-studio.git
+cd shard-motion-design-studio
+node install.mjs --dry-run
+node install.mjs
 ```
 
-For an existing installation, ask to update it and preserve any local customizations. Start a new session if the installed skill is not yet visible.
+`--dry-run` prints what the installer would do and changes nothing. The real run:
 
-### Claude Code
+- links each skill in `skills/` into Claude Code (`~/.claude/skills`), Codex and Kimi, for the apps that are installed. These are links, so editing a skill in the repo changes it everywhere.
+- links `kie` into `~/.local/bin`. If that folder is not on your PATH, it prints the line to add to `~/.zshrc`.
+- runs `npm install` in `mcp/` and registers the MCP server with Claude Code and Codex. Use `--no-mcp` to skip this.
 
-Paste this into Claude Code:
+`node install.mjs --uninstall` removes the links and the MCP registrations again.
 
-```text
-Install the motion-design skill from
-https://github.com/cth9191/motion-design
+## 2. Save your kie.ai key
 
-Clone the repository into a temporary working folder, then copy the complete
-skills/motion-design directory into my personal ~/.claude/skills/
-directory. If it already exists, compare it, back up local customizations,
-and update that skill. Do not put the entire repository inside the skill folder.
+Create a key at [kie.ai](https://kie.ai), then save it in a file only you can read:
+
+```bash
+mkdir -p ~/.config/kie
+printf '%s' 'YOUR_KIE_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
+kie doctor
 ```
 
-The final entrypoint must be `~/.claude/skills/motion-design/SKILL.md`. On Windows, `~` is your user profile. For project-only installation, use `.claude/skills/motion-design/` in that project instead. Invoke it with `/motion-design`. See [Claude Code's skill documentation](https://code.claude.com/docs/en/skills) for discovery and scope.
+You can use the `KIE_API_KEY` environment variable instead. `kie doctor` makes one free balance request and generates nothing. A WaveSpeed key (`WAVESPEED_API_KEY` or `~/.config/wavespeed/key`) is optional and only adds a second route for some models.
 
-## 2. Connect Higgsfield
+Never paste a key into a chat with an agent, and never pass it as a command-line flag.
 
-You can browse the gallery and draft prompts without Higgsfield. Image/video generation needs your own authenticated account, model access and credits or an applicable allowance. Installing this skill does not install or authenticate Higgsfield.
+## 3. Set a budget
 
-### Codex
-
-Add and authenticate the Higgsfield plugin/connector available in your Codex environment. If your client uses manual remote MCP configuration, the official endpoint is `https://mcp.higgsfield.ai/mcp`. Follow the client's connection UI and the [Higgsfield connection page](https://higgsfield.ai/mcp); connection options vary by client.
-
-### Claude Code: direct MCP route
-
-First inspect existing connections:
-
-```sh
-claude mcp list
+```bash
+kie limits --daily 25 --per-job 2
 ```
 
-If Higgsfield is already connected, reuse it. Otherwise add the remote server for your user:
+Every paid job is priced before it is sent and refused if it would pass either limit. This applies to the studio, the CLI and agents alike.
 
-```sh
-claude mcp add --transport http --scope user higgsfield https://mcp.higgsfield.ai/mcp
+## 4. Open the studio
+
+```bash
+npm --prefix web install
+npm run studio
 ```
 
-Open Claude Code, run `/mcp`, select Higgsfield and complete its browser authentication. Then check `claude mcp list` again. This direct MCP route was observed connected on the maintainer's Claude Code installation on September 5, 2026. See [Claude Code's MCP documentation](https://code.claude.com/docs/en/mcp) for HTTP servers and OAuth.
+The first run builds the page, then serves it at http://127.0.0.1:4317, or the next free port if 4317 is busy. It only answers your own machine. Your films, takes and spend records go in `runs/`, and saved references in `library/`; both are ignored by git.
 
-Higgsfield also documents a CLI installation path for Claude Code in its [integration guide](https://higgsfield.ai/creator-hub/help-center/integrations/how-do-i-connect-higgsfield-to-ai-agent). This package currently targets MCP. Installing only the CLI does not expose the MCP tools expected by this skill; CLI-only execution is not yet validated here.
+## 5. Use it from an agent
 
-### Check access without generating
+After the installer, restart Claude Code or Codex. The tools appear under the `motion-design` MCP server, and your skills as slash commands.
 
-Ask your assistant:
+**Claude Desktop** is not set up by the installer: open the studio's MCP page and paste the config it shows into Claude Desktop's settings.
 
-```text
-Check the connected Higgsfield tools and use read-only model discovery to find
-a suitable Seedance video model and GPT Image 2 for reference images.
-Report the available routes. Do not generate or upload anything.
-```
+## Troubleshooting
 
-GPT Image 2 appeared as `gpt_image_2` in the connected model catalog on September 5, 2026. Availability, input roles and settings must still be checked for the current account. A model listing alone does not prove entitlement or free usage.
-
-## 3. Try a prompt first
-
-In Codex, start with `$motion-design`; in Claude Code, use `/motion-design`. Then paste:
-
-```text
-Use the kinetic typography preset for a 15-second announcement:
-"Build your first AI workflow."
-Keep the copy short. Use music and synchronized effects, without narration.
-Show me the complete adapted prompt before generating anything.
-```
-
-The assistant should read the original source prompt, adapt its motion and copy, and show the complete draft. This request stops before creating images, uploading assets or submitting video. When ready, ask it to generate the film; actual production can incur Higgsfield charges.
-
-## 4. Browse the playable gallery
-
-Open `skills/motion-design/assets/gallery.html` from your local repository or installed skill. If your app cannot open local HTML, run this from the repository root:
-
-```sh
-python -m http.server 8765 --bind 127.0.0.1 --directory skills/motion-design
-```
-
-Visit [the local gallery](http://127.0.0.1:8765/assets/gallery.html), choose a look, select Codex or Claude Code, add a brief and copy the request into that app. Close the server with Ctrl+C when finished. Python 3.10+ is needed only for this server or the gallery builder. Previews stream from public source URLs and need internet; the prompt library is local.
-
-## Common fixes
-
-| Symptom | Check |
+| What you see | What to do |
 |---|---|
-| The skill is missing | Confirm the full folder and `SKILL.md` are at the correct discovery path; start a new session if necessary. |
-| Claude tries to use a built-in Codex image tool | Update the entire skill folder, including references and gallery. The shared version routes Claude images to Higgsfield. |
-| Higgsfield needs authentication | Reconnect through your client's MCP/plugin UI; installing the skill does not transfer someone else's login. |
-| GPT Image 2 or Seedance is unavailable | Inspect current models and account access; report the limitation before changing an explicit model choice. |
-| A preview is unavailable | Use its source article link. A failed preview does not remove the archived prompt or prove generation is unavailable. |
-| The gallery shows HTML source on GitHub | Open the downloaded file locally or use the loopback server above. |
-| Exact type or charts are wrong in the film | Inspect the output and use the supported correction/finishing route; a reference image cannot guarantee exact pixels. |
+| `kie: command not found` | Add `~/.local/bin` to your PATH (the installer printed the line), or run `node cli/kie.mjs`. |
+| `kie doctor` fails on the key | Check that `~/.config/kie/key` exists and holds only the key, or set `KIE_API_KEY`. |
+| A finishing step fails | Install ffmpeg, then try again. Generating does not need it. |
+| The agent doesn't see the tools | Restart the app after `node install.mjs`, or run it again without `--no-mcp`. |
+| The studio opens on 4318 | Another program, often an earlier studio, is using 4317. |
