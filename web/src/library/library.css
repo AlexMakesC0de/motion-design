@@ -12,8 +12,7 @@
 
 /* The page does not scroll here: the grid and the sheet maker each scroll on their own. */
 .app__main[data-screen="library"] { overflow: hidden; padding: 0; }
-.library { display: grid; grid-template-columns: 1fr; height: 100%; }
-.library[data-open="true"] { grid-template-columns: 1fr 520px; }
+.library { position: relative; display: grid; grid-template-columns: 1fr; height: 100%; }
 .library__main { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); overflow-y: auto; min-height: 0; }
 .filter__n { color: var(--text-3); font-size: var(--text-sm); margin-left: 2px; }
 .library__empty { color: var(--text-2); font-size: var(--text-md); }
@@ -31,11 +30,38 @@
 .card-item__name { padding: var(--space-3) var(--space-3) 0; font-size: var(--text-md); font-weight: 500; }
 .card-item__meta { padding: 2px var(--space-3) var(--space-3); color: var(--text-3); font-size: var(--text-sm); }
 
-/* The sheet maker: a side panel. One green button (Copy prompt). */
-.sheet-maker { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-5); background: var(--surface-1); border-left: 1px solid var(--line); overflow-y: auto; }
+/* The sheet maker: a popup that floats in from the right over a dimmed page,
+   so the grid keeps its width. Esc, the dimmed page or × closes it. One green
+   button (Copy prompt). */
+.library-pop__scrim { position: absolute; inset: 0; z-index: 20; background: rgb(0 0 0 / 0.45); animation: library-scrim-in 180ms var(--ease-out); }
+.sheet-maker {
+  position: absolute; z-index: 21; top: var(--space-3); right: var(--space-3); bottom: var(--space-3); width: min(540px, calc(100% - 2 * var(--space-3)));
+  display: flex; flex-direction: column; gap: var(--space-2); padding: 0 var(--space-5) var(--space-5);
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-1); box-shadow: -24px 0 70px rgb(0 0 0 / 0.5);
+  overflow-y: auto; overscroll-behavior: contain; outline: none;
+  animation: library-pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 .sheet-maker > * { flex-shrink: 0; } /* it scrolls; nothing squeezes to fit */
-.sheet-maker__head { display: flex; align-items: center; justify-content: space-between; }
-.sheet-maker__title { margin: 0; font-size: var(--text-xl); font-weight: 600; }
+@keyframes library-pop-in { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
+@keyframes library-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sheet-maker, .library-pop__scrim { animation: none; } }
+/* The header stays put while the popup scrolls, so × is always in reach. */
+.sheet-maker__head {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3);
+  margin: 0 calc(-1 * var(--space-5)); padding: var(--space-4) var(--space-5) var(--space-3);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid transparent;
+}
+.sheet-maker__heading { min-width: 0; }
+.sheet-maker__title { margin: 0; font-size: var(--text-xl); font-weight: 600; overflow-wrap: anywhere; }
+.sheet-maker__sub { margin: 2px 0 0; color: var(--text-3); font-size: var(--text-sm); }
+.sheet-maker__close {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2); cursor: pointer;
+}
+.sheet-maker__close:hover { color: var(--text); background: var(--surface-3); }
+.sheet-maker__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sheet-maker__hero { margin: 0 0 var(--space-2); border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.sheet-maker__hero img { display: block; width: 100%; height: auto; }
 .seg { display: flex; padding: 3px; border-radius: var(--radius-md); background: var(--surface-2); margin: var(--space-2) 0; }
 .seg__item { flex: 1; padding: 7px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font-size: var(--text-md); font-weight: 500; cursor: pointer; }
 .seg__item[aria-checked="true"] { background: var(--surface-3); color: var(--text); }
@@ -54,7 +80,6 @@
 .sheet-maker__step { margin: 0; font-size: var(--text-title); font-weight: 600; color: var(--text); }
 .sheet-maker__prompt { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); color: var(--text-2); font-size: var(--text-md); line-height: 1.55; max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .sheet-maker__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.sheet-maker__sheet { width: 100%; border-radius: var(--radius-md); background: var(--surface-2); }
 .sheet-maker__drop { padding: var(--space-5); border: 1px dashed var(--text-3); border-radius: var(--radius-md); text-align: center; color: var(--text-2); font-size: var(--text-md); }
 .sheet-maker__drop[data-over="true"] { border-color: var(--text); background: var(--surface-2); }
 .sheet-maker__drop strong { color: var(--text); font-weight: 500; }

@@ -1,6 +1,6 @@
 // web/src/library/LibraryScreen.tsx
 // Everything you can @library:, and the sheet maker to add more.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { AssetDetail, AssetSummary } from "../api/types";
 import { clearBack, readBack } from "../app/back";
@@ -19,6 +19,8 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [kind, setKind] = useState<string>("all");
   const [open, setOpen] = useState<Open>(null);
+  // The card that opened the popup gets focus back when it closes.
+  const opener = useRef<HTMLElement | null>(null);
   // Where this visit came from (a scene, References), read once; leaving the Library forgets it.
   const [back] = useState(readBack);
   useEffect(() => () => clearBack(), []);
@@ -44,15 +46,35 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
   }, [newName, item, edit]);
 
   // Leave the deep link behind, or choosing the same mention again changes nothing.
-  const settle = () => {
+  const settle = useCallback(() => {
     if (newName || item) replaceHash("#/library");
+  }, [newName, item]);
+
+  const close = useCallback(() => {
+    setOpen(null);
+    settle();
+    opener.current?.focus({ preventScroll: true });
+  }, [settle]);
+
+  // Esc closes the popup from anywhere on the page.
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) close();
+    };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [open, close]);
+
+  const remember = (e: { currentTarget: HTMLElement }) => {
+    opener.current = e.currentTarget;
   };
 
   const count = (k: string) => assets.filter((a) => a.kind === k).length;
   const shown = kind === "all" ? assets : assets.filter((a) => a.kind === kind);
 
   return (
-    <div className="library" data-open={open !== null}>
+    <div className="library">
       <div className="library__main">
         {back && (
           <a className="library__back" href={back.hash}>
@@ -75,7 +97,10 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
 
         <ul className="cards" aria-label="Library">
           <li>
-            <button type="button" className="card-new" onClick={() => setOpen({ mode: "new" })}>
+            <button type="button" className="card-new" onClick={(e) => {
+                remember(e);
+                setOpen({ mode: "new" });
+              }}>
               <span className="card-new__plus" aria-hidden="true">
                 +
               </span>
@@ -85,7 +110,10 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
           </li>
           {shown.map((a) => (
             <li key={a.name}>
-              <button type="button" className="card-item" aria-pressed={open?.mode === "edit" && open.asset.name === a.name} onClick={() => edit(a.name)}>
+              <button type="button" className="card-item" aria-pressed={open?.mode === "edit" && open.asset.name === a.name} onClick={(e) => {
+                remember(e);
+                edit(a.name);
+              }}>
                 {a.hasSheet && a.cover ? <img src={a.cover} alt="" loading="lazy" /> : <span className="card-item__blank">no sheet yet</span>}
                 <span className="card-item__name mono">@library:{a.name}</span>
                 <span className="card-item__meta">
@@ -99,25 +127,25 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
       </div>
 
       {open && (
-        <SheetMaker
-          key={open.mode === "edit" ? open.asset.name : `new-${open.name ?? ""}`}
-          asset={open.mode === "edit" ? open.asset : null}
-          initialName={open.mode === "new" ? open.name : undefined}
-          onSaved={(asset) => {
-            load();
-            setOpen({ mode: "edit", asset });
-            settle();
-          }}
-          onClose={() => {
-            setOpen(null);
-            settle();
-          }}
-          onRemoved={() => {
-            setOpen(null);
-            load();
-            settle();
-          }}
-        />
+        <>
+          <div className="library-pop__scrim" aria-hidden="true" onMouseDown={close} />
+          <SheetMaker
+            key={open.mode === "edit" ? open.asset.name : `new-${open.name ?? ""}`}
+            asset={open.mode === "edit" ? open.asset : null}
+            initialName={open.mode === "new" ? open.name : undefined}
+            onSaved={(asset) => {
+              load();
+              setOpen({ mode: "edit", asset });
+              settle();
+            }}
+            onClose={close}
+            onRemoved={() => {
+              setOpen(null);
+              load();
+              settle();
+            }}
+          />
+        </>
       )}
     </div>
   );
