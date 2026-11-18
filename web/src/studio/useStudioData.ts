@@ -1,8 +1,8 @@
 // What both making pages load once: the films, the catalog, the Library, core's
-// vocabulary and the looks. The banner in App reports a server that is down; these just stay empty.
+// vocabulary, the looks (short styles) and the ad templates (whole films to adapt). The banner in App reports a server that is down; these just stay empty.
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { AssetSummary, ModelInfo, PresetInfo, RunSummary, Vocab } from "../api/types";
+import type { AssetSummary, LooksView, ModelInfo, PresetInfo, RunSummary, Vocab } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { getRun, setRun } from "./promptStore";
 
@@ -11,7 +11,8 @@ export function useStudioData() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [assets, setAssets] = useState<AssetSummary[]>([]);
   const [vocab, setVocab] = useState<Vocab>({ kinds: [], roles: [] });
-  const [looks, setLooks] = useState<PresetInfo[]>([]);
+  const [templates, setTemplates] = useState<PresetInfo[]>([]);
+  const [looks, setLooks] = useState<LooksView>({ categories: [], looks: [] });
 
   const loadRuns = useCallback(
     () =>
@@ -29,7 +30,8 @@ export function useStudioData() {
     api<ModelInfo[]>("/api/models").then(setModels).catch(() => {});
     api<AssetSummary[]>("/api/library").then(setAssets).catch(() => {});
     api<Vocab>("/api/vocab").then(setVocab).catch(() => {});
-    api<PresetInfo[]>("/api/presets").then(setLooks).catch(() => {});
+    api<PresetInfo[]>("/api/presets").then(setTemplates).catch(() => {});
+    api<LooksView>("/api/looks").then(setLooks).catch(() => {});
   }, [loadRuns]);
 
   // The stream's library list has no covers; keep the ones already loaded.
@@ -42,5 +44,5 @@ export function useStudioData() {
     [],
   );
 
-  return { runs, models, assets, vocab, looks, loadRuns };
+  return { runs, models, assets, vocab, looks, templates, loadRuns };
 }

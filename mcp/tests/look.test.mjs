@@ -11,7 +11,7 @@ const { deps } = stubs();
 const client = await connect(deps);
 
 const TOOLS = [
-  "status", "list_models", "list_presets", "estimate", "list_runs", "get_run",
+  "status", "list_models", "list_presets", "list_looks", "estimate", "list_runs", "get_run",
   "save_asset", "list_assets", "get_asset", "update_asset", "remove_asset",
   "generate_image", "generate_video", "wait_job",
   "frames", "probe", "assemble", "variants", "caption", "render",
@@ -22,7 +22,7 @@ const TOOLS = [
 ];
 
 describe("the tool list", () => {
-  test("all 50 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 51 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");
@@ -35,7 +35,7 @@ describe("the tool list", () => {
       assert.equal(t.annotations.openWorldHint, true);
       assert.equal(t.annotations.destructiveHint, false);
     }
-    for (const name of ["list_models", "list_presets", "estimate", "list_runs", "get_run", "list_assets", "get_asset", "list_scenes", "get_scene_prompt", "list_skills", "get_skill"]) {
+    for (const name of ["list_models", "list_presets", "list_looks", "estimate", "list_runs", "get_run", "list_assets", "get_asset", "list_scenes", "get_scene_prompt", "list_skills", "get_skill"]) {
       assert.equal(tools.find((x) => x.name === name).annotations.readOnlyHint, true, name);
     }
     assert.ok(tools.every((t) => t.outputSchema), "every tool declares an output schema");
@@ -54,6 +54,14 @@ describe("look", () => {
     assert.equal(r.structuredContent.today.capUsd, 10);
     assert.equal(r.structuredContent.providers.find((p) => p.name === "kie").balance, 100);
     assert.deepEqual(r.structuredContent.unsettled, []);
+  });
+
+  test("list_looks: short styles with their picks and lines", async () => {
+    const r = await call(client, "list_looks");
+    const noir = r.structuredContent.looks.find((l) => l.id === "neo-noir");
+    assert.equal(noir.title, "Neo-noir night");
+    assert.equal(noir.picks.light, "night-practicals");
+    assert.match(noir.look, /Inky blacks/);
   });
 
   test("list_models and list_presets", async () => {

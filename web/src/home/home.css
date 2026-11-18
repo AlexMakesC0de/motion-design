@@ -29,3 +29,5 @@
 .home__films { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .home__films .film-card2__cover { aspect-ratio: auto; height: 118px; }
 @media (max-width: 900px) { .home__films { grid-template-columns: repeat(2, 1fr); } }
+
+.home__look-dot { display: inline-block; flex: none; width: 18px; height: 18px; border-radius: 999px; }

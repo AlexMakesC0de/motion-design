@@ -4,7 +4,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { listPresets } from "../../../cli/core/views.mjs";
 import { unknown } from "../../../cli/lib/errors.mjs";
-import { presetStills, stillUrl } from "../stills.mjs";
+import { lookStillUrl, presetStills, stillUrl } from "../stills.mjs";
+import { loadLooks, lookView } from "../../../cli/director/looks.mjs";
 
 const card = (p, stills) => {
   const { sourcePromptPath, guide: _guide, ...rest } = p;
@@ -12,6 +13,12 @@ const card = (p, stills) => {
 };
 
 export function registerPresets(router, { catalog }) {
+  /** Looks: short styles added after a video prompt (cli/director/looks.json), with their categories in order. */
+  router.get("/api/looks", () => {
+    const { categories, looks } = loadLooks();
+    return { categories, looks: looks.map((l) => ({ ...lookView(l), still: lookStillUrl(l.id) })) };
+  });
+
   router.get("/api/presets", () => {
     const stills = presetStills();
     return listPresets(catalog).map((p) => card(p, stills));

@@ -184,3 +184,12 @@ export function routes(table: Record<string, (init?: RequestInit) => unknown>) {
     return Promise.resolve(new Response(JSON.stringify(value), { status: 200 }));
   };
 }
+
+/** Two looks in two categories, as /api/looks sends them. */
+export const looksView = {
+  categories: ["Cinematic", "Social"],
+  looks: [
+    { id: "neo-noir", title: "Neo-noir night", category: "Cinematic", tagline: "Wet streets, hard shadows, neon.", bestFor: "Thrillers.", picks: { move: "truck-right", speed: "slow", lens: "35mm", light: "night-practicals" }, look: "Inky blacks.", pacing: "Slow and tense.", sound: "Rain patter.", swatch: ["#07090f", "#0e6b7a", "#e0782f"] },
+    { id: "phone-selfie", title: "Phone selfie", category: "Social", tagline: "Real person, real phone.", bestFor: "UGC ads.", picks: { size: "medium-close-up", move: "handheld" }, look: "Shot on a phone.", pacing: "Natural.", sound: "A clear close voice.", swatch: ["#2c2a28", "#a88c74", "#e8dccd"] },
+  ],
+};

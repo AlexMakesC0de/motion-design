@@ -45,7 +45,7 @@ describe("video picks", () => {
   });
 
   test("apply: no picks leaves the prompt untouched", () => {
-    assert.deepEqual(applyVideoPicks("a fox runs  ", undefined, { promptProfile: { family: "seedance", maxChars: 5 } }), { prompt: "a fox runs  ", picks: null, typedPrompt: null });
+    assert.deepEqual(applyVideoPicks("a fox runs  ", undefined, { promptProfile: { family: "seedance", maxChars: 5 } }), { prompt: "a fox runs  ", picks: null, look: null, typedPrompt: null });
     assert.equal(applyVideoPicks("x", {}, {}).picks, null);
   });
 
@@ -65,5 +65,45 @@ describe("video picks", () => {
 
   test("apply: bad picks are refused", () => {
     assert.throws(() => applyVideoPicks("x", { light: "nope" }, {}), /not on the director's lights menu/);
+  });
+});
+
+const { loadLooks, findLook } = await import("../cli/director/looks.mjs");
+const { loadMenu: menuOf, entry } = await import("../cli/director/menu.mjs");
+
+describe("looks", () => {
+  test("every look's picks are on the menu, and its words fit a 2000-character model with room for a prompt", () => {
+    const menu = menuOf();
+    const groups = { move: "moves", speed: "speeds", size: "sizes", angle: "angles", lens: "lenses", light: "lights" };
+    const { categories, looks } = loadLooks();
+    assert.ok(looks.length >= 12);
+    for (const l of looks) {
+      assert.ok(categories.includes(l.category), `${l.id}: unknown category ${l.category}`);
+      for (const [k, id] of Object.entries(l.picks)) entry(menu, groups[k], id);
+      assert.equal(l.swatch.length, 3);
+      const r = applyVideoPicks("x", undefined, { id: "m", promptProfile: { family: "seedance", maxChars: 2000 } }, { look: l.id });
+      assert.ok(r.prompt.length < 700, `${l.id} adds ${r.prompt.length} characters`);
+    }
+  });
+
+  test("a look's picks stand in only when no picks are sent; sent picks, even none, are used instead", () => {
+    const m = { id: "m", promptProfile: { family: "seedance", maxChars: 6000 } };
+    const withLook = applyVideoPicks("A fox.", undefined, m, { look: "neo-noir" });
+    assert.deepEqual(withLook.picks, findLook("neo-noir").picks);
+    assert.equal(withLook.look, "neo-noir");
+    assert.match(withLook.prompt, /^A fox\.\n\nCamera: .*\nLook: Inky blacks/s);
+    assert.match(withLook.prompt, /Sound: /);
+    const none = applyVideoPicks("A fox.", {}, m, { look: "neo-noir" });
+    assert.equal(none.picks, null);
+    assert.doesNotMatch(none.prompt, /Camera:/);
+    assert.match(none.prompt, /Look: /);
+    const mine = applyVideoPicks("A fox.", { move: "static" }, m, { look: "neo-noir" });
+    assert.deepEqual(mine.picks, { move: "static" });
+  });
+
+  test("a silent model family gets no sound line; an unknown look is refused by name", () => {
+    const r = applyVideoPicks("A fox.", undefined, { id: "h", promptProfile: { family: "hailuo", maxChars: 2000 } }, { look: "neo-noir" });
+    assert.doesNotMatch(r.prompt, /Sound:/);
+    assert.throws(() => applyVideoPicks("A fox.", undefined, {}, { look: "nope" }), /No look "nope"\. Looks: golden-hour-drama/);
   });
 });

@@ -19,9 +19,11 @@ export interface GenerateOptions {
   onSubmitted?: (r: SubmitResult) => void;
   /** A submit ended ambiguously (code 5): the job may exist, so the take list should show it. */
   onUncertain?: (localJobId: string | null) => void;
+  /** Fields this page adds to the request (Image's conversation id). */
+  extra?: Record<string, string>;
 }
 
-export function useGenerate({ models, capability, roles, run, onSubmitted, onUncertain }: GenerateOptions) {
+export function useGenerate({ models, capability, roles, run, onSubmitted, onUncertain, extra }: GenerateOptions) {
   const draft = useDraft();
   const pageModels = useMemo(() => sortModels(models.filter((m) => m.capability === capability)), [models, capability]);
   const model = pageModels.find((m) => m.id === draft.model) ?? null;
@@ -60,7 +62,7 @@ export function useGenerate({ models, capability, roles, run, onSubmitted, onUnc
     setFailure(null);
     try {
       const path = model.capability === "image" ? "/api/generate/image" : "/api/generate/video";
-      const r = await api<SubmitResult>(path, { method: "POST", body: generateBody(now, model, run) });
+      const r = await api<SubmitResult>(path, { method: "POST", body: { ...generateBody(now, model, run), ...extra } });
       onSubmitted?.(r);
     } catch (e) {
       if (e instanceof ApiError && e.code === 5) {

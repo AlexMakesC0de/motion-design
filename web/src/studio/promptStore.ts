@@ -22,6 +22,8 @@ export interface Draft {
   refs: RefDraft[];
   /** Create Video's chips. The server words them after the prompt; they do not change the price. */
   picks: VideoPicks;
+  /** A look (id): its picks fill the chips when chosen, and the server adds its look, pacing and sound lines. */
+  look: string | null;
   preset: string | null;
   /** A per-job budget the user raised for this job; null keeps the catalog default. */
   budgetUsd: number | null;
@@ -35,6 +37,7 @@ export const EMPTY_DRAFT: Draft = {
   resolution: null,
   refs: [],
   picks: {},
+  look: null,
   preset: null,
   budgetUsd: null,
 };
@@ -110,8 +113,9 @@ export function fitToModel(m: ModelInfo, d: Draft): Partial<Draft> {
  */
 export function reuseJob(job: JobView) {
   setDraft({
-    prompt: (job.picks ? job.typedPrompt : null) ?? job.prompt ?? "",
+    prompt: (job.picks || job.look ? job.typedPrompt : null) ?? job.prompt ?? "",
     picks: job.picks ?? {},
+    look: job.look ?? null,
     model: job.model,
     durationS: job.durationS == null || job.durationS === "" ? null : Number(job.durationS),
     aspectRatio: job.aspectRatio,
@@ -124,6 +128,7 @@ export function reuseJob(job: JobView) {
 
 /** Use this: a preset's source prompt and defaults. The prompt is the source to adapt, not to send as is. Chips stay. */
 export function applyPreset(p: { id: string; model: string | null; durationS: number | null; aspectRatio: string | null; prompt: string | null }) {
+  presetPrompt = p.prompt ?? "";
   setDraft({
     prompt: p.prompt ?? "",
     model: p.model ?? state.draft.model,
@@ -131,9 +136,32 @@ export function applyPreset(p: { id: string; model: string | null; durationS: nu
     aspectRatio: p.aspectRatio,
     resolution: null,
     refs: [],
+    look: null,
     preset: p.id,
     budgetUsd: null,
   });
+}
+
+/** Choose a look: its picks fill the chips (still yours to change); its look, pacing and sound lines are added on the server. */
+export function applyLook(look: { id: string; picks: VideoPicks }) {
+  setDraft({ look: look.id, picks: { ...look.picks } });
+}
+
+/** Take a look off, with the chips it set that are still as it set them. Chips you changed stay. */
+export function clearLook(look: { picks: VideoPicks } | null) {
+  const own = look?.picks ?? {};
+  const picks = Object.fromEntries(Object.entries(state.draft.picks).filter(([k, v]) => own[k as keyof VideoPicks] !== v)) as VideoPicks;
+  setDraft({ look: null, picks });
+}
+
+/** The source prompt the last template put in the box, so taking the look off can take its untouched prompt with it. */
+let presetPrompt = "";
+
+/** Take the template off. Its source prompt goes too, unless it has been edited; what you wrote stays. */
+export function clearPreset() {
+  const untouched = Boolean(presetPrompt) && state.draft.prompt === presetPrompt;
+  presetPrompt = "";
+  setDraft({ preset: null, ...(untouched ? { prompt: "" } : {}) });
 }
 
 export function addRef(ref: RefDraft) {
@@ -158,12 +186,18 @@ export function estimateBody(d: Draft, m: ModelInfo) {
 }
 
 /** POST /api/generate/{video,image}'s body: the MCP generate tools' argument names. */
+/** A look and the chips as sent. With a look, the chips go even when empty, so a chip the user took off stays off. */
+const lookFields = (d: Draft) => ({
+  look: d.look ?? undefined,
+  picks: Object.keys(d.picks).length ? d.picks : d.look ? {} : undefined,
+});
+
 export function generateBody(d: Draft, m: ModelInfo, run: string) {
   return {
     run,
     prompt: d.prompt,
     model: d.model,
-    ...(m.capability === "video" ? { duration_s: d.durationS ?? undefined, preset: d.preset ?? undefined, picks: Object.keys(d.picks).length ? d.picks : undefined } : {}),
+    ...(m.capability === "video" ? { duration_s: d.durationS ?? undefined, preset: d.preset ?? undefined, ...lookFields(d) } : {}),
     resolution: d.resolution ?? undefined,
     aspect_ratio: d.aspectRatio ?? undefined,
     refs: d.refs,

@@ -1,15 +1,18 @@
 // Image: a conversation of image takes (or, before the first one, a hero naming
 // the model), with a floating prompt dock at the bottom: the prompt, a
 // reference, model, aspect ratio and resolution chips, and the tall Generate
-// block. Each Generate is a turn in the thread; sending empties the box. New
+// block. Each Generate is a turn in the thread; sending empties the box. The
+// takes are split into conversations, listed in a panel floating at the left;
+// opening the page starts a new one. New
 // pictures and uploads are kept in the studio's scratch folder, runs/create/.
-import { useRef, useState, type DragEvent } from "react";
+import { useLayoutEffect, useRef, useState, type DragEvent } from "react";
 import { ApiError } from "../api/client";
 import type { JobView } from "../api/types";
 import { Icon } from "../app/icons";
 import { modelName } from "../app/modelMeta";
 import { AttachMenu, attachFile } from "./AttachMenu";
 import { GenerateMessages, PresetNote, RefChips, SelectChip } from "./controls";
+import { Conversations, conversationsOf, newConversationId } from "./Conversations";
 import { ImageThread } from "./ImageThread";
 import { setDraft } from "./promptStore";
 import { TakeViewer } from "./TakeViewer";
@@ -24,14 +27,17 @@ export const IMAGE_RUN = "create";
 
 export function ImageScreen() {
   const run = IMAGE_RUN;
-  const { models, assets, vocab, looks, loadRuns } = useStudioData();
+  const { models, assets, vocab, templates, loadRuns } = useStudioData();
   // Every film's image takes, not only the scratch folder's.
   const { jobs, error, reload } = useJobs("");
   const now = useNow();
   const [attachError, setAttachError] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Each visit starts a new conversation; it shows in the list once something is made in it.
+  const [convo, setConvo] = useState(newConversationId);
   const prompt = useRef<HTMLTextAreaElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const settled = () => {
     loadRuns();
     reload();
@@ -41,8 +47,23 @@ export function ImageScreen() {
     setDraft({ prompt: "", refs: [], preset: null, budgetUsd: null });
     settled();
   };
-  const g = useGenerate({ models, capability: "image", roles: vocab.roles, run, onSubmitted: sent, onUncertain: settled });
+  const g = useGenerate({ models, capability: "image", roles: vocab.roles, run, onSubmitted: sent, onUncertain: settled, extra: { thread: convo } });
   const { draft, model } = g;
+  // The prompt grows a row at a time, pushing the thread up, until it is half
+  // the window tall; past that it scrolls inside at that height. A thread
+  // scrolled to its newest turn stays there while the box grows.
+  useLayoutEffect(() => {
+    const box = prompt.current;
+    if (!box) return;
+    const feed = body.current;
+    const atEnd = feed ? feed.scrollHeight - feed.scrollTop - feed.clientHeight < 4 : false;
+    const cap = Math.round(window.innerHeight / 2);
+    box.style.height = "auto";
+    const full = box.scrollHeight;
+    box.style.height = `${Math.min(full, cap)}px`;
+    box.style.overflowY = full > cap ? "auto" : "hidden";
+    if (feed && atEnd) feed.scrollTop = feed.scrollHeight;
+  }, [draft.prompt]);
 
   // A picture dropped on the dock is uploaded like "Upload from your computer", as the first role.
   const hasFile = (e: DragEvent) => [...e.dataTransfer.types].includes("Files");
@@ -64,13 +85,29 @@ export function ImageScreen() {
   const imageRoles = g.roleChoices.filter((r) => r === "identity" || r === "style");
   const attachRoles = imageRoles.length ? imageRoles : g.roleChoices;
 
-  const takes = jobs.filter((j) => j.capability === "image");
+  const allTakes = jobs.filter((j) => j.capability === "image");
+  const convos = conversationsOf(allTakes);
+  const takes = convos.find((c) => c.id === convo)?.takes ?? [];
   const open: JobView | null = takes.find((j) => j.id === openId) ?? null;
-  const pictures = [...takes.filter((j) => j.state === "succeeded").map((j) => j.media[0]), ...looks.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
+  const pictures = [...allTakes.filter((j) => j.state === "succeeded").map((j) => j.media[0]), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
 
   return (
     <div className="image-page">
-      <div className="image-page__body">
+      <Conversations
+        list={convos}
+        current={convo}
+        now={now}
+        onPick={(id) => {
+          setConvo(id);
+          setOpenId(null);
+        }}
+        onNew={() => {
+          setConvo(newConversationId());
+          setOpenId(null);
+          prompt.current?.focus();
+        }}
+      />
+      <div ref={body} className="image-page__body">
         {error && <p className="feed__error">{error}</p>}
         {!error && takes.length > 0 ? (
           <ImageThread takes={takes} allJobs={jobs} now={now} roles={attachRoles} onOpen={(job) => setOpenId(job.id)} focusPrompt={() => prompt.current?.focus()} />
@@ -108,7 +145,7 @@ export function ImageScreen() {
         )}
         <div className="dock__main">
           <GenerateMessages g={g} reasonId="image-generate-reason" />
-          <PresetNote preset={draft.preset} title={looks.find((l) => l.id === draft.preset)?.title} />
+          <PresetNote preset={draft.preset} title={templates.find((l) => l.id === draft.preset)?.title} />
           <textarea ref={prompt} className="dock__text" aria-label="Prompt" placeholder="Describe the image…" rows={2} value={draft.prompt} onChange={(e) => setDraft({ prompt: e.target.value })} />
           {attachError && (
             <p className="gen-msg gen-msg--failure" role="alert">

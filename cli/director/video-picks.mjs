@@ -4,6 +4,7 @@
 import { unknown } from "../lib/errors.mjs";
 import { loadMenu, entry } from "./menu.mjs";
 import { STAGE_PICKS, SCENE_PICKS, stageWords, framingWords, pickSentence, cameraWords } from "./picks.mjs";
+import { findLook, lookLines } from "./looks.mjs";
 
 /** Every key a video takes → its menu group. */
 export const VIDEO_PICKS = { ...STAGE_PICKS, ...SCENE_PICKS };
@@ -55,18 +56,25 @@ export function picksBlock(picks, family, { menu = loadMenu() } = {}) {
   return lines.filter(Boolean).join("\n");
 }
 
-/** { prompt, picks, typedPrompt } to send. Throws (nothing spent) when the block pushes the prompt past maxChars. */
-export function applyVideoPicks(prompt, input, model, { menu = loadMenu() } = {}) {
-  const picks = cleanVideoPicks(input, { menu });
-  if (!picks) return { prompt, picks: null, typedPrompt: null };
-  const block = picksBlock(picks, model?.promptProfile?.family, { menu });
+/**
+ * { prompt, picks, look, typedPrompt } to send. A look's picks stand in when
+ * the caller sends no picks at all (undefined); any picks sent, even none ({}),
+ * are used instead, so the studio's chips are exactly what goes. The look's own
+ * lines follow the picks. Throws (nothing spent) when the result is past maxChars.
+ */
+export function applyVideoPicks(prompt, input, model, { menu = loadMenu(), look: lookId = null } = {}) {
+  const look = lookId ? findLook(lookId) : null;
+  const picks = cleanVideoPicks(input === undefined && look ? look.picks : input, { menu });
+  const family = model?.promptProfile?.family;
+  const block = [picks ? picksBlock(picks, family, { menu }) : "", ...lookLines(look, family)].filter(Boolean).join("\n");
+  if (!block) return { prompt, picks: null, look: null, typedPrompt: null };
   const full = `${prompt.trimEnd()}\n\n${block}`;
   const max = model?.promptProfile?.maxChars;
   if (max && full.length > max) {
     throw unknown(
-      `Refused before submitting, nothing was spent. With the picks the prompt is ${full.length} characters; ${model.id} follows at most ${max}. Shorten the prompt or remove a pick.`,
+      `Refused before submitting, nothing was spent. With the ${look ? "look and picks" : "picks"} the prompt is ${full.length} characters; ${model.id} follows at most ${max}. Shorten the prompt or remove a ${look ? "look or pick" : "pick"}.`,
       { field: "prompt" },
     );
   }
-  return { prompt: full, picks, typedPrompt: prompt };
+  return { prompt: full, picks, look: look?.id ?? null, typedPrompt: prompt };
 }

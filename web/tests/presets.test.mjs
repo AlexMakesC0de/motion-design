@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const { createApp } = await import("../server/app.mjs");
-const { presetStills, stillUrl } = await import("../server/stills.mjs");
+const { presetStills, stillUrl, lookStill } = await import("../server/stills.mjs");
 
 let app, port;
 before(async () => {
@@ -81,5 +81,26 @@ describe("model resolution choices", () => {
   test("an image model keeps the resolutions listModels gives", async () => {
     const r = await req(port, "/api/models?capability=image");
     assert.deepEqual(r.json.find((m) => m.id === "gpt-image-2-5").resolutionOptions, ["1K", "2K", "4K"]);
+  });
+});
+
+describe("looks", () => {
+  test("GET /api/looks lists the looks by category, each with its picks, lines and a preview URL or null", async () => {
+    const r = await req(port, "/api/looks");
+    assert.equal(r.status, 200, r.text);
+    assert.ok(r.json.categories.includes("Cinematic"));
+    const noir = r.json.looks.find((l) => l.id === "neo-noir");
+    assert.equal(noir.picks.light, "night-practicals");
+    assert.ok(noir.still === null || noir.still === "/media/looks/neo-noir.jpg");
+  });
+
+  test("a look's preview is found by id only, and the media route serves look ids only", async () => {
+    const dir = join(tmp, "look-stills");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "neo-noir.jpg"), "jpg");
+    assert.equal(lookStill("neo-noir", dir), join(dir, "neo-noir.jpg"));
+    assert.equal(lookStill("missing", dir), null);
+    assert.equal(lookStill("../secret", dir), null);
+    assert.equal((await req(port, "/media/looks/not-a-look.jpg")).status, 404);
   });
 });
