@@ -14,7 +14,7 @@ const META: Record<string, { name: string; blurb: string; badge?: "Top" | "New" 
   "minimax-h3-max": { name: "MiniMax H3 Max", blurb: "Footage overlays and denser scenes" },
   "wan-3-0": { name: "Wan 3.0", blurb: "Video from text, keyframes or references" },
   "wan-2-6": { name: "Wan 2.6", blurb: "Low-cost tests, reframe afterwards" },
-  "gpt-image-2-5": { name: "GPT Image 2.5", blurb: "Top quality and precise edits", badge: "New" },
+  "gpt-image-2-5": { name: "GPT Image 2.5", blurb: "Top quality and precise edits" },
   "gpt-image-2": { name: "GPT Image 2", blurb: "Stays faithful to your references" },
   "nano-banana-2": { name: "Nano Banana 2", blurb: "Sharp, readable text inside the image" },
   "seedream-5-pro": { name: "Seedream 5 Pro", blurb: "Cheap style frames and moodboards" },

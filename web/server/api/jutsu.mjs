@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { JUTSU_RUN, runDir } from "../../../cli/lib/run.mjs";
-import { probe as ffprobe } from "../../../cli/lib/ffmpeg.mjs";
+import { ffmpegWriting, probe as ffprobe, requireFfmpeg } from "../../../cli/lib/ffmpeg.mjs";
 import { mp4Meta } from "../../../cli/lib/mp4meta.mjs";
 import { estimateUsd } from "../../../cli/lib/budget.mjs";
 import { routesFor } from "../../../cli/lib/models.mjs";
@@ -25,9 +25,105 @@ import { label, saveBody } from "./library.mjs";
 import * as f from "./fields.mjs";
 
 export { JUTSU_RUN };
+/** The Motion Library's shelves; a clip is filed under one, or none. */
+export const CLIP_CATEGORIES = ["Dance", "Action", "Sports", "Comedy", "Fashion", "Lifestyle"];
+function categoryOf(value, field = "category") {
+  if (value == null || value === "") return null;
+  if (!CLIP_CATEGORIES.includes(value)) throw f.invalid(field, `File it under one of: ${CLIP_CATEGORIES.join(", ")}.`);
+  return value;
+}
 const FOLDERS = { video: "clips", image: "cast" };
 
 const jutsuModels = (catalog) => catalog.list.filter((m) => m.capability === "jutsu" && m.jutsu);
+
+/**
+ * H3 swaps by instruction, with no mask: this is what it is told when the user
+ * writes nothing. It names the roles of the two references, says what to take
+ * from the picture, and lists what must stay, as kie's H3 guide advises.
+ */
+export const H3_SWAP_PROMPT =
+  "Video edit. The reference video is the source footage; the reference picture is the new character. " +
+  "Replace the main person in the video with the character from the picture: their face, hair, skin, build and clothes all come from the picture. " +
+  "Keep everything else exactly as in the video: the performance, pose, gestures and timing, the camera movement and framing, the cuts, the background, the lighting, " +
+  "and every other person and object. Keep the original sound.";
+
+/** What an H3 swap can change, and what the extra words mean for each. */
+export const H3_TARGETS = ["person", "outfit", "object", "background"];
+const DETAIL_MAX = 500;
+const KEEP_CAMERA = "the camera movement and framing, the cuts";
+
+/**
+ * The written edit H3 gets for one target: what the reference picture is (if
+ * there is one), the one thing to change, and everything that must stay. H3
+ * has no mask on kie, so the list of what stays is how "only what you pick" is
+ * asked for; it is a request, not a guarantee.
+ */
+export function h3Instruction(target, detail, hasPicture, { sheet = false } = {}) {
+  const d = (detail ?? "").replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+  const pic = (what) => (hasPicture ? `; the reference picture shows ${what}` : "");
+  switch (target) {
+    case "outfit":
+      return (
+        `Video edit. The reference video is the source footage${pic("the new outfit")}. ` +
+        `Change only the clothes of the main person, to ${d || "the outfit in the reference picture"}${d && hasPicture ? ", matching the reference picture" : ""}. ` +
+        `Keep everything else exactly as in the video: the person's face, hair and body, their performance, pose, gestures and timing, ${KEEP_CAMERA}, ` +
+        "the background, the lighting, every other person and object, and the original sound."
+      );
+    case "object":
+      return (
+        `Video edit. The reference video is the source footage${pic("the new object")}. ` +
+        `Change only this: ${d || "replace the main object with the one in the reference picture"}${d && hasPicture ? ", looking like the reference picture" : ""}. ` +
+        `It moves and is lit like what it replaces. Keep everything else exactly as in the video: the people and their performance, ${KEEP_CAMERA}, ` +
+        "the background, the lighting, and the original sound."
+      );
+    case "background":
+      return (
+        `Video edit. The reference video is the source footage${pic("the new place")}. ` +
+        `Change only the background and surroundings, to ${d || "the place in the reference picture"}${d && hasPicture ? ", matching the reference picture" : ""}. ` +
+        "Keep the people exactly as they are: their faces, hair, clothes, performance, pose, gestures and timing; adjust the light on them only as much as the new place needs. " +
+        `Keep ${KEEP_CAMERA} and the original sound.`
+      );
+    default: {
+      const base = d ? H3_SWAP_PROMPT.replace("the main person", d) : H3_SWAP_PROMPT;
+      return sheet ? `${base} ${SHEET_NOTE}` : base;
+    }
+  }
+}
+
+/**
+ * A Library character sheet is three panels of one person (close-up, front with
+ * the face hidden by a grey oval, back). Said out loud so H3 makes one person,
+ * takes the face from the close-up and never paints the oval.
+ */
+export const SHEET_NOTE =
+  "The reference picture is a character sheet of one single person in three panels: a close-up of the face on the left, the full body from the front in the middle, and from the back on the right. " +
+  "Take the face from the close-up; the grey oval in the middle panel only hides the face there and must never appear. Make exactly one person, not three.";
+
+/** The longest prompt each family takes. */
+const promptMax = (m) => (m.jutsu.prompt === "required" ? 7000 : 2500);
+const takesPrompt = (m) => m.id.startsWith("kling") || Boolean(m.jutsu.prompt);
+/** H3 makes a video of whole seconds, 4 to 15: as long as the clip, rounded. */
+/**
+ * The swap keeps the clip's shape: the nearest ratio H3 offers. "adaptive"
+ * let H3 follow the wide character sheet and turn a 9:16 TikTok clip into a
+ * 16:9 video with invented room at the sides (first real take, 2026-11-18).
+ */
+export function clipRatio(m, clip) {
+  const route = m.routes?.[0];
+  const ratios = (route?.input?.enums?.aspect_ratio ?? []).filter((r) => /^\d+:\d+$/.test(r));
+  if (!clip?.width || !clip?.height || !ratios.length) return "adaptive";
+  const want = Math.log(clip.width / clip.height);
+  const value = (r) => {
+    const [w, h] = r.split(":").map(Number);
+    return Math.abs(Math.log(w / h) - want);
+  };
+  return ratios.reduce((best, r) => (value(r) < value(best) ? r : best));
+}
+
+export function outputSeconds(m, clipS) {
+  const [lo, hi] = m.jutsu.outputS;
+  return Math.min(hi, Math.max(lo, Math.round(clipS)));
+}
 
 function modelView(catalog, m) {
   const route = routesFor(catalog, m).find((r) => r.usable) ?? m.routes[0];
@@ -41,7 +137,13 @@ function modelView(catalog, m) {
     resolutions: route.input?.enums?.[field] ?? [],
     defaultResolution: route.input?.defaults?.[field] ?? null,
     usdPerSecond: route.pricing?.usdPerSecond ?? {},
-    prompt: m.id.startsWith("kling"),
+    prompt: takesPrompt(m),
+    promptMax: takesPrompt(m) ? promptMax(m) : null,
+    defaultPrompt: m.jutsu.prompt === "required" ? H3_SWAP_PROMPT : null,
+    // What a swap can change; only H3, which is told in words, can change more than the person.
+    targets: m.jutsu.prompt === "required" ? H3_TARGETS : null,
+    // H3 bills the clip's seconds on top of a video of its own length.
+    billsInput: Boolean(m.jutsu.outputS),
     orientations: m.jutsu.orientations ?? null,
     videoS: m.jutsu.videoS,
     imageOrientationMaxS: m.jutsu.imageOrientationMaxS ?? null,
@@ -88,7 +190,7 @@ function imageIn(name) {
     }
     const im = record.images.find((x) => x.n === Number(m[2]));
     if (!im || !existsSync(im.path)) throw f.invalid("image", `${m[1]} has no picture #${m[2]}.`);
-    return { name, path: im.path, source: im.path, bytes: statSync(im.path).size };
+    return { name, path: im.path, source: im.path, bytes: statSync(im.path).size, sheet: im.role === "sheet" };
   }
   return fileIn("image", name, "image");
 }
@@ -145,6 +247,36 @@ async function realProbe(path) {
   return ffprobe(path);
 }
 
+/**
+ * Cut [startS, startS + lengthS) out of a clip into a new MP4. Re-encoded, so
+ * the cut lands on the exact frame (a stream copy would start at the nearest
+ * keyframe and could add a second the provider then bills).
+ */
+async function realTrim(src, out, startS, lengthS) {
+  requireFfmpeg();
+  await ffmpegWriting(out, [
+    "-ss", String(startS), "-i", src, "-t", String(lengthS),
+    "-map", "0:v:0", "-map", "0:a:0?",
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out,
+  ]);
+}
+
+/** ffmpeg's failure in words: a broken install is named, with the fix. */
+function trimFailure(err) {
+  const text = String(err?.message ?? err);
+  const broken = /Library not loaded|dyld|not found on PATH|Could not run ffmpeg/i.test(text);
+  return new HttpError(
+    500,
+    broken
+      ? "Cutting needs ffmpeg, and it could not start on this Mac (a library it needs is missing). Run brew reinstall ffmpeg, then try again. Nothing was spent."
+      : `ffmpeg could not cut this clip. Nothing was spent. ${text.split("\n").slice(-3).join(" ").slice(0, 300)}`,
+  );
+}
+
+const tenth = (n) => Math.round(n * 10) / 10;
+const secondsWord = (n) => String(tenth(n)).replace(".", "-");
+
 function clipInfo(path) {
   let info = {};
   try {
@@ -185,6 +317,13 @@ export function problemsFor(m, { clip, image, orientation }) {
     if (j.minSidePx && clip.width && clip.height && Math.min(clip.width, clip.height) <= j.minSidePx) {
       out.push(`The video is ${clip.width}×${clip.height}; each side must be over ${j.minSidePx}px.`);
     }
+    if (j.maxSidePx && clip.width && clip.height && Math.max(clip.width, clip.height) > j.maxSidePx) {
+      out.push(`The video is ${clip.width}×${clip.height}; ${m.label} takes up to ${j.maxSidePx}px a side.`);
+    }
+    if (j.aspect && clip.width && clip.height) {
+      const a = clip.width / clip.height;
+      if (a < j.aspect[0] || a > j.aspect[1]) out.push(`The video's shape (${clip.width}×${clip.height}) is too tall or too wide for ${m.label}.`);
+    }
   }
   if (image && image.bytes > j.maxImageBytes) out.push(`The picture is ${mb(image.bytes)}; ${m.label} takes up to ${mb(j.maxImageBytes)}.`);
   return out;
@@ -193,6 +332,7 @@ export function problemsFor(m, { clip, image, orientation }) {
 export function registerJutsu(router, { catalog, deps = {}, follower }) {
   const submit = createSubmitter({ catalog, deps, follower });
   const probe = deps.probe ?? realProbe;
+  const trim = deps.trim ?? realTrim;
 
   function model(body) {
     const id = f.text(body, "model", { required: true });
@@ -215,18 +355,40 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     return o;
   }
 
-  /** The clip and picture this request names, with the clip's probed length. */
-  function inputs(body) {
+  /**
+   * What an H3 swap changes, and its words. Only the person needs a picture;
+   * an outfit, object or place may be a picture, words, or both, never neither.
+   */
+  function targetFor(m, body) {
+    if (m.jutsu.prompt !== "required") return { target: "person", detail: "" };
+    const target = f.text(body, "target") ?? "person";
+    if (!H3_TARGETS.includes(target)) throw f.invalid("target", `What to change is one of: ${H3_TARGETS.join(", ")}.`);
+    const detail = (f.text(body, "detail") ?? "").trim();
+    if (detail.length > DETAIL_MAX) throw f.invalid("detail", `Keep it under ${DETAIL_MAX} characters.`);
+    return { target, detail };
+  }
+
+  /** The clip and picture this request names, with the clip's probed length. The picture may be left out where the target allows. */
+  function inputs(body, { target, detail }) {
     const clipFile = fileIn("video", body.video, "video");
     const clip = { ...clipFile, ...clipInfo(clipFile.path), bytes: clipFile.bytes };
+    if (target !== "person" && !body.image) {
+      if (!detail) throw f.invalid("detail", `Describe the new ${target === "background" ? "place" : target}, or add a picture of it.`);
+      return { clip, image: null };
+    }
     const image = imageIn(body.image);
     return { clip, image };
   }
 
-  function price(m, resolution, durationS) {
+  /** The price for a clip of `clipS` seconds: its length for motion control and Wan; H3's output plus the clip's whole seconds. */
+  function price(m, resolution, clipS) {
     const route = routesFor(catalog, m).find((r) => r.usable) ?? m.routes[0];
     const field = route.pricing?.resolutionField ?? "resolution";
-    return estimateUsd(route, { durationS, resolution, input: { [field]: resolution } });
+    const video = route.pricing?.videoInput;
+    if (m.jutsu.outputS && video) {
+      return estimateUsd(route, { durationS: outputSeconds(m, clipS), resolution, input: { [field]: resolution, [video.field]: ["clip"] }, inputS: clipS });
+    }
+    return estimateUsd(route, { durationS: billedS(clipS), resolution, input: { [field]: resolution } });
   }
 
   function clipsView() {
@@ -252,6 +414,7 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
           bytes: statSync(path).size,
           addedAt: info.addedAt ?? statSync(path).mtime.toISOString(),
           uses: uses.get(name) ?? 0,
+          category: info.category ?? null,
         };
       })
       .sort((a, b) => b.addedAt.localeCompare(a.addedAt));
@@ -268,6 +431,7 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
 
   router.get("/api/jutsu", () => ({
     run: JUTSU_RUN,
+    categories: CLIP_CATEGORIES,
     models: jutsuModels(catalog).map((m) => modelView(catalog, m)),
     clips: clipsView(),
     cast: castView(),
@@ -280,6 +444,7 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     "/api/jutsu/upload",
     async ({ req, query }) => {
       const kind = query.get("kind") === "video" ? "video" : "image";
+      const category = kind === "video" ? categoryOf(query.get("category")) : null;
       const name = label(query.get("name") ?? req.headers["x-file-name"]);
       const limit = MAX_BYTES[kind];
       const dir = join(runDir(JUTSU_RUN), FOLDERS[kind]);
@@ -315,11 +480,54 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
       } catch {
         // ffprobe missing or the file unreadable: kept, and the page says it cannot be priced.
       }
-      writeFileSync(sidecar(path), `${JSON.stringify({ ...probed, addedAt: new Date().toISOString() }, null, 2)}\n`);
-      return { kind, name: file, media: mediaUrl(path), durationS: probed.durationS ?? null, width: probed.width ?? null, height: probed.height ?? null, bytes: size };
+      writeFileSync(sidecar(path), `${JSON.stringify({ ...probed, ...(category ? { category } : {}), addedAt: new Date().toISOString() }, null, 2)}\n`);
+      return { kind, name: file, media: mediaUrl(path), durationS: probed.durationS ?? null, width: probed.width ?? null, height: probed.height ?? null, bytes: size, category };
     },
     { raw: true },
   );
+
+  /**
+   * Free: cut part of a clip into a new clip next to it ("part to use"). H3
+   * takes at most 15 seconds and every model bills the clip's seconds, so a
+   * shorter part is both allowed and cheaper. The original is kept.
+   */
+  router.post("/api/jutsu/trim", async ({ body = {} }) => {
+    const src = fileIn("video", body.video, "video");
+    const total = clipInfo(src.path).durationS;
+    if (total == null) throw f.invalid("video", "This clip's length could not be read, so it cannot be cut. Upload it again as an MP4 or MOV.");
+    const startS = Number(body.startS);
+    const lengthS = Number(body.lengthS);
+    if (!Number.isFinite(startS) || startS < 0 || startS >= total) throw f.invalid("startS", `Start between 0 and ${tenth(total)}s.`);
+    if (!Number.isFinite(lengthS) || lengthS < 1) throw f.invalid("lengthS", "Keep at least 1 second.");
+    if (startS + lengthS > total + 0.05) throw f.invalid("lengthS", `The clip ends at ${tenth(total)}s; from ${tenth(startS)}s that leaves ${tenth(total - startS)}s.`);
+    const dir = join(runDir(JUTSU_RUN), FOLDERS.video);
+    const stem = safeStem(src.name.replace(/\.(mp4|mov)$/i, "")) || "clip";
+    const file = freeName(dir, `${stem}-${secondsWord(startS)}s-${secondsWord(lengthS)}s`, ".mp4");
+    const out = join(dir, file);
+    try {
+      await trim(src.path, out, tenth(startS), tenth(lengthS));
+    } catch (err) {
+      rmSync(out, { force: true });
+      throw trimFailure(err);
+    }
+    let probed = {};
+    try {
+      const p = await probe(out);
+      probed = { durationS: p.durationS, width: p.width, height: p.height };
+    } catch {}
+    writeFileSync(sidecar(out), `${JSON.stringify({ ...probed, trimmedFrom: src.name, startS: tenth(startS), addedAt: new Date().toISOString() }, null, 2)}\n`);
+    return { name: file, media: mediaUrl(out), durationS: probed.durationS ?? null, width: probed.width ?? null, height: probed.height ?? null, bytes: statSync(out).size, trimmedFrom: src.name };
+  });
+
+  /** File a clip under a Motion Library category, or take it off the shelves (category null). */
+  router.patch("/api/jutsu/files/video/:name", ({ params, body = {} }) => {
+    const file = fileIn("video", params.name, "name");
+    const category = categoryOf(body.category);
+    const info = clipInfo(file.path);
+    const { category: _old, ...rest } = info;
+    writeFileSync(sidecar(file.path), `${JSON.stringify({ ...rest, ...(category ? { category } : {}) }, null, 2)}\n`);
+    return { name: file.name, category };
+  });
 
   /** Remove an uploaded clip or picture. Takes already made from it are kept. */
   router.delete("/api/jutsu/files/:kind/:name", ({ params }) => {
@@ -340,14 +548,18 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const clip = clipFile ? { ...clipFile, ...clipInfo(clipFile.path), bytes: clipFile.bytes } : null;
     const image = body.image ? imageIn(body.image) : null;
     const problems = problemsFor(m, { clip, image, orientation });
-    const est = clip?.durationS ? price(m, resolution, billedS(clip.durationS)) : null;
+    const est = clip?.durationS ? price(m, resolution, clip.durationS) : null;
     const usd = est?.usd ?? null;
     const { store, limits } = context();
     const pos = dailyPosition(store, limits);
     const budgetUsd = catalog.defaultBudgetUsd?.jutsu ?? null;
     const perJobUsd = limits?.perJobUsd ?? null;
+    // What H3 would be told for what the user picked, shown and editable on the page.
+    const aim = targetFor(m, body);
+    const instruction = m.jutsu.prompt === "required" ? h3Instruction(aim.target, aim.detail, Boolean(body.image), { sheet: Boolean(image?.sheet) }) : null;
     return {
       usd,
+      instruction,
       basis: est?.basis ?? null,
       durationS: clip?.durationS ?? null,
       problems,
@@ -366,28 +578,31 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const m = model(body);
     const resolution = resolutionFor(m, body);
     const orientation = orientationFor(m, body);
-    const { clip, image } = inputs(body);
+    const aim = targetFor(m, body);
+    const { clip, image } = inputs(body, aim);
     const problems = problemsFor(m, { clip, image, orientation });
     if (problems.length) throw f.invalid("video", `Refused before submitting, nothing was spent. ${problems.join(" ")}`);
     const kling = m.id.startsWith("kling");
-    const prompt = kling ? (f.text(body, "prompt") ?? "") : "";
-    if (prompt.length > 2500) throw f.invalid("prompt", "The prompt is over 2,500 characters.");
-    const durationS = billedS(clip.durationS);
-    const values = kling
-      ? { ...(prompt ? { prompt } : {}), mode: resolution, character_orientation: orientation, _durationS: durationS }
-      : { resolution, _durationS: durationS };
+    const h3 = m.jutsu.prompt === "required";
+    const typed = takesPrompt(m) ? (f.text(body, "prompt") ?? "").trim() : "";
+    // A prompt the user wrote is sent as written; otherwise H3 gets the edit for what they picked.
+    const prompt = h3 ? typed || h3Instruction(aim.target, aim.detail, Boolean(image), { sheet: Boolean(image?.sheet) }) : typed;
+    if (prompt.length > promptMax(m)) throw f.invalid("prompt", `The prompt is over ${promptMax(m).toLocaleString("en")} characters.`);
+    const durationS = h3 ? outputSeconds(m, clip.durationS) : billedS(clip.durationS);
+    const values = h3
+      ? { prompt, duration: durationS, resolution, aspect_ratio: clipRatio(m, clip), _inputS: clip.durationS }
+      : kling
+        ? { ...(prompt ? { prompt } : {}), mode: resolution, character_orientation: orientation, _durationS: durationS }
+        : { resolution, _durationS: durationS };
     const a = {
       run: JUTSU_RUN,
       prompt,
-      refs: [
-        { source: image.source, role: "identity" },
-        { source: clip.source, role: "motion" },
-      ],
+      refs: [...(image ? [{ source: image.source, role: "identity" }] : []), { source: clip.source, role: "motion" }],
       params: {},
       budget_usd: f.amount(body, "budget_usd"),
       provider: null,
     };
-    const jutsu = { mode: m.jutsu.mode, video: clip.name, image: image.name };
+    const jutsu = { mode: m.jutsu.mode, video: clip.name, image: image?.name ?? null, ...(h3 ? { target: aim.target } : {}) };
     return submit("jutsu", m, a, values, {
       promptFile: "jutsu-prompt.txt",
       inputsFile: "jutsu-inputs.json",

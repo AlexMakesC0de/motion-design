@@ -2,7 +2,8 @@
 // Openjutsu: one reference video and one character picture make one take.
 // Motion transfer has the character perform the video's motion (Kling motion
 // control, Standard 2.6 or Pro 3.0); Swap puts the character into the video in
-// place of its person (Wan 2.2 Animate Replace). Left: a compact form that fits
+// place of its person (Wan 2.2 Animate Replace, or MiniMax H3 told in words).
+// A long clip can be cut to the part to use, free. Left: a compact form that fits
 // the window, whose pickers open as menus to its right. Right: the Motion
 // Library of uploaded clips (with how many takes each made) and the History of
 // takes. Prices come from the server, from the clip's own length.
@@ -12,6 +13,8 @@ import type { JobView, JutsuCast, JutsuClip, JutsuEstimate, JutsuGeneration, Jut
 import { Icon } from "../app/icons";
 import { useJobs } from "../studio/useJobs";
 import { takeCost, takeStatus, usd } from "../studio/format";
+import { useSideMenu } from "../studio/useSideMenu";
+import { Masonry, ratioOf } from "./Masonry";
 import "./jutsu.css";
 
 type Mode = "motion" | "swap";
@@ -24,15 +27,24 @@ type MenuId = "tier" | "quality" | "facing" | "cast" | "clip";
 const VIDEO_ACCEPT = "video/mp4,video/quicktime";
 const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp";
 const MODE_WORDS: Record<Mode, string> = { motion: "Motion transfer", swap: "Swap" };
+type Target = "person" | "outfit" | "object" | "background";
+const TARGET_WORDS: Record<Target, string> = { person: "Person", outfit: "Outfit", object: "Object", background: "Background" };
+/** For each target: the words box, the picture tile, and the line under the tiles. */
+const TARGET_UI: Record<Target, { label: string; placeholder: string; tile: string; tileHint: string; hint: string }> = {
+  person: { label: "Who to replace", placeholder: "Optional: the drummer, the woman in red", tile: "Character", tileHint: "Library or upload", hint: "Your character replaces the person; everything else stays." },
+  outfit: { label: "The new outfit", placeholder: "A black leather jacket and jeans", tile: "Outfit picture", tileHint: "Optional", hint: "Only the clothes change; the person, the place and the camera stay." },
+  object: { label: "What changes, into what", placeholder: "The mug into a glass bottle", tile: "Object picture", tileHint: "Optional", hint: "Only that thing changes; the people, the place and the camera stay." },
+  background: { label: "The new place", placeholder: "A rooftop in Tokyo at night", tile: "Place picture", tileHint: "Optional", hint: "Only the place changes; the people and the camera stay." },
+};
 const MODE_HINT: Record<Mode, string> = {
   motion: "Your character performs the video's motion.",
   swap: "Your character replaces the person in the video.",
 };
 const TIER_WORDS: Record<Tier, string> = { standard: "Standard", pro: "Pro" };
 const FACING_WORDS: Record<Facing, string> = { video: "As in the video", image: "As in the picture" };
-/** What shared clips will be filed under once people can upload to the Motion Library. */
+/** The Motion Library's shelves (the server's list is the one used once loaded). */
 const CATEGORIES = ["All", "Dance", "Action", "Sports", "Comedy", "Fashion", "Lifestyle"] as const;
-type Category = (typeof CATEGORIES)[number];
+type Category = string;
 
 const seconds = (s: number | null) => (s == null ? "length unknown" : `${s < 10 ? s.toFixed(1) : Math.round(s)}s`);
 const mb = (b: number) => `${Math.round(b / 1e6)} MB`;
@@ -44,9 +56,15 @@ async function uploadFile(kind: "video" | "image", file: File) {
   });
 }
 
-/** A menu that opens to the right of the form, beside the row that opened it. Escape or a click elsewhere closes it. */
+/**
+ * A menu that opens to the right of the form, beside the row that opened it. Escape or a click elsewhere closes it.
+ * A setting's menu is placed by useSideMenu, so it stays level with its row but never runs off the window;
+ * the wide pickers fill the form's height and stay in their CSS place.
+ */
 function SideMenu({ label, onClose, children, wide }: { label: string; onClose(): void; children: ReactNode; wide?: boolean }) {
-  const box = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLElement | null>(null);
+  const placed = useSideMenu<HTMLDivElement>(!wide, row);
+  const box = placed.menu;
   useEffect(() => {
     const away = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
@@ -62,7 +80,17 @@ function SideMenu({ label, onClose, children, wide }: { label: string; onClose()
     };
   }, [onClose]);
   return (
-    <div ref={box} className="jutsu-menu" data-wide={wide || undefined} role="menu" aria-label={label}>
+    <div
+      ref={(el) => {
+        box.current = el;
+        row.current = el?.parentElement ?? null;
+      }}
+      className="jutsu-menu"
+      data-wide={wide || undefined}
+      style={wide ? undefined : placed.style}
+      role="menu"
+      aria-label={label}
+    >
       {children}
     </div>
   );
@@ -225,6 +253,39 @@ export function Pick({ media, label, caption, picked, onPick, video, meta }: { m
 }
 
 /**
+ * A clip on the Motion Library's shelves: plays on hover, and a Recreate button
+ * rises from the bottom to use its motion.
+ */
+function MotionTile({ clip, picked, onPick }: { clip: JutsuClip; picked: boolean; onPick(): void }) {
+  const video = useRef<HTMLVideoElement>(null);
+  return (
+    <div
+      role="listitem"
+      className="motion-tile"
+      data-picked={picked || undefined}
+      style={{ aspectRatio: `${clipRatio(clip)}` }}
+      onMouseEnter={() => void video.current?.play().catch(() => {})}
+      onMouseLeave={() => {
+        if (!video.current) return;
+        video.current.pause();
+        video.current.currentTime = 0.1;
+      }}
+    >
+      {clip.media && <video ref={video} src={`${clip.media}#t=0.1`} muted loop playsInline preload="metadata" aria-hidden="true" />}
+      <span className="motion-tile__meta mono">{clip.durationS != null ? `${clip.durationS < 10 ? clip.durationS.toFixed(1) : Math.round(clip.durationS)}s` : "?"}</span>
+      {picked && (
+        <span className="jutsu-picker__check" aria-hidden="true">
+          <Icon name="check" size={12} />
+        </span>
+      )}
+      <button type="button" className="motion-tile__recreate" aria-pressed={picked} aria-label={`Recreate ${clip.name}`} onClick={onPick}>
+        Recreate
+      </button>
+    </div>
+  );
+}
+
+/**
  * The character picker: a roomy panel beside the form with Uploads (and the
  * upload tile), the Library's pictures, and pictures generated in the studio.
  */
@@ -379,16 +440,37 @@ function ClipPicker({ clips, current, busy, onPick, onUpload, onClose }: { clips
   );
 }
 
+/** A clip's width / height, or 9:16 (most dance clips) when it is not known. */
+function clipRatio(clip: JutsuClip): number {
+  return clip.width && clip.height ? clip.width / clip.height : 9 / 16;
+}
+
+/** A take's width / height: what its video reported, else what was asked for, else 9:16. */
+function takeRatio(job: JobView, seen: Record<string, number>, now: number): number {
+  if (takeStatus(job, now).kind !== "done" || !job.media[0]) return 3 / 4;
+  return seen[job.id] ?? ratioOf(job.aspectRatio) ?? 9 / 16;
+}
+
 /** A take in History: the video when it is done, its state while it runs or after it failed. */
-function TakeTile({ job, models, now }: { job: JobView; models: JutsuModel[]; now: number }) {
+function TakeTile({ job, models, now, onShape }: { job: JobView; models: JutsuModel[]; now: number; onShape(ratio: number): void }) {
   const status = takeStatus(job, now);
   const label = models.find((m) => m.id === job.model)?.label ?? job.model;
   const media = job.media[0];
   return (
-    <li className="jutsu-take" data-state={status.kind}>
+    <div role="listitem" className="jutsu-take" data-state={status.kind}>
       <div className="jutsu-take__media">
         {status.kind === "done" && media ? (
-          <video src={media} controls playsInline preload="metadata" aria-label={`${label} take`} />
+          <video
+            src={media}
+            controls
+            playsInline
+            preload="metadata"
+            aria-label={`${label} take`}
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) onShape(v.videoWidth / v.videoHeight);
+            }}
+          />
         ) : (
           <div className="jutsu-take__state">
             {status.kind === "failed" ? <Icon name="close" size={18} /> : <span className="jutsu-take__pulse" aria-hidden="true" />}
@@ -406,7 +488,56 @@ function TakeTile({ job, models, now }: { job: JobView; models: JutsuModel[]; no
           <Icon name="download" size={14} />
         </a>
       )}
-    </li>
+    </div>
+  );
+}
+
+/**
+ * Part to use: cut a stretch of the clip into a new clip, free. Open by itself
+ * when the clip is longer than the model takes; H3 takes at most 15 seconds and
+ * every model bills the clip's seconds, so a shorter part also costs less.
+ */
+function PartToUse({ clip, maxS, busy, onCut }: { clip: JutsuClip; maxS: number; busy: boolean; onCut(startS: number, lengthS: number): void }) {
+  const total = clip.durationS ?? 0;
+  const tooLong = total > maxS;
+  const [open, setOpen] = useState(tooLong);
+  const [start, setStart] = useState(0);
+  const [length, setLength] = useState(Math.min(total, maxS));
+  // A different clip, or a model with another limit, starts again from the top.
+  useEffect(() => {
+    setOpen(total > maxS);
+    setStart(0);
+    setLength(Math.floor(Math.min(total, maxS) * 10) / 10);
+  }, [clip.name, total, maxS]);
+  const left = Math.max(0, total - start);
+  const valid = start >= 0 && start < total && length >= 1 && length <= left + 0.05;
+  return (
+    <div className="jutsu-part" data-on={open || undefined}>
+      <label className="jutsu-row__button jutsu-prompt__row">
+        <span className="jutsu-row__label">Part to use{tooLong ? <span className="jutsu-part__need"> · over {maxS}s, cut it</span> : null}</span>
+        <input type="checkbox" role="switch" aria-label="Part to use" className="jutsu-switch" checked={open} onChange={(e) => setOpen(e.target.checked)} />
+      </label>
+      {open && (
+        <div className="jutsu-part__body">
+          <label className="jutsu-part__field">
+            <span>Starts at</span>
+            <input type="number" aria-label="Starts at (seconds)" min={0} max={total} step={0.1} value={start} onChange={(e) => setStart(Number(e.target.value))} />
+            <span className="mono">s</span>
+          </label>
+          <label className="jutsu-part__field">
+            <span>Length</span>
+            <input type="number" aria-label="Length (seconds)" min={1} max={left} step={0.5} value={length} onChange={(e) => setLength(Number(e.target.value))} />
+            <span className="mono">s</span>
+          </label>
+          <button type="button" className="button button--light jutsu-part__cut" disabled={!valid || busy} onClick={() => onCut(start, length)}>
+            {busy ? "Cutting…" : "Cut this part"}
+          </button>
+          <p className="jutsu-part__hint">
+            {valid ? `Keeps ${start.toFixed(1)}s to ${(start + length).toFixed(1)}s of ${total.toFixed(1)}s as a new clip. Free; the original stays.` : `From ${start.toFixed(1)}s there are ${left.toFixed(1)}s left; keep at least 1s.`}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -421,7 +552,10 @@ export function JutsuScreen() {
   const [image, setImage] = useState<string | null>(null);
   const [promptOn, setPromptOn] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [target, setTarget] = useState<Target>("person");
+  const [detail, setDetail] = useState("");
   const [uploading, setUploading] = useState<"video" | "image" | null>(null);
+  const [cutting, setCutting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<JutsuEstimate | null>(null);
   const [sending, setSending] = useState(false);
@@ -430,6 +564,8 @@ export function JutsuScreen() {
   const [category, setCategory] = useState<Category>("All");
   const [sort, setSort] = useState<Sort>("trending");
   const [now, setNow] = useState(Date.now());
+  /** Each finished take's real width / height, once its video has loaded. */
+  const [shapes, setShapes] = useState<Record<string, number>>({});
   const videoInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const { jobs } = useJobs("jutsu");
@@ -456,7 +592,12 @@ export function JutsuScreen() {
   }, []);
 
   const models = view?.models ?? [];
-  const model = models.find((m) => m.mode === mode && (mode === "swap" || m.tier === tier)) ?? null;
+  const model = models.find((m) => m.mode === mode && m.tier === tier) ?? models.find((m) => m.mode === mode) ?? null;
+  // What a swap changes: only H3 offers a choice; every other model replaces the person.
+  const aim: Target = model?.targets?.includes(target) ? target : "person";
+  const pictureOptional = aim !== "person";
+  const aimFields = model?.targets ? { target: aim, detail: detail.trim() || undefined } : {};
+  const aimKey = model?.targets ? `${aim}|${detail.trim()}` : "";
   // Keep the resolution valid for the model in use.
   useEffect(() => {
     if (model && !model.resolutions.includes(resolution)) setResolution(model.defaultResolution ?? model.resolutions[0]);
@@ -479,7 +620,7 @@ export function JutsuScreen() {
     const t = setTimeout(() => {
       api<JutsuEstimate>("/api/jutsu/estimate", {
         method: "POST",
-        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video: video ?? undefined, image: image ?? undefined },
+        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video: video ?? undefined, image: image ?? undefined, ...aimFields },
       })
         .then((e) => ticket.live && setEstimate(e))
         .catch(() => ticket.live && setEstimate(null));
@@ -488,14 +629,14 @@ export function JutsuScreen() {
       ticket.live = false;
       clearTimeout(t);
     };
-  }, [model, resolution, facing, video, image]);
+  }, [model, resolution, facing, video, image, aimKey]);
 
   /** A new mode starts at its model's default quality: Swap's 720p is its dearest, not a carry-over. */
   function pickMode(m: Mode) {
     if (m === mode) return;
     setMode(m);
     setMenu(null);
-    const next = models.find((x) => x.mode === m && (m === "swap" || x.tier === tier));
+    const next = models.find((x) => x.mode === m && x.tier === tier) ?? models.find((x) => x.mode === m);
     if (next?.defaultResolution) setResolution(next.defaultResolution);
   }
 
@@ -515,14 +656,29 @@ export function JutsuScreen() {
     }
   }
 
+  async function cut(startS: number, lengthS: number) {
+    if (!video) return;
+    setCutting(true);
+    setError(null);
+    try {
+      const r = await api<{ name: string }>("/api/jutsu/trim", { method: "POST", body: { video, startS, lengthS } });
+      await load();
+      setVideo(r.name);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setCutting(false);
+    }
+  }
+
   async function generate() {
-    if (!model || !video || !image) return;
+    if (!model || !video || (!image && !pictureOptional)) return;
     setSending(true);
     setError(null);
     try {
       await api("/api/jutsu/generate", {
         method: "POST",
-        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video, image, prompt: promptOn && model.prompt ? prompt : undefined },
+        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video, image: image ?? undefined, ...aimFields, prompt: promptOn && model.prompt ? prompt : undefined },
       });
       setPanel("history");
     } catch (e) {
@@ -538,8 +694,10 @@ export function JutsuScreen() {
       ? `No ${model.label} route has a key. Add a kie.ai key in Settings.`
       : !video
         ? "Add a reference video."
-        : !image
+        : !image && !pictureOptional
           ? "Add your character."
+          : !image && !detail.trim()
+            ? `Describe the new ${aim === "background" ? "place" : aim}, or add a picture of it.`
           : estimate?.problems.length
             ? estimate.problems[0]
             : estimate && !estimate.withinBudget && estimate.budgetUsd != null
@@ -551,11 +709,35 @@ export function JutsuScreen() {
                   : null;
 
 
-  const tierModels = models.filter((m) => m.mode === "motion");
+  const tierModels = models.filter((m) => m.mode === mode);
+  // The Motion Library holds only clips filed under a shelf; every upload stays in the reference-video picker.
+  // Trending is the most used first.
+  const shelves = view?.categories ?? CATEGORIES.slice(1);
+  const shelved = (view?.clips ?? [])
+    .filter((c) => c.category && (category === "All" || c.category === category))
+    .sort((a, b) => (sort === "trending" ? b.uses - a.uses : 0) || b.addedAt.localeCompare(a.addedAt));
+  const shortName = (m: JutsuModel) => m.label.replace(/ Motion Control$| Animate Replace$/, "");
+  // Every quality this mode offers, Standard's then Pro's: one the model in use
+  // lacks (2K is H3's alone) is listed with its model, and picking it switches Mode.
+  const qualities = [...tierModels]
+    .sort((a, b) => Number(a.tier === "pro") - Number(b.tier === "pro"))
+    .flatMap((m) => m.resolutions.map((r) => ({ r, m })))
+    .filter(({ r, m }, i, all) => (model?.resolutions.includes(r) ? m === model : all.findIndex((x) => x.r === r) === i));
+  function pickQuality(r: string) {
+    const owner = model?.resolutions.includes(r) ? model : tierModels.find((m) => m.resolutions.includes(r));
+    if (owner && owner !== model) setTier(owner.tier);
+    setResolution(r);
+  }
+  const rate = (m: JutsuModel) => `from ${usd(Math.min(...Object.values(m.usdPerSecond)))}/s${m.billsInput ? " + clip" : ""}`;
+  // Turning the prompt on with nothing typed starts from what would be sent anyway.
+  const togglePrompt = (on: boolean) => {
+    setPromptOn(on);
+    if (on && !prompt && model?.defaultPrompt) setPrompt(estimate?.instruction ?? model.defaultPrompt);
+  };
 
   return (
     <div className="jutsu">
-      <aside className="jutsu-form" aria-label="Openjutsu">
+      <aside className="jutsu-form" aria-label="Openjutsu" data-side-menus>
         <h1 className="jutsu-form__word">OPENJUTSU</h1>
 
         <div className="jutsu-seg" role="tablist" aria-label="What to make">
@@ -566,6 +748,27 @@ export function JutsuScreen() {
             </button>
           ))}
         </div>
+
+        {model?.targets && (
+          <div className="jutsu-aim">
+            <div className="jutsu-aim__chips" role="radiogroup" aria-label="What to change">
+              <span className="jutsu-row__label">Change</span>
+              {model.targets.map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={aim === t} className="jutsu-picker__chip" onClick={() => setTarget(t)}>
+                  {TARGET_WORDS[t]}
+                </button>
+              ))}
+            </div>
+            <input
+              className="jutsu-aim__detail"
+              aria-label={TARGET_UI[aim].label}
+              placeholder={TARGET_UI[aim].placeholder}
+              maxLength={500}
+              value={detail}
+              onChange={(e) => setDetail(e.target.value)}
+            />
+          </div>
+        )}
 
         <div className="jutsu-tiles">
           <InputTile
@@ -594,6 +797,7 @@ export function JutsuScreen() {
               onPick={(name) => {
                 setVideo(name);
                 setMenu(null);
+                setError(null);
               }}
               onUpload={() => videoInput.current?.click()}
               onClose={closeMenu}
@@ -603,8 +807,8 @@ export function JutsuScreen() {
             <InputTile
               label="character"
               icon="sheet"
-              title="Character"
-              hint="Library or upload"
+              title={TARGET_UI[aim].tile}
+              hint={TARGET_UI[aim].tileHint}
               busy={uploading === "image"}
               media={castMedia}
               still
@@ -631,29 +835,35 @@ export function JutsuScreen() {
             )}
           </div>
         </div>
-        <p className="jutsu-form__hint">{mode === "motion" ? "Both should show the head, shoulders and torso." : MODE_HINT.swap}</p>
+        <p className="jutsu-form__hint">
+          {mode === "motion" ? "Both should show the head, shoulders and torso." : model?.targets ? TARGET_UI[aim].hint : MODE_HINT.swap}
+          {model?.billsInput ? " H3 is asked in words, with no mask, and redraws the sound; billed for the clip's seconds and the new video's." : ""}
+        </p>
+        {clip && clip.durationS != null && model && (
+          <PartToUse clip={clip} maxS={model.videoS[1]} busy={cutting} onCut={(a, b) => void cut(a, b)} />
+        )}
 
         <div className="jutsu-settings">
           {model?.prompt && (
             <div className="jutsu-prompt" data-on={promptOn || undefined}>
               <label className="jutsu-row__button jutsu-prompt__row">
                 <span className="jutsu-row__label">Prompt</span>
-                <input type="checkbox" role="switch" aria-label="Prompt" className="jutsu-switch" checked={promptOn} onChange={(e) => setPromptOn(e.target.checked)} />
+                <input type="checkbox" role="switch" aria-label="Prompt" className="jutsu-switch" checked={promptOn} onChange={(e) => togglePrompt(e.target.checked)} />
               </label>
               {promptOn && (
                 <textarea
                   className="jutsu-prompt__text"
                   aria-label="Prompt text"
-                  rows={2}
-                  maxLength={2500}
-                  placeholder="Where it happens, the light, the clothes."
+                  rows={model.defaultPrompt ? 6 : 2}
+                  maxLength={model.promptMax ?? 2500}
+                  placeholder={model.defaultPrompt ? "What to change, and what to keep." : "Where it happens, the light, the clothes."}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                 />
               )}
             </div>
           )}
-          {mode === "motion" && (
+          {tierModels.length > 1 && (
             <SettingRow
               label="Mode"
               value={TIER_WORDS[tier]}
@@ -662,7 +872,7 @@ export function JutsuScreen() {
               onClose={closeMenu}
               current={tier}
               onPick={(v) => setTier(v as Tier)}
-              options={tierModels.map((m) => ({ value: m.tier, label: `${TIER_WORDS[m.tier]} · ${m.label.replace(/ Motion Control$/, "")}`, note: `from ${usd(Math.min(...Object.values(m.usdPerSecond)))}/s` }))}
+              options={tierModels.map((m) => ({ value: m.tier, label: `${TIER_WORDS[m.tier]} · ${shortName(m)}`, note: rate(m) }))}
             />
           )}
           {model && (
@@ -673,8 +883,12 @@ export function JutsuScreen() {
               onToggle={() => toggle("quality")}
               onClose={closeMenu}
               current={resolution}
-              onPick={setResolution}
-              options={model.resolutions.map((r) => ({ value: r, label: r, note: `${usd(model.usdPerSecond[r] ?? 0)}/s` }))}
+              onPick={pickQuality}
+              options={qualities.map(({ r, m }) => ({
+                value: r,
+                label: r,
+                note: `${usd(m.usdPerSecond[r] ?? 0)}/s${m.billsInput ? ", in and out" : ""}${m === model ? "" : ` · ${TIER_WORDS[m.tier]}, ${shortName(m)}`}`,
+              }))}
             />
           )}
           {model?.orientations && (
@@ -762,11 +976,11 @@ export function JutsuScreen() {
             <>
               <header className="jutsu-hero">
                 <h2>Turn one video into many</h2>
-                <p>Keep the motion of a clip you love and recast it with your characters. Shared clips to reuse will live here, filed by category.</p>
+                <p>Keep the motion of a clip you love and recast it with your characters. Your clips live here, filed by category; click one to use its motion.</p>
               </header>
               <div className="jutsu-filters">
                 <div className="jutsu-filters__tabs" role="group" aria-label="Category">
-                  {CATEGORIES.map((c) => (
+                  {["All", ...shelves].map((c) => (
                     <button key={c} type="button" className="jutsu-filters__tab" aria-pressed={category === c} onClick={() => setCategory(c)}>
                       {c}
                     </button>
@@ -780,16 +994,42 @@ export function JutsuScreen() {
                   ))}
                 </div>
               </div>
-              <Empty tone="violet" icon="video" title={category === "All" ? "Shared motion clips will appear here" : `No shared ${category.toLowerCase()} clips yet`}>
-                Clips people share will land here to reuse. For now, add your own reference video on the left.
-              </Empty>
+              {shelved.length ? (
+                <Masonry
+                  items={shelved}
+                  label={`${category} clips`}
+                  minColumn={240}
+                  gap={20}
+                  ratio={clipRatio}
+                  keyOf={(c) => c.name}
+                  render={(c) => (
+                    <MotionTile
+                      clip={c}
+                      picked={video === c.name}
+                      onPick={() => {
+                        setError(null);
+                        setVideo(c.name);
+                      }}
+                    />
+                  )}
+                />
+              ) : (
+                <Empty tone="violet" icon="video" title={category === "All" ? "Your motion clips will appear here" : `No ${category.toLowerCase()} clips yet`}>
+                  Clips filed under a category show here. Your other uploads stay in the reference video picker on the left.
+                </Empty>
+              )}
             </>
           ) : jobs.length ? (
-            <ul className="jutsu-grid jutsu-grid--takes" aria-label="Takes">
-              {jobs.map((j) => (
-                <TakeTile key={j.id} job={j} models={models} now={now} />
-              ))}
-            </ul>
+            <Masonry
+              items={jobs}
+              label="Takes"
+              minColumn={280}
+              gap={20}
+              footer={0.14}
+              ratio={(j) => takeRatio(j, shapes, now)}
+              keyOf={(j) => j.id}
+              render={(j) => <TakeTile job={j} models={models} now={now} onShape={(r) => setShapes((m) => (Math.abs((m[j.id] ?? 0) - r) < 0.001 ? m : { ...m, [j.id]: r }))} />}
+            />
           ) : (
             <p className="jutsu-empty">No takes yet. Pick a clip and a character, then Generate.</p>
           )}

@@ -1,4 +1,5 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useOnScreen } from "../app/useOnScreen";
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { mentionSpans, parseDanPrompt, refLabel, toDisplay, toStored } from "../../../cli/director/mentions.mjs";
 import type { Cards, Ref, Span } from "../api/types";
@@ -62,6 +63,7 @@ export function MentionField({ label, value, refs, items, onChange, onChoose, on
   const [dismissed, setDismissed] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLUListElement>(null);
   // Set by a paste: the next change also normalises pasted forms and adds empty slots.
   const settleNext = useRef(false);
   // Where the caret goes after the next render, when we changed the text under it.
@@ -79,6 +81,7 @@ export function MentionField({ label, value, refs, items, onChange, onChoose, on
   const query = caret === null ? null : wordAt(display, caret);
   const options = useMemo(() => (query === null ? [] : optionsFor(query, refs, items)), [query, refs, items]);
   const open = options.length > 0 && !dismissed;
+  useOnScreen(menu, open);
   const at = Math.min(active, Math.max(0, options.length - 1));
 
   const here = caret === null ? undefined : spans.find((s) => s.start <= caret && caret <= s.end);
@@ -194,7 +197,7 @@ export function MentionField({ label, value, refs, items, onChange, onChoose, on
           onScroll={(e) => { if (mirror.current) mirror.current.scrollTop = e.currentTarget.scrollTop; }}
         />
         {open && (
-          <ul id={menuId} role="listbox" aria-label="Mention" className="mention-field__menu">
+          <ul ref={menu} id={menuId} role="listbox" aria-label="Mention" className="mention-field__menu">
             {options.map((o, i) => (
               <li
                 key={o.id}

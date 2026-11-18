@@ -3,8 +3,10 @@
 // with it, as Openjutsu's do. The panel opts in with a data-side-menus
 // attribute; the menu is placed with position: fixed, so a panel that scrolls
 // (and so clips what overflows it) cannot cut it off. Outside such a panel,
-// or on a narrow screen, the menu keeps its own CSS placement.
+// or on a narrow screen, the menu keeps its own CSS placement, moved back on
+// screen by useOnScreen if that placement runs off the window.
 import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useOnScreen } from "../app/useOnScreen";
 
 const MARGIN = 12;
 const GAP = 10;
@@ -62,6 +64,8 @@ export function useSideMenu<T extends HTMLElement>(open: boolean, anchor: RefObj
       if (top !== style.top) setStyle({ ...style, top });
     }
   }, [style]);
+
+  useOnScreen(menu, open && !style);
 
   return { menu, style, side: style ? true : undefined };
 }
