@@ -22,7 +22,7 @@
     "an image there, so budget in credits rather than in the USD guesses.",
     "WaveSpeed's docs describe outputs as { video: url }; the live API returns outputs as an ARRAY of urls. extractUrls is deliberately liberal and absorbed the difference -- do not tighten it to a documented shape."
   ],
-  "captured": "2026-10-30",
+  "captured": "2026-11-18",
   "staleAfterDays": 30,
   "providers": {
     "kie": {
