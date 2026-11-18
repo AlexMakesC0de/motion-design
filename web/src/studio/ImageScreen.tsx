@@ -27,7 +27,7 @@ export const IMAGE_RUN = "create";
 
 export function ImageScreen() {
   const run = IMAGE_RUN;
-  const { models, assets, vocab, templates, loadRuns } = useStudioData();
+  const { models, assets, vocab, looks, templates, loadRuns } = useStudioData();
   // Every film's image takes, not only the scratch folder's.
   const { jobs, error, reload } = useJobs("");
   const now = useNow();
@@ -89,7 +89,8 @@ export function ImageScreen() {
   const convos = conversationsOf(allTakes);
   const takes = convos.find((c) => c.id === convo)?.takes ?? [];
   const open: JobView | null = takes.find((j) => j.id === openId) ?? null;
-  const pictures = [...allTakes.filter((j) => j.state === "succeeded").map((j) => j.media[0]), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
+  // Your own takes first, then the Look previews (the repository ships no template stills).
+  const pictures = [...allTakes.filter((j) => j.state === "succeeded").map((j) => j.media[0]), ...looks.looks.map((l) => l.still), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
 
   return (
     <div className="image-page">

@@ -7,13 +7,24 @@ import { join } from "node:path";
 const { createApp } = await import("../server/app.mjs");
 const { presetStills, stillUrl, lookStill } = await import("../server/stills.mjs");
 
+// The repository ships no template stills (see web/server/stills.mjs), so the
+// endpoint tests serve a fixture folder through SHARD_PRESET_STILLS_DIR.
+const fixtureStills = join(tmp, "fixture-stills");
+mkdirSync(fixtureStills, { recursive: true });
+writeFileSync(join(fixtureStills, "kinetic-typography.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+writeFileSync(join(fixtureStills, "sources.json"), JSON.stringify({ stills: [{ preset: "kinetic-typography", file: "kinetic-typography.png" }] }));
+process.env.SHARD_PRESET_STILLS_DIR = fixtureStills;
+
 let app, port;
 before(async () => {
   app = createApp({ key: KEY, distDir: join(tmp, "nodist"), pollMs: 60_000 });
   await new Promise((r) => app.listen(0, "127.0.0.1", r));
   port = app.address().port;
 });
-after(() => app.closeAll());
+after(() => {
+  app.closeAll();
+  delete process.env.SHARD_PRESET_STILLS_DIR;
+});
 
 describe("presetStills", () => {
   test("lists only files named in sources.json that exist, with safe names", () => {
@@ -28,6 +39,10 @@ describe("presetStills", () => {
     assert.deepEqual([...stills.keys()], ["a"]);
     assert.equal(stillUrl("a", stills), "/media/presets/a.png");
     assert.equal(stillUrl("b", stills), null);
+  });
+
+  test("the repository itself ships no template stills", () => {
+    assert.equal(presetStills(join(import.meta.dirname, "..", "..", "docs", "images")).size, 0);
   });
 
   test("no sources.json means no stills, not an error", () => {

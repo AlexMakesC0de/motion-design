@@ -1,6 +1,9 @@
-// Preview stills for the preset gallery. They are unretouched frames of each
-// preset's source video, kept in docs/images/ and listed with their preset id
-// in docs/images/sources.json. Only files listed there are ever served.
+// Preview stills for the Ad templates gallery. The repository ships none: the
+// frames of each template's source video belong to their creators, so they are
+// not redistributed here. A folder of stills you have the rights to can be
+// pointed to with SHARD_PRESET_STILLS_DIR (a sources.json listing { preset, file }
+// plus the PNGs). Only files listed there are ever served; without them the
+// gallery shows text cards.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../../cli/lib/run.mjs";
@@ -8,7 +11,7 @@ import { REPO_ROOT } from "../../cli/lib/run.mjs";
 export const STILLS_DIR = join(REPO_ROOT, "docs", "images");
 
 /** Preset id → absolute path of its still. Empty when the list is missing or unreadable. */
-export function presetStills(dir = STILLS_DIR) {
+export function presetStills(dir = process.env.SHARD_PRESET_STILLS_DIR || STILLS_DIR) {
   const map = new Map();
   let list;
   try {

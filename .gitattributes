@@ -1,3 +1,4 @@
+# Keep line endings as LF in the repository.
 * text=auto eol=lf
-# Source hashes cover exact bytes; never normalize archived prompt line endings.
+# The archived prompts are checked by SHA-256, so their bytes must never be rewritten.
 skills/motion-design/references/source-prompts/*.txt -text

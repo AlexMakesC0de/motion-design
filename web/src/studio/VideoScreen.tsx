@@ -187,7 +187,8 @@ function CreateVideo() {
 
 /** How it works: three steps with pictures from the user's own looks, Library and takes. */
 function HowItWorks({ looks, templates, assets, takes }: { looks: LookInfo[]; templates: PresetInfo[]; assets: AssetSummary[]; takes: JobView[] }) {
-  const stills = templates.map((l) => l.still).filter((s): s is string => Boolean(s));
+  // Look previews first: the repository ships no template stills, but a folder of them can be added.
+  const stills = [...looks.map((l) => l.still), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s));
   const three = [looks[1], looks[0], looks[9]];
   const refCover = assets.find((a) => a.cover)?.cover ?? stills[3] ?? null;
   const latest = takes.find((j) => j.state === "succeeded" && j.media[0])?.media[0] ?? null;
