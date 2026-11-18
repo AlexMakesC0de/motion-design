@@ -10,7 +10,7 @@
 
 [![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![Node 22+](https://img.shields.io/badge/node-22%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
@@ -40,7 +40,7 @@ Shard 最初是 **[Chase 的 motion-design skill](https://github.com/cth9191/mot
 
 ## 快速开始
 
-你需要 **Node 20+** 和一个 **kie.ai API key**。只有在成片时才需要 ffmpeg，只有重新生成 looks 图库时才需要 Python 3.10+。
+你需要 **Node 22+** 和一个 **kie.ai API key**。只有在成片时才需要 ffmpeg，只有重新生成 looks 图库时才需要 Python 3.10+。
 
 1. **获取代码并安装工具。** 安装程序会把 `kie` 放进你的 PATH，在已安装 Claude Code、Codex 和 Kimi 时把 skills 链接进去，并注册 MCP 服务器。
 

@@ -8,9 +8,9 @@
 
 Plan a film, generate its scenes and finish it, from a web studio, the terminal, or Claude Code and Codex.
 
-[![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
+[![CI](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![Node 22+](https://img.shields.io/badge/node-22%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
@@ -57,7 +57,7 @@ Shard started as a fork of **[Chase's motion-design skill](https://github.com/ct
 
 ## Quick start
 
-You need **Node 20+** and a **kie.ai API key**. ffmpeg is needed only for finishing, and Python 3.10+ only to rebuild the looks gallery.
+You need **Node 22+** and a **kie.ai API key**. ffmpeg is needed only for finishing, and Python 3.10+ only to rebuild the looks gallery.
 
 1. **Get the code and install the tools.** The installer puts `kie` on your PATH, links the skills into Claude Code, Codex and Kimi when they are installed, and registers the MCP server.
 
@@ -97,7 +97,7 @@ Paste this into Claude Code, Codex or another coding agent with terminal access.
 ```text
 Set up Shard, the motion-design studio at https://github.com/AlexMakesC0de/shard-motion-design-studio, on this computer.
 
-1. Check that Node 20 or newer is installed. If it isn't, tell me how to install it and stop.
+1. Check that Node 22 or newer is installed. If it isn't, tell me how to install it and stop.
 2. Clone the repository into a folder I can find (ask me where if unsure), then cd into it.
 3. Run `node install.mjs --dry-run`, show me what it would change, and wait for my OK. Then run `node install.mjs`.
 4. Tell me to create a kie.ai API key at https://kie.ai and save it myself with:

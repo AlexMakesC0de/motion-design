@@ -10,7 +10,7 @@
 
 [![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![Node 22+](https://img.shields.io/badge/node-22%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
@@ -40,7 +40,7 @@ Shard は、**[Chase の motion-design スキル](https://github.com/cth9191/mot
 
 ## クイックスタート
 
-**Node 20+** と **kie.ai の API キー**が必要です。ffmpeg は仕上げのときだけ、Python 3.10+ はルックのギャラリーを作り直すときだけ必要です。
+**Node 22+** と **kie.ai の API キー**が必要です。ffmpeg は仕上げのときだけ、Python 3.10+ はルックのギャラリーを作り直すときだけ必要です。
 
 1. **コードを取得してツールをインストールします。** インストーラーは `kie` を PATH に追加し、Claude Code、Codex、Kimi がインストールされていればスキルをリンクし、MCP サーバーを登録します。
 

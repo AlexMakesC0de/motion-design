@@ -10,7 +10,7 @@
 
 [![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![Node 22+](https://img.shields.io/badge/node-22%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
@@ -40,7 +40,7 @@ Shard는 **[Chase의 motion-design 스킬](https://github.com/cth9191/motion-des
 
 ## 빠른 시작
 
-**Node 20+**와 **kie.ai API 키**가 필요합니다. ffmpeg는 마무리 작업에만, Python 3.10+는 룩 갤러리를 다시 만들 때만 필요합니다.
+**Node 22+**와 **kie.ai API 키**가 필요합니다. ffmpeg는 마무리 작업에만, Python 3.10+는 룩 갤러리를 다시 만들 때만 필요합니다.
 
 1. **코드를 받고 도구를 설치합니다.** 설치 프로그램이 `kie`를 PATH에 추가하고, Claude Code, Codex, Kimi가 설치되어 있으면 스킬을 연결하며, MCP 서버를 등록합니다.
 
