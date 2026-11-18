@@ -300,6 +300,12 @@ async function cmdDoctor(catalog) {
     say(`  ${tag[c.level]}${text}`);
   }
   say(`\n${failures ? `${failures} check(s) failed.` : "All checks passed."}`);
+  if (!checks.some((c) => c.keyOf)) {
+    say(
+      "\nTo add a kie.ai key, create one at https://kie.ai, then run:\n" +
+        "  mkdir -p ~/.config/kie && printf '%s' 'YOUR_KIE_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key",
+    );
+  }
   return failures ? EXIT.PROVIDER : EXIT.OK;
 }
 

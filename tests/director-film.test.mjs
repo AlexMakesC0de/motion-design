@@ -10,6 +10,8 @@ process.env.KIE_RUNS_DIR = RUNS;
 process.env.KIE_LIBRARY_DIR = join(tmp, "library");
 process.env.KIE_LIMITS_FILE = join(tmp, "limits.json");
 process.env.KIE_API_KEY = "test-kie"; // makes routes usable; every provider call below is a stub
+process.env.KIE_KEY_HOME = tmp; // never read the real key files: the routes picked must not depend on this machine
+process.env.WAVESPEED_API_KEY = "test-wavespeed"; // seedance-2's captured contract is on its WaveSpeed route
 mkdirSync(RUNS, { recursive: true });
 
 const { png } = await import("./fixtures/images.mjs");

@@ -272,7 +272,7 @@ export async function doctor(catalog, { credits = providerCredits } = {}) {
   if (noRoute.length) add("warn", `unreachable with current keys: ${noRoute.map((m) => m.id).join(", ")}`);
 
   const withFallback = catalog.list.filter((m) => routesFor(catalog, m).filter((r) => r.usable).length > 1);
-  add("ok", `${withFallback.length}/${catalog.list.length} models have a working fallback: ${withFallback.map((m) => m.id).join(", ") || "none"}`);
+  add(withFallback.length ? "ok" : "info", `${withFallback.length}/${catalog.list.length} models have a working fallback: ${withFallback.map((m) => m.id).join(", ") || "none"}`);
 
   try {
     const presets = loadPresets();

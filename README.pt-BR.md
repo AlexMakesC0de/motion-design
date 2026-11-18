@@ -10,7 +10,7 @@ Planeje um filme, gere as cenas e finalize tudo, por um estúdio web, pelo termi
 
 [![Validate](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml/badge.svg)](https://github.com/AlexMakesC0de/shard-motion-design-studio/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Node 20+](https://img.shields.io/badge/node-20%2B-5FA04E?logo=node.js&logoColor=white)
+![Node 22+](https://img.shields.io/badge/node-22%2B-5FA04E?logo=node.js&logoColor=white)
 ![macOS](https://img.shields.io/badge/platform-macOS-555)
 ![Claude Code | Codex](https://img.shields.io/badge/works%20with-Claude%20Code%20%7C%20Codex-B4471C)
 
@@ -40,7 +40,7 @@ O Shard nasceu como um fork da **[skill motion-design do Chase](https://github.c
 
 ## Início rápido
 
-Você precisa do **Node 20+** e de uma **chave de API da kie.ai**. O ffmpeg só é necessário para finalizar, e o Python 3.10+ só para reconstruir a galeria de looks.
+Você precisa do **Node 22+** e de uma **chave de API da kie.ai**. O ffmpeg só é necessário para finalizar, e o Python 3.10+ só para reconstruir a galeria de looks.
 
 1. **Baixe o código e instale as ferramentas.** O instalador coloca o `kie` no seu PATH, liga as skills ao Claude Code, ao Codex e ao Kimi quando estiverem instalados, e registra o servidor MCP.
 

@@ -1,0 +1,58 @@
+name: CI
+
+# Runs every test suite on each push and pull request. Nothing here needs an
+# API key or spends money: provider calls in the tests are stubs.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            mcp/package-lock.json
+      - name: Install ffmpeg (for the finishing tests)
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+      - name: Install studio and MCP dependencies
+        run: |
+          npm --prefix web ci
+          npm --prefix mcp ci
+      - name: CLI tests
+        run: npm test
+      - name: Studio tests
+        run: npm run test:web
+      - name: MCP server tests
+        run: npm run test:mcp
+
+  templates:
+    name: Ad templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Check source hashes, templates and gallery
+        run: npm run validate
+      - name: Check generated files are current
+        run: git diff --exit-code -- skills/motion-design/assets/gallery.html skills/motion-design/references/preset-index.md

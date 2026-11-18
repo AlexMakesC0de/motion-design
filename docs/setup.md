@@ -4,7 +4,7 @@ The [Quick start](../README.md#quick-start) is the short version. This page expl
 
 ## What you need
 
-- **Node 20 or newer.** Check with `node --version`.
+- **Node 22 or newer.** Check with `node --version`.
 - **A kie.ai API key**, only to generate. Planning, pricing and the tests are free and need no key.
 - **ffmpeg**, only to finish films (music, captions, other aspect ratios). On macOS: `brew install ffmpeg`.
 - **Python 3.10+**, only to run `npm run validate` on the Ad templates.

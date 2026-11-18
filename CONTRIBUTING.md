@@ -9,7 +9,7 @@ Ideas, bug reports, new looks and pull requests are all welcome.
 
 ## Setting up
 
-Follow the [Quick start](README.md#quick-start). You need Node 20+; a kie.ai key is only needed to generate, and the tests never spend money.
+Follow the [Quick start](README.md#quick-start). You need Node 22+; a kie.ai key is only needed to generate, and the tests never spend money.
 
 ## Tests
 
