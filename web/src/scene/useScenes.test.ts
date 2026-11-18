@@ -34,8 +34,10 @@ describe("useScenes", () => {
     const withV = { ...s1, versions: [{ job: "j-1", kind: "draft", resolution: "480p", prompt: "", createdAt: "", state: "submitted", media: null, estimateUsd: 0.56, actualUsd: null }] };
     const fetchMock = vi.fn(routes({ "/api/films/create/scenes": () => ({ idea: null, scenes: [withV] }) }));
     vi.stubGlobal("fetch", fetchMock);
-    renderHook(() => useScenes("create"));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const { result } = renderHook(() => useScenes("create"));
+    // The hook only reloads for jobs of scenes it holds, so the scene must be in before the event.
+    await waitFor(() => expect(result.current.scenes[0]?.versions[0]?.job).toBe("j-1"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     act(() => emitForTests({ event: "job", data: { id: "j-1", state: "succeeded" } as never }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });
