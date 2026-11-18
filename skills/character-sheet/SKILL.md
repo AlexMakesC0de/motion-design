@@ -19,7 +19,7 @@ Same person, same outfit and same skin tone in all three. No text or labels.
 
 Why the oval: if the front view also shows the face, the model gets three slightly different faces and blends them. One face in, one face out.
 
-Examples: [Alex's original](assets/example-korean-girl-student.png) and [Mira, made by the studio](assets/example-mira.jpg).
+Examples, on Alex's machine only (private, never in the repository): [Alex's original](assets/example-korean-girl-student.png) and [Mira, made by the studio](assets/example-mira.jpg). Without them, the three panels above are the layout.
 
 ## How to make one
 
