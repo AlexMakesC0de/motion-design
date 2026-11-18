@@ -2,7 +2,7 @@
 // duration, ratio, quality, Generate) and a stage on the right that shows the
 // film's takes (History) or how it works. Scenes, the staged editor, is the
 // second tab and fills the page.
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import menu from "../../../cli/director/menu.json";
 import { setPick } from "../../../cli/director/picks.mjs";
 import type { AssetSummary, JobView, PresetInfo } from "../api/types";
@@ -11,7 +11,8 @@ import { modelName } from "../app/modelMeta";
 import { PickChip } from "../scene/PickChips";
 import { SceneScreen } from "../scene/SceneScreen";
 import { FilmPicker } from "./FilmPicker";
-import { GenerateMessages, ModelMenu, PresetNote, RefChips, RefPicker, SelectCard } from "./controls";
+import { GenerateMessages, ModelMenu, PresetNote, SelectCard } from "./controls";
+import { RefTiles } from "./RefTiles";
 import { isVideo } from "./format";
 import { getDraft, setDraft, setRun, useRun, type VideoPicks } from "./promptStore";
 import { typicalSeconds } from "./format";
@@ -64,7 +65,6 @@ function CreateVideo() {
   const { jobs, error, reload } = useJobs(run);
   const now = useNow();
   const [view, setView] = useState<View | null>(null);
-  const [picking, setPicking] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const settled = () => {
     loadRuns();
@@ -73,6 +73,14 @@ function CreateVideo() {
   };
   const g = useGenerate({ models, capability: "video", roles: vocab.roles, run, onSubmitted: settled, onUncertain: settled });
   const { draft, model } = g;
+  // The prompt grows with its text (up to the CSS max-height, then it scrolls); it is never dragged to size.
+  const promptBox = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const box = promptBox.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${box.scrollHeight}px`;
+  }, [draft.prompt]);
 
   const takes = jobs.filter((j) => j.capability === "video");
   const shown: View = view ?? (takes.length ? "history" : "how");
@@ -82,7 +90,7 @@ function CreateVideo() {
 
   return (
     <div className="video">
-      <aside className="video__panel" aria-label="Create video">
+      <aside className="video__panel" aria-label="Create video" data-side-menus>
         <div className="video__scroll">
           <VideoTabs tab="create" />
 
@@ -97,35 +105,7 @@ function CreateVideo() {
             </div>
           </div>
 
-          <div className="seg">
-            <span className="seg__item" data-active="true">
-              <Icon name="library" size={16} />
-              References
-            </span>
-          </div>
-
-          <section className="refs-card" aria-label="References">
-            {picking ? (
-              <RefPicker assets={assets} roles={g.roleChoices} onDone={() => setPicking(false)} />
-            ) : (
-              <button type="button" className="refs-card__add" onClick={() => setPicking(true)} disabled={!g.roleChoices.length} title={g.roleChoices.length ? undefined : "This model takes no references"}>
-                <span className="refs-card__icons" aria-hidden="true">
-                  <span className="refs-card__icon">
-                    <Icon name="sheet" size={16} />
-                  </span>
-                  <span className="refs-card__icon">
-                    <Icon name="image" size={16} />
-                  </span>
-                  <span className="refs-card__icon">
-                    <Icon name="video" size={16} />
-                  </span>
-                </span>
-                <span className="refs-card__title">Add references</span>
-                <span className="refs-card__sub">From your Library, as a role the model takes</span>
-              </button>
-            )}
-            <RefChips refs={draft.refs} assets={assets} />
-          </section>
+          <RefTiles refs={draft.refs} assets={assets} roles={g.roleChoices} />
 
           <div className="prompt-card">
             <label className="prompt-card__label" htmlFor="video-prompt">
@@ -135,7 +115,8 @@ function CreateVideo() {
               id="video-prompt"
               className="prompt-card__text"
               placeholder="Describe the shot. Add references from your Library…"
-              rows={4}
+              ref={promptBox}
+              rows={3}
               value={draft.prompt}
               onChange={(e) => setDraft({ prompt: e.target.value })}
             />

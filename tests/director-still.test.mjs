@@ -200,7 +200,11 @@ describe("the media view and the style still", () => {
 describe("casting sheets", () => {
 
   test("worded by kind; a style asset has none", () => {
-    assert.match(sheetWording({ name: "mara", kind: "character", description: "A woman in an olive raincoat." }).prompt, /^Character reference sheet of A woman in an olive raincoat\. Two views side by side/);
+    const mara = sheetWording({ name: "mara", kind: "character", description: "A woman in an olive raincoat." }).prompt;
+    assert.match(mara, /^A three-panel character reference sheet/);
+    assert.match(mara, /CHARACTER: A woman in an olive raincoat\./);
+    assert.match(mara, /CENTER PANEL — full body front view\..*face is completely covered by a flat, solid mid-grey oval/s);
+    assert.match(sheetWording({ name: "mara", kind: "character", description: "x" }, { photos: 1 }).prompt, /^Generate the final image based on my attached reference photo\./);
     assert.equal(sheetWording({ name: "cup", kind: "product", description: "A white cup" }).model, "gpt-image-2-5");
     assert.equal(sheetWording({ name: "pier", kind: "location", description: "A pier" }).aspectRatio, "16:9");
     assert.throws(() => sheetWording({ name: "s", kind: "style", description: "x" }), /only characters, products and locations/);
@@ -213,13 +217,31 @@ describe("casting sheets", () => {
     assert.equal(r.job.sheetFor, "mara");
     assert.equal(c.calls[0].input.aspect_ratio, "3:2");
     assert.deepEqual(c.calls[0].input.image_input, ["https://files.test/1.png"]);
+    assert.match(c.calls[0].input.prompt, /^Generate the final image based on my attached reference photo\..*LEFT PANEL — tight chest-up face close-up/s);
     await assert.rejects(async () => adoptSheet(library, c.store, r.job.id), /has not finished \(submitted\)/);
 
     const sheet = join(RUNS, "sea", "sheet-mara.png");
     writeFileSync(sheet, PNG);
     c.store.transition(r.job.id, "succeeded", { artifacts: [sheet], actualUsd: 0.06, costSource: "task-record" });
     const a = adoptSheet(library, c.store, r.job.id);
-    assert.equal(a.images.length, 2);
+    assert.deepEqual(a.images.map((im) => im.role), ["sheet", "source"]);
     assert.equal(a.description, "A woman in her thirties in an olive raincoat.");
+  });
+
+  test("remaking a sheet sends the item's photos, never the sheet it replaces", async () => {
+    const old = join(tmp, "rhea-old-sheet.png");
+    const face = join(tmp, "rhea-face.png");
+    writeFileSync(old, PNG);
+    writeFileSync(face, Buffer.concat([PNG, Buffer.from([0])]));
+    library.save({ name: "rhea", kind: "character", description: "A woman with short silver hair.", images: [{ path: old, role: "sheet" }, { path: face, role: "source" }] });
+    const c = ctx();
+    const r = await makeSheet(catalog, "sea", "rhea", c);
+    assert.deepEqual(r.refMapping, ["@Image1 = rhea#2"]);
+    assert.equal(c.calls[0].input.image_input.length, 1);
+    const made = join(RUNS, "sea", "sheet-rhea.png");
+    writeFileSync(made, PNG);
+    c.store.transition(r.job.id, "succeeded", { artifacts: [made], actualUsd: 0.06, costSource: "task-record" });
+    const after = adoptSheet(library, c.store, r.job.id);
+    assert.deepEqual(after.images.map((im) => im.role), ["sheet", "source"], "the old sheet went to history, not into the item");
   });
 });

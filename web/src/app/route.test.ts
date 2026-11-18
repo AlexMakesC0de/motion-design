@@ -57,7 +57,7 @@ describe("video and mcp", () => {
 describe("NAV", () => {
   test("the making pages, then the studio's places, in order", () => {
     expect(NAV.main.map((r) => r.id)).toEqual(["home", "image", "video", "mcp"]);
-    expect(NAV.studio.map((r) => r.id)).toEqual(["projects", "library", "presets", "skills"]);
+    expect(NAV.studio.map((r) => r.id)).toEqual(["jutsu", "influencers", "projects", "library", "presets", "skills"]);
   });
   test("a film lights Films", () => {
     expect(navItemFor({ screen: "film", slug: "x", step: null })).toBe("projects");

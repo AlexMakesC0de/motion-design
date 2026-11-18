@@ -114,15 +114,32 @@ describe("SettingsScreen: limits", () => {
 });
 
 describe("SettingsScreen: providers, doctor and chat", () => {
-  test("says whether each provider's key is set and where it goes, never the key", async () => {
+  test("says whether each provider's key is set; a missing one shows the key page and a paste box", async () => {
     setup();
     const list = await screen.findByRole("list", { name: "Providers" });
     const [kie, wave] = within(list).getAllByRole("listitem");
     expect(within(kie).getByText("Key found")).toBeInTheDocument();
+    expect(within(kie).queryByLabelText("kie.ai API key")).toBeNull();
     expect(within(wave).getByText("No key")).toBeInTheDocument();
     expect(within(wave).getByText("WAVESPEED_API_KEY")).toHaveClass("mono");
     expect(within(wave).getByText("~/.config/wavespeed/key")).toHaveClass("mono");
-    expect(within(wave).getByRole("link", { name: "Get a WaveSpeed key" })).toHaveAttribute("href", "https://wavespeed.ai");
+    expect(within(wave).getByRole("link", { name: "Open the WaveSpeed key page (new tab)" })).toHaveAttribute("href", "https://wavespeed.ai/accesskey");
+    expect(within(wave).getByLabelText("WaveSpeed API key")).toHaveAttribute("type", "password");
+  });
+
+  test("saving a pasted key sends it once, clears the box and says it works", async () => {
+    const saved = { name: "wavespeed", label: "WaveSpeed", keyConfigured: true, keySource: "file", keyEnv: "WAVESPEED_API_KEY", keyFile: "~/.config/wavespeed/key", signup: "https://wavespeed.ai/accesskey", keySteps: null, balanceReadable: false };
+    const fetch = setup({ "/api/settings/keys/wavespeed": () => ({ provider: saved, checked: false, balance: null, warning: null }) });
+    const input = await screen.findByLabelText("WaveSpeed API key");
+    const save = screen.getAllByRole("button", { name: "Save key" })[0];
+    expect(save).toBeDisabled();
+    fireEvent.change(input, { target: { value: "ws-0123456789abcdef" } });
+    fireEvent.click(save);
+    expect(await screen.findByText("Key saved. It is checked on the first job.")).toBeInTheDocument();
+    const [, init] = calls(fetch, "/api/settings/keys/wavespeed")[0];
+    expect(init!.method).toBe("PUT");
+    expect(JSON.parse(String(init!.body))).toEqual({ key: "ws-0123456789abcdef" });
+    expect(screen.queryByLabelText("WaveSpeed API key")).toBeNull();
   });
 
   test("runs kie doctor only when asked, and lists what it found", async () => {

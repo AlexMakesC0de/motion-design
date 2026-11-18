@@ -3,6 +3,7 @@
 // listbox of the group's options, each with the menu's "when to use it" note.
 // A chip given `speeds` (the Move chip) shows them above the list once a
 // moving move is picked, and stays open after a pick so the speed can be set.
+import { useSideMenu } from "../studio/useSideMenu";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Icon } from "../app/icons";
 
@@ -34,6 +35,8 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
   const chip = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const uid = useId();
+  // Inside a panel with data-side-menus (Create Video), the list opens beside the panel.
+  const placed = useSideMenu<HTMLDivElement>(open, chip);
 
   const chosen = options.find((o) => o.id === value);
   const speedChosen = speeds?.find((o) => o.id === speed);
@@ -50,13 +53,20 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
   useEffect(() => {
     if (!open) return;
     setActive(Math.max(0, options.findIndex((o) => o.id === value)));
-    list.current?.focus();
+    list.current?.focus({ preventScroll: true });
     // Only on opening: a pick that keeps the list open must not move the highlight.
   }, [open]);
 
   // The highlighted option stays in view as the arrow keys move through a long list.
   useEffect(() => {
-    if (open && options[active]) document.getElementById(`${uid}-${options[active].id}`)?.scrollIntoView?.({ block: "nearest" });
+    // Scrolls the list only, never the panel behind it.
+    const el = open && options[active] ? document.getElementById(`${uid}-${options[active].id}`) : null;
+    const box = list.current;
+    if (!el || !box) return;
+    const r = el.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    if (r.top < b.top) box.scrollTop -= b.top - r.top;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
   }, [open, active, options, uid]);
 
   // A click anywhere else closes it.
@@ -126,7 +136,7 @@ export function PickChip({ label, scope, options, value, onPick, speeds, speed, 
         </button>
       )}
       {open && (
-        <div className="pick-pop">
+        <div className="pick-pop" ref={placed.menu} data-side={placed.side} style={placed.style}>
           {moving && speeds && (
             <div className="pick-pop__speeds" role="group" aria-label={`${scope} speed`}>
               {speeds.map((s) => (

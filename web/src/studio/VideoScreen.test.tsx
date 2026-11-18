@@ -89,11 +89,28 @@ describe("Video, Create Video", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
+  test("a settings card opens its list beside the panel; the arrow keys and Enter pick, Escape closes", async () => {
+    pricedPage([model()], () => 0.56);
+    await generate();
+    fireEvent.click(screen.getByRole("button", { name: /^Duration:/ }));
+    const list = screen.getByRole("listbox", { name: "Duration" });
+    expect(list).toHaveAttribute("data-side");
+    expect(list.style.position).toBe("fixed");
+    fireEvent.keyDown(list, { key: "End" });
+    fireEvent.keyDown(list, { key: "Enter" });
+    expect(screen.queryByRole("listbox", { name: "Duration" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Duration: 10s/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Duration:/ }));
+    fireEvent.keyDown(screen.getByRole("listbox", { name: "Duration" }), { key: "Escape" });
+    expect(screen.queryByRole("listbox", { name: "Duration" })).toBeNull();
+  });
+
   test("the price shown always belongs to the settings shown", async () => {
     pricedPage([model()], (b) => Math.round((b.durationS as number) * 14) / 100);
     await generate();
     for (const d of ["8", "5"]) {
-      fireEvent.change(screen.getByRole("combobox", { name: "Duration" }), { target: { value: d } });
+      fireEvent.click(screen.getByRole("button", { name: /^Duration:/ }));
+      fireEvent.click(within(screen.getByRole("listbox", { name: "Duration" })).getByRole("option", { name: `${d}s` }));
       expect(screen.getByRole("button", { name: "Generate …" })).toBeDisabled();
       expect(await generate(`$${(Number(d) * 0.14).toFixed(2)}`)).toBeEnabled();
     }
@@ -129,7 +146,7 @@ describe("Video, Create Video", () => {
   test("no resolution chosen reads as the provider's default", async () => {
     resetForTests({ ...ready, resolution: null }, "zed");
     page();
-    expect(await screen.findByRole("combobox", { name: "Quality" })).toHaveDisplayValue("default");
+    expect(await screen.findByRole("button", { name: "Quality: default" })).toBeInTheDocument();
   });
 
   test("over today's cap: disabled, saying by how much", async () => {
@@ -222,12 +239,24 @@ describe("Video, Create Video", () => {
   test("a reference is added from the Library with a role, and can be removed", async () => {
     page();
     await generate();
-    fireEvent.click(screen.getByRole("button", { name: /Add references/ }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Role" }), { target: { value: "style" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add references" }));
+    const picker = screen.getByRole("menu", { name: "Add a reference" });
+    fireEvent.click(within(within(picker).getByRole("group", { name: "Role" })).getByRole("button", { name: "Style" }));
+    fireEvent.click(within(picker).getByRole("menuitemradio", { name: "@zed as style" }));
     expect(getDraft().refs).toEqual([{ source: "zed", role: "style" }]);
+    expect(screen.queryByRole("menu", { name: "Add a reference" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add reference" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Remove @zed style" }));
     expect(getDraft().refs).toEqual([]);
+  });
+
+  test("the prompt box grows with its text and cannot be dragged", async () => {
+    page();
+    await generate();
+    const box = screen.getByRole("textbox", { name: "Prompt" });
+    Object.defineProperty(box, "scrollHeight", { configurable: true, get: () => 180 });
+    fireEvent.change(box, { target: { value: "A long prompt.\n".repeat(8) } });
+    expect(box.style.height).toBe("180px");
   });
 
   test("the look card names the look in use and links to Looks", async () => {
@@ -248,8 +277,8 @@ describe("Video, Create Video", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Reuse" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("Newer take.");
-    expect(screen.getByRole("combobox", { name: "Duration" })).toHaveValue("5");
-    expect(screen.getByRole("combobox", { name: "Quality" })).toHaveValue("720p");
+    expect(screen.getByRole("button", { name: "Duration: 5s" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quality: 720p" })).toBeInTheDocument();
   });
 
   test("with no takes it opens on How it works, which can switch to History", async () => {

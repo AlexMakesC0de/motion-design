@@ -59,6 +59,8 @@ export interface AssetSummary {
   /** What a reference to the item must preserve; a scene's keep line shows it as the placeholder. */
   keep?: string;
   usedIn?: string[];
+  /** Set when the item is an AI influencer: its display name, chips and extra words. */
+  persona?: { displayName?: string; traits?: Record<string, string>; extra?: string } | null;
 }
 
 export interface AssetDetail {
@@ -308,10 +310,22 @@ export interface ProviderInfo {
   name: string;
   label: string;
   keyConfigured: boolean;
+  /** Where the key in use comes from; the saved file is read last. */
+  keySource: "env" | "dotenv" | "file" | null;
   keyEnv: string;
   keyFile: string;
+  /** The page where the key is made or copied. */
   signup: string;
+  /** One or two sentences on getting the key there. */
+  keySteps: string | null;
   balanceReadable: boolean;
+}
+
+export interface SavedKey {
+  provider: ProviderInfo;
+  checked: boolean;
+  balance: number | null;
+  warning: string | null;
 }
 
 export interface SettingsView {
@@ -526,3 +540,129 @@ export interface SceneVersion { job: string; kind: "draft" | "final"; resolution
 export interface Idea { text: string; ratio: string | null; lengthS: number | null }
 export interface Scene { id: string; title: string; durationS: number; ratio: string; refs: Ref[]; cards: Cards; versions: SceneVersion[]; chosen: string | null }
 export interface ScenePreview { prompt: string; refs: { source: string; role: string }[]; problems: string[]; prices: Record<"draft" | "final720" | "final1080", { usd: number | null; basis: string | null } | null> }
+
+/** One Openjutsu model (web/server/api/jutsu.mjs). */
+export interface JutsuModel {
+  id: string;
+  label: string;
+  mode: "motion" | "swap";
+  tier: "standard" | "pro";
+  notes: string | null;
+  resolutions: string[];
+  defaultResolution: string | null;
+  usdPerSecond: Record<string, number>;
+  prompt: boolean;
+  orientations: ("video" | "image")[] | null;
+  videoS: [number, number];
+  imageOrientationMaxS: number | null;
+  maxVideoBytes: number;
+  maxImageBytes: number;
+  usable: boolean;
+}
+
+export interface JutsuClip {
+  name: string;
+  media: string | null;
+  durationS: number | null;
+  width: number | null;
+  height: number | null;
+  bytes: number;
+  addedAt: string;
+  uses: number;
+}
+
+export interface JutsuCast {
+  name: string;
+  media: string | null;
+  addedAt: string;
+}
+
+/** One Library picture to cast from: `ref` is "@asset#n". */
+export interface JutsuLibraryPicture {
+  ref: string;
+  asset: string;
+  kind: string;
+  n: number;
+  role: string;
+  media: string | null;
+  width: number | null;
+  height: number | null;
+  /** The influencer's display name when this Library item is an AI influencer. */
+  influencer?: string | null;
+}
+
+/** A picture made in the studio, usable as the character: `ref` is "gen:<job id>". */
+export interface JutsuGeneration {
+  ref: string;
+  media: string | null;
+  model: string;
+  run: string;
+  createdAt: string;
+  prompt: string | null;
+}
+
+export interface JutsuView {
+  run: string;
+  models: JutsuModel[];
+  clips: JutsuClip[];
+  cast: JutsuCast[];
+  library: JutsuLibraryPicture[];
+  generations: JutsuGeneration[];
+}
+
+export interface JutsuEstimate {
+  usd: number | null;
+  basis: string | null;
+  durationS: number | null;
+  problems: string[];
+  usable: boolean;
+  budgetUsd: number | null;
+  perJobUsd: number | null;
+  availableTodayUsd: number;
+  withinBudget: boolean;
+  withinPerJob: boolean;
+  withinDailyCap: boolean;
+}
+
+/** One row of chips in the AI influencer builder. */
+export interface InfluencerTrait {
+  id: string;
+  label: string;
+  options: { id: string; label: string }[];
+}
+
+/** An AI influencer: a Library character with a persona. */
+export interface Influencer {
+  name: string;
+  displayName: string;
+  description: string;
+  persona: { displayName?: string; traits: Record<string, string>; extra: string };
+  face: string | null;
+  sheet: string | null;
+  sheetJobId: string | null;
+  /** The latest sheet job's picture is already the Library sheet. */
+  sheetJobKept: boolean;
+  createdAt: string;
+}
+
+/** One batch of face options, its jobs in order. */
+export interface FaceBatch {
+  batch: string;
+  description: string | null;
+  createdAt: string;
+  jobIds: string[];
+}
+
+export interface InfluencerView {
+  run: string;
+  traits: InfluencerTrait[];
+  faces: number;
+  faceModel: string;
+  sheetModel: string;
+  faceUsd: number;
+  facesUsd: number;
+  sheetUsd: number;
+  availableTodayUsd: number;
+  batches: FaceBatch[];
+  influencers: Influencer[];
+}

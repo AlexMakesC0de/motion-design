@@ -115,7 +115,7 @@
 
 .app__main { position: relative; flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-5) var(--space-5) var(--space-5); }
 /* Image and Video scroll their own areas, so the controls stay on screen. */
-.app__main[data-screen="image"], .app__main[data-screen="video"] { overflow: hidden; padding: var(--space-3) var(--space-4) var(--space-4); }
+.app__main[data-screen="image"], .app__main[data-screen="video"], .app__main[data-screen="jutsu"], .app__main[data-screen="influencers"] { overflow: hidden; padding: var(--space-3) var(--space-4) var(--space-4); }
 
 /* Narrow windows: the studio's places scroll with the rest; the spend bar shrinks. */
 @media (max-width: 760px) {

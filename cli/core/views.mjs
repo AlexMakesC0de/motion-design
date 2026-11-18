@@ -12,7 +12,7 @@ import {
 import { getProvider, providerCredits, providerKey } from "../lib/providers.mjs";
 import { estimateUsd, priceLabel } from "../lib/budget.mjs";
 import { loadPresets, routeFor } from "../lib/presets.mjs";
-import { REPO_ROOT, RUNS_DIR, SCRATCH_RUN, runDir } from "../lib/run.mjs";
+import { REPO_ROOT, RUNS_DIR, SIDE_RUNS, runDir } from "../lib/run.mjs";
 import { unknown } from "../lib/errors.mjs";
 import { dailyPosition } from "./spend.mjs";
 
@@ -181,7 +181,7 @@ export function estimate(catalog, req, { store, limits }) {
 export function listRuns() {
   if (!existsSync(RUNS_DIR)) return [];
   return readdirSync(RUNS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith(".") && d.name !== SCRATCH_RUN)
+    .filter((d) => d.isDirectory() && !d.name.startsWith(".") && !SIDE_RUNS.has(d.name))
     .map((d) => {
       const dir = join(RUNS_DIR, d.name);
       const files = readdirSync(dir);

@@ -67,7 +67,9 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
     onEvent({ type: "skip", message: `skipping ${r.provider}: ${r.skipReason}` });
   }
 
-  const { _useI2v, ...inputValues } = values;
+  // `_durationS` prices a job whose length is not a request field (motion
+  // control bills the reference video's seconds); it is never sent.
+  const { _useI2v, _durationS, ...inputValues } = values;
   const attempts = [];
   let lastError = null;
   const refusals = []; // each route's own refusal, so the final error names them all
@@ -114,7 +116,7 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       key,
       modelId: model.id,
       capability,
-      durationS: built.input.duration,
+      durationS: built.input.duration ?? _durationS,
       resolution: built.input.resolution,
       quality: built.input.quality,
       input: built.input,

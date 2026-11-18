@@ -20,6 +20,8 @@ import { registerFinish } from "./api/finish.mjs";
 import { registerSettings } from "./api/settings.mjs";
 import { registerChat } from "./api/chat.mjs";
 import { registerDirector } from "./api/director.mjs";
+import { registerJutsu } from "./api/jutsu.mjs";
+import { registerInfluencers } from "./api/influencers.mjs";
 import { createTools } from "./chat/tools.mjs";
 import { createChat } from "./chat/session.mjs";
 import { openaiBackend } from "./chat/openai.mjs";
@@ -69,6 +71,8 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerLook(router, { catalog, deps, following });
   registerGenerate(router, { catalog, deps, follower });
   registerScenes(router, { catalog, deps, follower });
+  registerJutsu(router, { catalog, deps, follower });
+  registerInfluencers(router, { catalog, deps, follower });
   registerFrames(router);
   registerLibrary(router, { catalog, following });
   registerPresets(router, { catalog });

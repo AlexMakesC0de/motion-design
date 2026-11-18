@@ -419,6 +419,8 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
               name: z.string(),
               kind: z.string(),
               description: z.string(),
+              // An AI influencer's display name, chips and extra words; null for a plain asset.
+              persona: z.record(z.string(), z.unknown()).nullable(),
               imageCount: z.number(),
               hasSheet: z.boolean(),
               updatedAt: z.string(),

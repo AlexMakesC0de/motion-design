@@ -16,7 +16,7 @@ describe("App", () => {
     pending();
     render(<App />);
     const nav = screen.getByRole("navigation", { name: "Shard" });
-    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Explore", "Image", "Video", "MCP", "Films", "Library", "Looks", "SkillsNew"]);
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Explore", "Image", "Video", "MCP", "OpenjutsuNew", "AI InfluencersNew", "Films", "Library", "Looks", "SkillsNew"]);
     expect(within(nav).getByRole("link", { name: "Explore" })).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What are we making?" })).toBeInTheDocument();

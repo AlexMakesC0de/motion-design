@@ -143,8 +143,8 @@ export const spend = (over: Partial<SpendView> = {}): SpendView => ({
 export const settings = (over: Partial<SettingsView> = {}): SettingsView => ({
   limits: { dailyUsd: 10, perJobUsd: null, file: "/Users/x/.config/kie/limits.json" },
   providers: [
-    { name: "kie", label: "kie.ai", keyConfigured: true, keyEnv: "KIE_API_KEY", keyFile: "~/.config/kie/key", signup: "https://kie.ai/api-key", balanceReadable: true },
-    { name: "wavespeed", label: "WaveSpeed", keyConfigured: false, keyEnv: "WAVESPEED_API_KEY", keyFile: "~/.config/wavespeed/key", signup: "https://wavespeed.ai", balanceReadable: false },
+    { name: "kie", label: "kie.ai", keyConfigured: true, keySource: "file", keyEnv: "KIE_API_KEY", keyFile: "~/.config/kie/key", signup: "https://kie.ai/api-key", keySteps: "Sign in at kie.ai, open API Key and copy the key.", balanceReadable: true },
+    { name: "wavespeed", label: "WaveSpeed", keyConfigured: false, keySource: null, keyEnv: "WAVESPEED_API_KEY", keyFile: "~/.config/wavespeed/key", signup: "https://wavespeed.ai/accesskey", keySteps: "Sign in at wavespeed.ai, open Access Keys, press Generate and copy the key.", balanceReadable: false },
   ],
   ...over,
 });

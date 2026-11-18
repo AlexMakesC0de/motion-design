@@ -261,3 +261,7 @@
 .pick-pop__option[aria-selected="true"] .pick-pop__label { color: var(--accent); }
 .pick-pop__label { color: var(--text); font: 400 var(--text-sm)/1.4 var(--font-sans); }
 .pick-pop__when { color: var(--text-3); font: 400 var(--text-xs)/1.4 var(--font-sans); }
+
+/* A chosen pick reads at a glance: green, like an active setting. */
+.pick__chip[data-filled="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.pick__chip[data-filled="true"] + .pick__remove { color: var(--accent); }

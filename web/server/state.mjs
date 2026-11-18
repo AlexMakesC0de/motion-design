@@ -29,8 +29,8 @@ export function jobView(j, following = () => false) {
     // Create Video's picks and what was typed before the picks' words were added.
     picks: j.picks ?? null,
     typedPrompt: typeof j.typedPrompt === "string" ? j.typedPrompt : null,
-    durationS: input.duration ?? input.duration_s ?? null,
-    resolution: input.resolution != null ? String(input.resolution) : null,
+    durationS: input.duration ?? input.duration_s ?? j.durationS ?? null,
+    resolution: input.resolution != null ? String(input.resolution) : input.mode != null ? String(input.mode) : null,
     aspectRatio: input.aspect_ratio ?? null,
     failedOver: Boolean(j.failedOver),
     costSource: j.costSource ?? "none",
