@@ -16,13 +16,32 @@ Plan a film, generate its scenes and finish it, from a web studio, the terminal,
 
 **English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
 
-[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [Quick start](#quick-start) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
+[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [A look around](#a-look-around) · [Quick start](#quick-start) · [Set up with an agent](#set-it-up-with-an-ai-agent) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
 
 </div>
 
 ---
 
 Shard started as a fork of **[Chase's motion-design skill](https://github.com/cth9191/motion-design)**, ten great-looking motion styles with the prompts behind them. Huge thanks to Chase: the looks in this repo are his. Everything built around them is new. See [Credits](#credits).
+
+## A look around
+
+<p align="center"><img src="docs/images/product/explore.jpg" alt="Explore: describe a film in a sentence and pick a look" width="100%"></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/product/video.jpg" alt="Video: add a look and references, see the price, generate"><br><b>Video.</b> Pick a look, add references from your Library, see the price before you generate.</td>
+    <td width="50%"><img src="docs/images/product/looks.jpg" alt="Looks: 17 styles with camera, pacing and sound"><br><b>Looks.</b> 17 styles that set camera, colour, pacing and sound, on any model.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/product/openjutsu.jpg" alt="Openjutsu: swap a character into a clip"><br><b>Openjutsu</b> (beta). Swap a person, outfit, object or background into a clip, from your own Motion Library.</td>
+    <td><img src="docs/images/product/ai-influencers.jpg" alt="AI Influencers: build a face, then a character sheet"><br><b>AI Influencers.</b> Build a face from a few choices, then a character sheet that keeps them the same everywhere.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/product/image.jpg" alt="Image: conversations of image takes"><br><b>Image.</b> Pictures grouped into conversations, on GPT Image, Nano Banana and more.</td>
+    <td><img src="docs/images/product/mcp.jpg" alt="MCP: generate from Claude Code, Codex or Claude Desktop"><br><b>MCP.</b> The same tools in Claude Code, Codex and Claude Desktop, set up in one command.</td>
+  </tr>
+</table>
 
 ## What's inside
 
@@ -70,6 +89,27 @@ You need **Node 20+** and a **kie.ai API key**. ffmpeg is needed only for finish
    ```
 
 5. **Or ask an agent.** Restart Claude Code or Codex and try: *"Plan a 15-second product film for my app, show me the price, and don't generate anything yet."* The MCP page in the studio has the exact setup command for each app.
+
+## Set it up with an AI agent
+
+Paste this into Claude Code, Codex or another coding agent with terminal access. It installs everything, checks it and opens the studio, and it is told not to spend anything.
+
+```text
+Set up Shard, the motion-design studio at https://github.com/AlexMakesC0de/shard-motion-design-studio, on this computer.
+
+1. Check that Node 20 or newer is installed. If it isn't, tell me how to install it and stop.
+2. Clone the repository into a folder I can find (ask me where if unsure), then cd into it.
+3. Run `node install.mjs --dry-run`, show me what it would change, and wait for my OK. Then run `node install.mjs`.
+4. Tell me to create a kie.ai API key at https://kie.ai and save it myself with:
+   mkdir -p ~/.config/kie && printf '%s' 'MY_KEY' > ~/.config/kie/key && chmod 600 ~/.config/kie/key
+   Never ask me to paste the key into this chat, and never read or print the key file.
+5. When I say it's saved, run `kie doctor` (one free balance check, generates nothing) and show me the result.
+6. Ask me for a daily spending limit and a per-job limit, then set them with `kie limits --daily <amount> --per-job <amount>`.
+7. Run `npm --prefix web install`, then start the studio with `npm run studio` and give me the address (http://127.0.0.1:4317).
+8. If ffmpeg is missing, tell me it's only needed for finishing films and how to install it; don't install it unasked.
+
+Do not generate any image, video or audio, and do not spend money at any step. Finish with a short summary of what was installed and what I can try first.
+```
 
 ## Make something from the terminal
 
