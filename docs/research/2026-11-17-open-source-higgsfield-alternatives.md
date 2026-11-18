@@ -157,7 +157,7 @@ In the order I would do them. None is added to [the list](../improvements.md) ye
 
 1. **Compare two takes, and keep failed takes with a Retry button.** Small, and it makes every other feature easier to judge.
 2. **Next beat and Coverage in Scenes.** Uses the picks and scenes that already exist.
-3. **Check whether kie's Seedance 2.5 or Kling Motion Control can do a character swap, and what it costs.** A reading task; it decides whether the large feature is possible at all.
+3. **Check whether kie's Seedance 2.5 or Kling Motion Control can do a character swap, and what it costs.** A reading task; it decides whether the large feature is possible at all. Done on 2026-11-18: see [Openjutsu's features on kie](2026-11-18-openjutsu-on-kie.md).
 4. **First-frame swap** as the cheap version of character swap, if item 3 says the full version is far off.
 5. **Trim a reference video before upload**, which also fixes the over-estimate added today.
 6. **A browser export**, weighed against simply fixing ffmpeg.
