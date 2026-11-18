@@ -1,0 +1,29 @@
+name: Idea or feature request
+description: A new look, model, provider, workflow or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The film, image or workflow you have in mind, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How it could work in the studio, the CLI or an agent. Sketches and links to similar tools are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: cost
+    attributes:
+      label: Does it spend money?
+      description: If it adds a paid call, say which model or provider and roughly what it costs. Every paid job in Shard is priced first and goes through the spending limits.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you like to build it?
+      options:
+        - label: I'd like to open a pull request for this.

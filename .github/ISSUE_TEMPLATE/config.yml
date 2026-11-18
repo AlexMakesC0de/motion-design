@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup help
+    url: https://github.com/AlexMakesC0de/shard-motion-design-studio/blob/main/docs/setup.md
+    about: Each install step explained, with a troubleshooting table.
+  - name: Good first contributions
+    url: https://github.com/AlexMakesC0de/shard-motion-design-studio/blob/main/docs/good-first-issues.md
+    about: Small, well-defined tasks to start with.
