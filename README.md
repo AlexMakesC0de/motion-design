@@ -60,7 +60,7 @@ Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9
 
 | Part | What it does |
 |---|---|
-| **Studio** (`web/`) | A local web app: Image and Video pages, films planned scene by scene, **Openjutsu** (beta: swap a person, outfit, object or background into any clip), **AI Influencers** with three-panel character sheets, a Library of characters, products and places, Looks, your skills, spend and settings. |
+| **Studio** (`web/`) | A local web app: the Studio page, where an AI you connect (your ChatGPT subscription or an API key) plans a take and fills the prompt bar while you press Generate, Image and Video pages, films planned scene by scene, **Openjutsu** (beta: swap a person, outfit, object or background into any clip), **AI Influencers** with three-panel character sheets, a Library of characters, products and places, Looks, your skills, spend and settings. |
 | **`kie` CLI** (`cli/`) | Generates video, images and audio through [kie.ai](https://kie.ai) (WaveSpeed is an optional second route for some models), prices every job first, and keeps a record of each one. |
 | **MCP server** (`mcp/`) | Gives Claude Code and Codex (and Claude Desktop, with a pasted config) the same tools as the studio, so you can make films by asking. |
 | **Render and finish** (`render/`, `cli/`) | Draws exact graphics in code (titles, logos, numbers) with Remotion, and finishes films with ffmpeg: music, captions, loudness, other aspect ratios. |
@@ -73,6 +73,7 @@ Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9
 Only images, videos and ElevenLabs voice samples made through kie cost money, and each of those buttons shows its price. Everything else runs on your computer for free:
 
 - **Planning:** briefs, shot plans, the checker, scene prompts and price quotes.
+- **The Studio's AI:** your ChatGPT subscription through Codex, or a free model on your computer through Ollama or LM Studio. (An API key bills that provider for each message.)
 - **Character sheets:** the Library's sheet maker writes a ChatGPT prompt; make the image there and drop it back in.
 - **Character voices:** your own recording, or [VoiceStudio](https://github.com/debpalash/VoiceStudio), a free voice app you run on your own computer. In a character's Voice panel, the free tabs come first.
 - **Finishing:** joining shots, music, captions, loudness, other aspect ratios and code-drawn graphics (ffmpeg and Remotion).

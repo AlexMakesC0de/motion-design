@@ -359,6 +359,8 @@ export function ExploreScreen() {
   // @ in the prompt: the Library items whose names start with what follows.
   const mention = mentionAt(draft.prompt, caret);
   const matches = mention ? assets.filter((a) => a.name.startsWith(mention.word)).slice(0, 6) : [];
+  const mentionList = useRef<HTMLUListElement>(null);
+  useOnScreen(mentionList, matches.length > 0);
 
   function chooseMention(a: AssetSummary) {
     if (!mention) return;
@@ -655,7 +657,7 @@ export function ExploreScreen() {
                 }}
               />
               {matches.length > 0 && (
-                <ul className="xmention" role="listbox" aria-label="Library items">
+                <ul className="xmention" ref={mentionList} role="listbox" aria-label="Library items">
                   {matches.map((a) => (
                     <li key={a.name} role="option" aria-selected={false}>
                       <button type="button" className="xmention__item" onMouseDown={(e) => e.preventDefault()} onClick={() => chooseMention(a)}>
