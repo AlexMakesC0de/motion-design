@@ -16,11 +16,11 @@ Plan a film shot by shot, generate it on today's video and image models, and fin
 
 **English** · [简体中文](README.zh-CN.md) · [Español](README.es.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) <sub>(translations may lag behind English)</sub>
 
-[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [A look around](#a-look-around) · [Demo](#demo) · [Feature status](#feature-status) · [Quick start](#quick-start) · [Set up with an agent](#set-it-up-with-an-ai-agent) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
+[Website](https://alexmakesc0de.github.io/shard-motion-design-studio/) · [Trailer](#demo) · [A look around](#a-look-around) · [Feature status](#feature-status) · [Quick start](#quick-start) · [Set up with an agent](#set-it-up-with-an-ai-agent) · [Credits](#credits) · [The CLI](cli/README.md) · [The MCP server](mcp/README.md) · [The studio](web/README.md)
 
 </div>
 
-<p align="center"><img src="docs/images/product/demo.gif" alt="A walkthrough of the Shard studio: type an idea, pick the Neo-noir look, plan the film, browse the Looks, set a push-in close-up on the Video page and see the price before generating, then the MCP page" width="100%"></p>
+<p align="center"><a href="docs/images/product/trailer.mp4"><img src="docs/images/product/trailer-poster.jpg" alt="The Shard trailer: the Shard logo and wordmark over a sky of clouds as a jet climbs toward the camera" width="100%"></a><br><sub><b><a href="docs/images/product/trailer.mp4">Watch the trailer with sound (19s)</a></b>. Made in Shard: four Seedance 2.5 shots, cut and titled in the studio's Edit step.</sub></p>
 
 ---
 
@@ -38,6 +38,8 @@ It is for people who want to make short films, ads and social clips with AI mode
 Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9191/motion-design), whose ten styles live on here as the Ad templates. See [Credits](#credits).
 
 ## A look around
+
+<p align="center"><img src="docs/images/product/demo.gif" alt="A walkthrough of the Shard studio: type an idea, pick the Neo-noir look, plan the film, browse the Looks, set a push-in close-up on the Video page and see the price before generating, then the MCP page" width="100%"></p>
 
 <table>
   <tr>
@@ -87,7 +89,11 @@ Prices come from each provider's page on the date in `cli/models.json` and can g
 
 ## Demo
 
-> **A full end-to-end demo film is still to be recorded.** It will show one real brief going through Shard: the plan, the storyboard, the takes, the finished cut, and the cost Shard recorded for each job. Until then, the walkthrough at the top and the screenshots are the studio itself, recorded with no generations in it and nothing spent, and no third-party video is presented as Shard output.
+The trailer at the top was made in Shard from one sentence split across four people: a painter, a ninja, a blacksmith and a pilot. Each shot is a Seedance 2.5 draft at 480p, written from text alone with no reference pictures except a still for the painter. The cut, the trims and the Shard title were done in the studio's Edit step, which renders the title with the logo template and joins the clips with ffmpeg on your own computer.
+
+What it cost, as Shard recorded it: $4.48 for the four takes in the cut, and $6.72 with the drafts that didn't make it. The [video file](docs/images/product/trailer.mp4) is the exported cut as it came out of Shard.
+
+The walkthrough under [A look around](#a-look-around) is the studio itself, recorded with no generations in it and nothing spent.
 
 You can walk through most of the workflow without spending anything:
 
