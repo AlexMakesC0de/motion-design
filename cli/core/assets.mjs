@@ -152,9 +152,9 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
    * core/voice.mjs prepareVoice ({ path, durationS }), plus where it came from.
    * The voice it replaces moves to .history/.
    */
-  function setVoice(name, { path, durationS, origin, voiceId = null, voiceName = null, script = null, job = null }, { roots = null } = {}) {
+  function setVoice(name, { path, durationS, origin, voiceId = null, voiceName = null, script = null, job = null, take = null }, { roots = null } = {}) {
     if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
-    if (!["recording", "elevenlabs"].includes(origin)) throw unknown(`A voice's origin is recording or elevenlabs, got "${origin}".`);
+    if (!["recording", "elevenlabs", "voicestudio"].includes(origin)) throw unknown(`A voice's origin is recording, elevenlabs or voicestudio, got "${origin}".`);
     if (!Number.isFinite(durationS) || durationS <= 0) throw unknown("A voice needs its length in seconds.");
     const info = checkLocalFile(path, { roots, kinds: ["audio"] });
     const bytes = readFileSync(info.path);
@@ -171,9 +171,10 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       mime: info.mime,
       durationS,
       origin,
-      ...(voiceId ? { voiceId, voiceName } : {}),
+      ...(voiceId ? { voiceId, voiceName } : voiceName ? { voiceName } : {}),
       ...(script ? { script } : {}),
       ...(job ? { job } : {}),
+      ...(take ? { take } : {}),
       savedAt: at,
       upload: null,
     };

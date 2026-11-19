@@ -66,6 +66,15 @@ Shard started as a fork of [Chase's motion-design skill](https://github.com/cth9
 
 **Spending is guarded everywhere.** Every paid job is priced before it is sent and checked against a daily cap and an optional per-job limit, whether it comes from the studio, the CLI or an agent. Looking things up, planning and pricing are free.
 
+### Using Shard for free
+
+Only images, videos and ElevenLabs voice samples made through kie cost money, and each of those buttons shows its price. Everything else runs on your computer for free:
+
+- **Planning:** briefs, shot plans, the checker, scene prompts and price quotes.
+- **Character sheets:** the Library's sheet maker writes a ChatGPT prompt; make the image there and drop it back in.
+- **Character voices:** your own recording, or [VoiceStudio](https://github.com/debpalash/VoiceStudio), a free voice app you run on your own computer. In a character's Voice panel, the free tabs come first.
+- **Finishing:** joining shots, music, captions, loudness, other aspect ratios and code-drawn graphics (ffmpeg and Remotion).
+
 ## Feature status
 
 | Status | Features |

@@ -42,9 +42,21 @@ export function findVoice(id) {
  * ElevenLabs v3 directions; reading it yourself, treat them as stage directions.
  * Only English is built in; other languages need a script written for them.
  */
-export function voiceScript({ name, language = "en" } = {}) {
+export function voiceScript({ name, language = "en", style = "elevenlabs" } = {}) {
   if (language && !/^en\b/i.test(language)) return null;
   const who = name?.trim() ? `Hi, I'm ${name.trim()}.` : "Hi there.";
+  // VoiceStudio says unknown tags out loud: the same sounds, with the mood in the words.
+  if (style === "plain") {
+    return [
+      `${who} Thanks for joining me; this is how I usually sound. [pause]`,
+      "Wow, look at that huge orange boat! Isn't it thrilling?",
+      "Hmm, would you measure the beige chair with a cheap ruler?",
+      "Oh, sure. The zoo's thick fog spoiled our whole July voyage. Brilliant.",
+      "Quiet now... the judge is pouring hot soup.",
+      "I heard her first word, and it was goodbye. [pause]",
+      "[laughter] Okay, that's genuinely funny.",
+    ].join("\n");
+  }
   return [
     `${who} Thanks for joining me; this is how I usually sound.`,
     "[excited] Look at that huge orange boat! Isn't it thrilling?",

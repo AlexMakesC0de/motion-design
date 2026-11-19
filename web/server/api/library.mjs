@@ -18,7 +18,8 @@ import { resolveModel, routesFor } from "../../../cli/lib/models.mjs";
 import { estimateUsd } from "../../../cli/lib/budget.mjs";
 import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { makeSheet, adoptSheet, sheetWording } from "../../../cli/director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "../../../cli/director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, localScript, latestLocalTake, makeLocalVoice, keepLocalVoice } from "../../../cli/director/voice-make.mjs";
+import { voiceStudioStatus } from "../../../cli/core/voicestudio.mjs";
 import { presetVoices } from "../../../cli/core/voice.mjs";
 import { voiceTools } from "../../../cli/lib/ffmpeg.mjs";
 import { KINDS, sheetOf } from "../../../cli/core/assets.mjs";
@@ -121,9 +122,15 @@ export function sheetOffer(catalog, asset) {
   return { model: model.id, usd: estimateUsd(route, {}).usd };
 }
 
+/** The newest VoiceStudio take not kept yet, for the page. */
+function localTake(a) {
+  const t = latestLocalTake(a);
+  return t ? { id: t.id, voice: t.voice, durationS: t.durationS ?? null, madeAt: t.madeAt, url: mediaUrl(t.path) } : null;
+}
+
 /** A character's voice for the page: the recording, the settings a sample uses, its price and the latest sample job. */
 function voiceDetail(a, jobs, following, catalog) {
-  if (a.kind !== "character") return { voice: null, voiceSettings: null, voicePrice: null, voiceJob: null, voiceJobKept: false };
+  if (a.kind !== "character") return { voice: null, voiceSettings: null, voicePrice: null, voiceJob: null, voiceJobKept: false, voiceStudioScript: null, voiceStudioTake: null };
   const v = a.voice;
   const settings = voiceSettings(a);
   const voiceJob = jobs.filter((j) => j.stage === "voice" && j.voiceFor === a.name).at(-1) ?? null;
@@ -133,6 +140,8 @@ function voiceDetail(a, jobs, following, catalog) {
     voicePrice: catalog ? voicePrice(catalog, settings.script) : null,
     voiceJob: voiceJob ? jobView(voiceJob, following) : null,
     voiceJobKept: Boolean(v?.job && voiceJob && v.job === voiceJob.id),
+    voiceStudioScript: localScript(a),
+    voiceStudioTake: localTake(a),
   };
 }
 
@@ -362,6 +371,26 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
     if (job.stage !== "voice" || job.voiceFor !== params.name) throw f.invalid("job", `${jobId} is not ${params.name}'s voice sample.`);
     if (job.state !== "succeeded" || !job.artifacts?.length) throw f.invalid("job", "That voice sample has not finished.");
     await adoptVoice(library, store, jobId, tools);
+    return detail(params.name);
+  });
+
+  // VoiceStudio, a free voice app on this computer. Shard calls it only on loopback.
+  const studioVoice = deps.voiceStudio ?? {};
+  router.get("/api/voicestudio", () => voiceStudioStatus({ env: studioVoice.env, fetch: studioVoice.fetch }));
+
+  /** Free: VoiceStudio reads the script in one of the user's VoiceStudio voices. The take waits to be kept. */
+  router.post("/api/library/:name/voicestudio", async ({ params, body = {} }) => {
+    const { library } = context();
+    const voice = f.text(body, "voice") || "default";
+    const script = typeof body.script === "string" ? body.script : null;
+    await makeLocalVoice(library, params.name, { voice, script, probe: tools.probe, env: studioVoice.env, fetch: studioVoice.fetch });
+    return detail(params.name);
+  });
+
+  router.post("/api/library/:name/keep-voicestudio", async ({ params, body = {} }) => {
+    const take = f.text(body, "take", { required: true });
+    if (!take.startsWith(`voicestudio-${params.name}-`)) throw f.invalid("take", `${take} is not ${params.name}'s VoiceStudio take.`);
+    await keepLocalVoice(context().library, take, tools);
     return detail(params.name);
   });
 

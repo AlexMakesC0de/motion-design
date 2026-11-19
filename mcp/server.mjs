@@ -56,7 +56,7 @@ const INSTRUCTIONS =
   "save_idea (what the film is about and its scene list), list_scenes, save_scene " +
   "(change only the fields the user named), get_scene_prompt (free: the exact prompt, its problems and prices), then " +
   "draft_scene or final_scene only when the user agreed that spend, then wait_job. copy_scene moves a scene from Create into a film. " +
-  "A Library character can have a voice: get_voice, save_voice_settings and list_voices are free; save_voice_recording uses the user's own recording; make_voice spends a few cents, then adopt_voice keeps it. " +
+  "A Library character can have a voice: get_voice, save_voice_settings and list_voices are free; save_voice_recording uses the user's own recording; make_local_voice is free through VoiceStudio on their computer; make_voice spends a few cents. adopt_voice keeps a take or sample. " +
   "A scene sends a character's voice when that character has a line, written @{r1} says {\"line\"}. " +
   "The user keeps a skill library (list_skills): when a request matches a skill's description, load it with get_skill and follow it.";
 

@@ -3,9 +3,11 @@
 // local ffmpeg and free.
 import { z } from "zod";
 import { runDir } from "../cli/lib/run.mjs";
+import { usage } from "../cli/lib/errors.mjs";
 import { uploadFile } from "../cli/lib/upload.mjs";
 import { makeStill, makeSheet, adoptSheet } from "../cli/director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "../cli/director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice } from "../cli/director/voice-make.mjs";
+import { voiceStudioStatus } from "../cli/core/voicestudio.mjs";
 import { presetVoices } from "../cli/core/voice.mjs";
 import { voiceTools } from "../cli/lib/ffmpeg.mjs";
 import { filmShot, filmReady } from "../cli/director/film.mjs";
@@ -125,13 +127,20 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
   tool(
     "list_voices",
     {
-      title: "List preset voices",
-      description: "ElevenLabs preset voices for a character's voice, each with a free preview link. Free.",
-      inputSchema: {},
-      outputSchema: { voices: z.array(Data) },
+      title: "List voices",
+      description:
+        "Voices a character's voice can be made in. Default: ElevenLabs preset voices, each with a free preview link. " +
+        'source "voicestudio": the voices the user made in VoiceStudio, a free app on this computer (with whether it is open). Free.',
+      inputSchema: { source: z.enum(["elevenlabs", "voicestudio"]).optional() },
+      outputSchema: { voices: z.array(Data), running: z.boolean().optional() },
       annotations: LOOK,
     },
-    async () => {
+    async (a = {}) => {
+      if (a.source === "voicestudio") {
+        const s = await voiceStudioStatus();
+        if (!s.running) return ok(`VoiceStudio isn't open at ${s.url}. Ask the user to open it; it is free and runs on their computer.`, { voices: [], running: false });
+        return ok(["default (the engine's own voice)", ...s.voices.map((v) => `${v.name} (${v.id})`)].join("\n"), { voices: s.voices, running: true });
+      }
       const { voices } = presetVoices();
       return ok(voices.map((v) => `${v.name} (${v.id}): ${v.description}`).join("\n"), { voices });
     },
@@ -206,15 +215,42 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
     "adopt_voice",
     {
       title: "Keep a voice sample",
-      description: "Keep a finished voice sample as the character's voice; scenes where the character speaks then send it. The voice it replaces is kept in history. Free.",
-      inputSchema: { job_id: z.string() },
+      description:
+        "Keep a finished voice sample as the character's voice: job_id for an ElevenLabs sample, or take for a make_local_voice take. " +
+        "Scenes where the character speaks then send it. The voice it replaces is kept in history. Free.",
+      inputSchema: { job_id: z.string().optional(), take: z.string().optional() },
       outputSchema: { name: z.string(), durationS: z.number(), path: z.string() },
       annotations: LOCAL_WRITE,
     },
     async (a) => {
       const { library, store } = ctx();
-      const asset = await adoptVoice(library, store, a.job_id, voiceTools);
+      if (!a.job_id === !a.take) throw usage("Pass either job_id (an ElevenLabs sample) or take (a VoiceStudio take).");
+      const asset = a.take ? await keepLocalVoice(library, a.take, voiceTools) : await adoptVoice(library, store, a.job_id, voiceTools);
       return ok(`${asset.name} now speaks with ${asset.voice.voiceName ?? "the sample"} (${asset.voice.durationS}s).`, { name: asset.name, durationS: asset.voice.durationS, path: asset.voice.path });
+    },
+  );
+
+  tool(
+    "make_local_voice",
+    {
+      title: "Make a voice with VoiceStudio",
+      description:
+        "Free, on this computer: VoiceStudio (a voice app the user runs themselves) reads the character's script in one of the user's VoiceStudio voices " +
+        '(list_voices with source "voicestudio"; "default" if none). Mood tags VoiceStudio cannot read are left out. Can take minutes; the first time also downloads its model. ' +
+        "Returns a take; let the user listen, then adopt_voice with that take if they like it.",
+      inputSchema: { asset: z.string(), voice: z.string().optional(), script: z.string().optional() },
+      outputSchema: { take: z.string(), path: z.string(), durationS: z.number().nullable(), voice: z.string() },
+      annotations: LOCAL_WRITE,
+    },
+    async (a) => {
+      const { library } = ctx();
+      const t = await makeLocalVoice(library, a.asset, { voice: a.voice ?? "default", script: a.script ?? null, probe: voiceTools.probe });
+      return ok(`VoiceStudio read ${a.asset}'s script in "${t.voice}"${t.durationS != null ? ` (${t.durationS}s)` : ""}: ${t.path}\nIf the user likes it: adopt_voice with take "${t.id}".`, {
+        take: t.id,
+        path: t.path,
+        durationS: t.durationS,
+        voice: t.voice,
+      });
     },
   );
 

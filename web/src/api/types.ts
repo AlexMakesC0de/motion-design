@@ -96,11 +96,15 @@ export interface AssetDetail {
   voiceJob?: JobView | null;
   /** That sample is already the character's voice. */
   voiceJobKept?: boolean;
+  /** The script VoiceStudio reads: the saved one without ElevenLabs tags, or the built-in plain one. */
+  voiceStudioScript?: string | null;
+  /** The newest VoiceStudio take not kept yet. */
+  voiceStudioTake?: VoiceStudioTake | null;
 }
 
 export interface AssetVoice {
   durationS: number;
-  origin: "recording" | "elevenlabs";
+  origin: "recording" | "elevenlabs" | "voicestudio";
   voiceId: string | null;
   voiceName: string | null;
   script: string | null;
@@ -117,6 +121,21 @@ export interface VoiceSettings {
   voiceId?: string;
   voiceName?: string;
   script: string;
+}
+
+export interface VoiceStudioTake {
+  id: string;
+  voice: string;
+  durationS: number | null;
+  madeAt: string;
+  url: string | null;
+}
+
+export interface VoiceStudioStatus {
+  running: boolean;
+  url: string;
+  voices: { id: string; name: string }[];
+  error?: string | null;
 }
 
 export interface PresetVoice {

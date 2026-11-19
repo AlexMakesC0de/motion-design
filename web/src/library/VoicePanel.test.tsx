@@ -13,6 +13,8 @@ const base: AssetDetail = {
   voicePrice: { usd: 0.03, basis: "x", chars: 25 },
   voiceJob: null,
   voiceJobKept: false,
+  voiceStudioScript: "Hi there.\n[laughter] Okay.",
+  voiceStudioTake: null,
 };
 const voices = { voices: [{ id: "EkK5I93UQWFDigLMpZcX", name: "James", description: "Husky, Engaging and Bold", previewUrl: "https://static.test/james.mp3" }] };
 
@@ -29,7 +31,7 @@ describe("VoicePanel", () => {
     render(<VoicePanel asset={base} onSaved={() => {}} />);
     expect(screen.getByText(/No voice yet/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Script to read/)).toHaveValue("Hi there.\n[whispers] Shh.");
-    expect(screen.getByRole("tab", { name: "Your recording" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Your recording · free" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Add recording" })).toBeInTheDocument();
   });
 
@@ -49,7 +51,7 @@ describe("VoicePanel", () => {
       "/api/library/vera/make-voice": () => base,
     });
     render(<VoicePanel asset={base} onSaved={() => {}} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Preset voice" }));
+    fireEvent.click(screen.getByRole("tab", { name: /ElevenLabs · \$0\.03/ }));
     const make = screen.getByRole("button", { name: /Make voice sample · \$0\.03/ });
     expect(make).toBeDisabled();
     await screen.findByRole("option", { name: /James/ });
@@ -68,5 +70,39 @@ describe("VoicePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep this voice" }));
     await waitFor(() => expect(sent(fetchMock, "/api/library/vera/adopt-voice")).toHaveLength(1));
     expect(JSON.parse(String((sent(fetchMock, "/api/library/vera/adopt-voice")[0][1] as RequestInit).body))).toEqual({ job: "j-1" });
+  });
+
+  test("VoiceStudio closed: the tab says so, links to it and checks again", async () => {
+    let open = false;
+    const fetchMock = stub({ "/api/voicestudio": () => ({ running: open, url: "http://127.0.0.1:3900", voices: open ? [{ id: "p-1", name: "Gravel" }] : [] }) });
+    render(<VoicePanel asset={base} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "VoiceStudio · free" }));
+    expect(await screen.findByText(/VoiceStudio isn't open on this computer/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Get VoiceStudio" })).toHaveAttribute("href", expect.stringContaining("debpalash/VoiceStudio"));
+    open = true;
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("option", { name: "Gravel" })).toBeInTheDocument();
+    expect(sent(fetchMock, "/api/voicestudio")).toHaveLength(2);
+  });
+
+  test("VoiceStudio open: its script has no mood tags, a take is free, and Keep keeps it", async () => {
+    const take = { id: "voicestudio-vera-20261119T102030Z", voice: "p-1", durationS: 21.4, madeAt: "", url: "/media/runs/voices/voicestudio-vera-20261119T102030Z.wav" };
+    const fetchMock = stub({
+      "/api/voicestudio": () => ({ running: true, url: "http://127.0.0.1:3900", voices: [{ id: "p-1", name: "Gravel" }] }),
+      "/api/library/vera/voicestudio": () => ({ ...base, voiceStudioTake: take }),
+      "/api/library/vera/keep-voicestudio": () => base,
+    });
+    const { rerender } = render(<VoicePanel asset={base} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "VoiceStudio · free" }));
+    expect(screen.getByLabelText(/Script to read/)).toHaveValue("Hi there.\n[laughter] Okay.");
+    await screen.findByRole("option", { name: "Gravel" });
+    fireEvent.change(screen.getByRole("combobox", { name: "VoiceStudio voice" }), { target: { value: "p-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Make voice · free" }));
+    await waitFor(() => expect(sent(fetchMock, "/api/library/vera/voicestudio")).toHaveLength(1));
+    expect(JSON.parse(String((sent(fetchMock, "/api/library/vera/voicestudio")[0][1] as RequestInit).body))).toEqual({ voice: "p-1", script: "Hi there.\n[laughter] Okay." });
+    rerender(<VoicePanel asset={{ ...base, voiceStudioTake: take }} onSaved={() => {}} />);
+    expect(screen.getByLabelText("The new VoiceStudio take")).toHaveAttribute("src", take.url);
+    fireEvent.click(screen.getByRole("button", { name: "Keep this voice" }));
+    await waitFor(() => expect(sent(fetchMock, "/api/library/vera/keep-voicestudio")).toHaveLength(1));
   });
 });

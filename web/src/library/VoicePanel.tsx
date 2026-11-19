@@ -1,11 +1,12 @@
 // web/src/library/VoicePanel.tsx
-// A character's voice, inside its Library popup. Two ways to give it one: your
-// own recording (free), or a sample in one of ElevenLabs' preset voices
-// (priced on the button, spent only on that click, kept with Keep voice).
+// A character's voice, inside its Library popup. Three ways to give it one,
+// cheapest first: your own recording (free), a take from VoiceStudio running
+// on this computer (free), or a sample in one of ElevenLabs' preset voices
+// (priced on the button, spent only on that click). Takes are kept with Keep.
 // Scenes send the voice whenever this character has a line.
 import { useEffect, useId, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { AssetDetail, JobView, PresetVoice } from "../api/types";
+import type { AssetDetail, JobView, PresetVoice, VoiceStudioStatus } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { usd } from "../studio/format";
 
@@ -14,7 +15,9 @@ interface Props {
   onSaved: (asset: AssetDetail) => void;
 }
 
-type Way = "record" | "preset";
+type Way = "record" | "voicestudio" | "preset";
+const VOICESTUDIO_DOWNLOAD = "https://github.com/debpalash/VoiceStudio#platforms";
+const ORIGIN_WAY: Record<string, Way> = { recording: "record", voicestudio: "voicestudio", elevenlabs: "preset" };
 const FAILED = new Set(["failed-charged", "failed-unconfirmed", "failed-confirmed-free", "refused"]);
 const phase = (job: JobView) => (job.state === "succeeded" && job.media[0] ? "done" : FAILED.has(job.state) ? "failed" : "making");
 const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
@@ -28,7 +31,11 @@ export function VoicePanel({ asset, onSaved }: Props) {
   const settings = asset.voiceSettings ?? { script: "" };
   const voice = asset.voice ?? null;
   const [list, setList] = useState<PresetVoice[]>([]);
-  const [way, setWay] = useState<Way>(voice?.origin === "elevenlabs" ? "preset" : "record");
+  const [way, setWay] = useState<Way>(ORIGIN_WAY[voice?.origin ?? ""] ?? "record");
+  const [localText, setLocalText] = useState(asset.voiceStudioScript ?? "");
+  const [studio, setStudio] = useState<VoiceStudioStatus | null>(null);
+  const [studioVoice, setStudioVoice] = useState("default");
+  const [making, setMaking] = useState(false);
   const [open, setOpen] = useState(!voice);
   const [voiceId, setVoiceId] = useState(settings.voiceId ?? "");
   const [script, setScript] = useState(settings.script ?? "");
@@ -45,7 +52,12 @@ export function VoicePanel({ asset, onSaved }: Props) {
     setJob(asset.voiceJob ?? null);
     setVoiceId(asset.voiceSettings?.voiceId ?? "");
     setScript(asset.voiceSettings?.script ?? "");
+    setLocalText(asset.voiceStudioScript ?? "");
   }, [asset]);
+  useEffect(() => {
+    if (way === "voicestudio" && !studio) checkStudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [way]);
   useEffect(
     () =>
       onStudioEvent((e) => {
@@ -59,6 +71,9 @@ export function VoicePanel({ asset, onSaved }: Props) {
   const chosen = list.find((v) => v.id === voiceId) ?? null;
   const scriptChanged = script !== (settings.script ?? "");
   const price = asset.voicePrice ? usd(asset.voicePrice.usd) : null;
+  const take = asset.voiceStudioTake ?? null;
+  const local = way === "voicestudio";
+  const shown = local ? localText : script;
 
   async function run(work: () => Promise<AssetDetail>) {
     setBusy(true);
@@ -80,6 +95,21 @@ export function VoicePanel({ asset, onSaved }: Props) {
       if (scriptChanged || voiceId !== (settings.voiceId ?? "")) await api<AssetDetail>(`${path}/voice-settings`, { method: "PATCH", body: { voiceId, script } });
       return api<AssetDetail>(`${path}/make-voice`, { method: "POST", body: {} });
     });
+  async function checkStudio() {
+    setStudio(null);
+    try {
+      setStudio(await api<VoiceStudioStatus>("/api/voicestudio"));
+    } catch (e) {
+      setStudio({ running: false, url: "", voices: [], error: message(e) });
+    }
+  }
+  /** Free: VoiceStudio on this computer reads the script on screen. */
+  const makeLocal = async () => {
+    setMaking(true);
+    await run(() => api<AssetDetail>(`${path}/voicestudio`, { method: "POST", body: { voice: studioVoice, script: localText } }));
+    setMaking(false);
+  };
+  const keepLocal = () => take && run(() => api<AssetDetail>(`${path}/keep-voicestudio`, { method: "POST", body: { take: take.id } }));
   const keepSample = () => job && run(() => api<AssetDetail>(`${path}/adopt-voice`, { method: "POST", body: { job: job.id } }));
   const clear = () => {
     if (!window.confirm(`Take ${asset.name}'s voice away? It moves to the item's history.`)) return;
@@ -106,7 +136,7 @@ export function VoicePanel({ asset, onSaved }: Props) {
         <div className="voice__current">
           <audio className="voice__player" controls preload="none" src={voice.url ?? undefined} aria-label={`${asset.name}'s voice`} />
           <p className="voice__note">
-            {voice.origin === "recording" ? "Your recording" : `ElevenLabs · ${voice.voiceName ?? "preset voice"}`} · {voice.durationS.toFixed(1)}s. Scenes send it whenever {asset.name} has a line.
+            {voice.origin === "recording" ? "Your recording" : voice.origin === "voicestudio" ? `VoiceStudio · ${voice.voiceName ?? "default voice"}` : `ElevenLabs · ${voice.voiceName ?? "preset voice"}`} · {voice.durationS.toFixed(1)}s. Scenes send it whenever {asset.name} has a line.
           </p>
         </div>
       ) : (
@@ -142,25 +172,26 @@ export function VoicePanel({ asset, onSaved }: Props) {
       {open && (
         <div className="sheet-get">
           <div className="seg seg--tight" role="tablist" aria-label="How to get the voice">
-            {(["record", "preset"] as Way[]).map((w) => (
+            {(["record", "voicestudio", "preset"] as Way[]).map((w) => (
               <button key={w} type="button" role="tab" aria-selected={way === w} className="seg__item" onClick={() => setWay(w)}>
-                {w === "record" ? "Your recording" : "Preset voice"}
+                {w === "record" ? "Your recording · free" : w === "voicestudio" ? "VoiceStudio · free" : `ElevenLabs${price ? ` · ${price}` : ""}`}
               </button>
             ))}
           </div>
 
           <label className="field__label" htmlFor={`${id}-script`}>
-            Script to read · {script.length} characters
+            Script to read · {shown.length} characters
           </label>
           <textarea
             id={`${id}-script`}
             className="field voice__script"
             rows={7}
-            value={script}
-            onChange={(e) => setScript(e.target.value)}
+            value={shown}
+            onChange={(e) => (local ? setLocalText(e.target.value) : setScript(e.target.value))}
             placeholder="Write what the voice reads. English has a built-in script; other languages need one written here."
           />
-          {scriptChanged && (
+          {local && <p className="voice__note">VoiceStudio would say mood tags like [excited] out loud, so this script has none; only [pause] and [laughter] work. Changes here are for the next take only.</p>}
+          {!local && scriptChanged && (
             <button type="button" className="sheet-get__fold voice__save" disabled={busy} onClick={() => saveSettings({ script })}>
               Save script
             </button>
@@ -175,6 +206,68 @@ export function VoicePanel({ asset, onSaved }: Props) {
               <button type="button" className="button" disabled={busy} onClick={() => pick.current?.click()}>
                 Add recording
               </button>
+            </div>
+          ) : local ? (
+            <div className="sheet-get__panel">
+              {studio === null ? (
+                <p className="voice__note">Looking for VoiceStudio on this computer…</p>
+              ) : !studio.running ? (
+                <>
+                  <p className="voice__note">
+                    VoiceStudio isn't open on this computer. It's a free voice app that runs on your own machine: make a voice in it (describe one, or clone a recording), keep it open, then check again.
+                    {studio.error ? ` (${studio.error})` : ""}
+                  </p>
+                  <div className="voice__pick">
+                    <a className="button" href={VOICESTUDIO_DOWNLOAD} target="_blank" rel="noreferrer">
+                      Get VoiceStudio
+                    </a>
+                    <button type="button" className="button" onClick={checkStudio}>
+                      Check again
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="field__label" htmlFor={`${id}-studio-voice`}>
+                    VoiceStudio voice
+                  </label>
+                  <div className="voice__pick">
+                    <select id={`${id}-studio-voice`} className="field" value={studioVoice} onChange={(e) => setStudioVoice(e.target.value)}>
+                      <option value="default">Default voice</option>
+                      {studio.voices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" className="button" onClick={checkStudio}>
+                      Refresh
+                    </button>
+                  </div>
+                  <p className="voice__note">Voices you make in VoiceStudio show here. It all runs on this computer; nothing is spent.</p>
+                  {making && (
+                    <p className="sheet-made__note" role="status">
+                      <span className="sheet-made__spin" aria-hidden="true" /> VoiceStudio is reading the script… The first time can take several minutes while it downloads its model.
+                    </p>
+                  )}
+                  <button type="button" className="generate sheet-get__go" disabled={busy || !localText.trim()} onClick={makeLocal}>
+                    Make voice · free
+                  </button>
+                </>
+              )}
+              {take && (
+                <div className="sheet-made" data-phase="done">
+                  <audio className="voice__player" controls src={take.url ?? undefined} aria-label="The new VoiceStudio take" />
+                  <p className="sheet-made__note">
+                    {take.durationS != null ? `${take.durationS.toFixed(1)}s · ` : ""}Sounds right? Keep it; {voice ? "the old voice goes to history." : "scenes use it from now on."}
+                  </p>
+                  <div className="sheet-maker__actions">
+                    <button type="button" className="button button--light" disabled={busy} onClick={keepLocal}>
+                      Keep this voice
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="sheet-get__panel">
