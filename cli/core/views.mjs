@@ -77,6 +77,8 @@ export function listModels(catalog, { capability } = {}) {
       resolutions: (m.resolutions ?? []).map(String),
       refRoles: m.refs ?? [],
       nativeAudio: Boolean(m.nativeAudio),
+      // The route field that turns the model's own sound off, when it has a switch.
+      audioOff: m.promptProfile?.audioOff ?? null,
       notes: m.notes ?? null,
       routes: routesFor(catalog, m).map((r) => ({
         provider: r.provider,

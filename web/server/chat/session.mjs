@@ -15,7 +15,7 @@ import { ChatError, appendChat, budgetSentence, createTurnLog, historyMessages, 
 export const MAX_MESSAGE = 8_000;
 /** The most entries GET returns: the newest. The file keeps every one. */
 export const VIEW_ENTRIES = 500;
-export const NOT_CONNECTED = "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.";
+export const NOT_CONNECTED = "Chat isn't connected. In Settings, choose your ChatGPT subscription or paste an API key (OpenAI, Anthropic, OpenRouter or another service).";
 
 /** One sentence for the page, for anything a turn throws. */
 function sentence(err) {
@@ -27,8 +27,9 @@ function sentence(err) {
 /**
  * `backends`: { openai, codex }, each { ready(conn), turn({...}) }.
  * `publish(event)` sends an SSE event; `tools` gives the MCP instructions.
+ * `prompt({ film, mcpInstructions })` is the system prompt (Explore has its own).
  */
-export function createChat({ backends, tools, publish = () => {} }) {
+export function createChat({ backends, tools, publish = () => {}, prompt = systemPrompt }) {
   const live = new Map(); // film → { log, ctrl, done }
 
   const emit = (film, entry) => publish({ event: "chat", data: { film, busy: live.has(film), entry } });
@@ -41,7 +42,7 @@ export function createChat({ backends, tools, publish = () => {} }) {
     },
 
     /** Start a turn and answer at once with the user's entry; the rest arrives as events. */
-    async send(film, text) {
+    async send(film, text, { context = null } = {}) {
       if (typeof text !== "string" || !text.trim()) throw new HttpError(400, "Write a message first.", { field: "text" });
       if (text.length > MAX_MESSAGE) throw new HttpError(400, `A message is at most ${MAX_MESSAGE} characters.`, { field: "text" });
       if (live.has(film)) throw new HttpError(409, "The chat is still answering in this film. Wait for it, or press Stop.");
@@ -61,11 +62,12 @@ export function createChat({ backends, tools, publish = () => {} }) {
 
       turn.done = (async () => {
         try {
-          const instructions = systemPrompt({ film, mcpInstructions: await tools.instructions() });
+          const instructions = prompt({ film, mcpInstructions: await tools.instructions() });
           const out = await backend.turn({
             conn,
             film,
-            text: user.text,
+            // The context (Explore's prompt bar as it stands) reaches the model with this message only; the transcript keeps the user's words.
+            text: context ? `${user.text}\n\n${context}` : user.text,
             history: historyMessages(saved.entries),
             saved,
             instructions,
@@ -96,6 +98,15 @@ export function createChat({ backends, tools, publish = () => {} }) {
       const turn = live.get(film);
       if (!turn) return false;
       turn.ctrl.abort();
+      return true;
+    },
+
+    /** Start a new conversation in the film. The old lines stay in the file, unread. False when there was nothing to clear. */
+    clear(film) {
+      if (live.has(film)) throw new HttpError(409, "The chat is still answering. Wait for it, or press Stop.");
+      if (!readChat(film).entries.length) return false;
+      appendChat(film, [{ kind: "reset", at: new Date().toISOString() }]);
+      publish({ event: "chat", data: { film, busy: false, entry: null, reset: true } });
       return true;
     },
 

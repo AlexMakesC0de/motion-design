@@ -112,6 +112,7 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
 
   router.post("/api/generate/video", async ({ body = {} }) => {
     const a = { ...common(body), model: f.text(body, "model"), preset: f.text(body, "preset"), duration_s: f.wholeNumber(body, "duration_s") };
+    const thread = threadOf(body);
     let modelId = a.model;
     let durationS = a.duration_s;
     let aspectRatio = a.aspect_ratio;
@@ -151,16 +152,14 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
         artifactBase: "out",
         useI2v: (refs) => refs.some((r) => r.role === "first_frame"),
         extra: { preset: presetId, durationS, aspectRatio, ...withPicks },
-        jobRecord: withPicks,
+        jobRecord: { ...withPicks, ...(thread ? { thread } : {}) },
       },
     );
   });
 
   router.post("/api/generate/image", async ({ body = {} }) => {
     const a = { ...common(body), model: f.text(body, "model"), quality: f.text(body, "quality"), background: f.text(body, "background") };
-    // The Image page's conversation this picture belongs to (an id the page made up, kept on the job).
-    const thread = f.text(body, "thread");
-    if (thread && !/^c-[a-z0-9]{4,32}$/.test(thread)) throw f.invalid("thread", "A conversation id is c- and 4 to 32 lowercase letters or digits.");
+    const thread = threadOf(body);
     const model = resolveModel(catalog, a.model ?? "gpt-image-2", "image");
     if (a.resolution && model.resolutions && !model.resolutions.includes(a.resolution)) {
       throw f.invalid("resolution", `${model.id} supports resolutions ${model.resolutions.join(", ")}.`);
@@ -190,6 +189,13 @@ export function registerGenerate(router, { catalog, deps = {}, follower }) {
     const w = await waitJob(catalog, store, params.id, { timeoutMs: 1, deps: deps.generate });
     return { outcome: w.outcome, following: false, message: checkMessage(w), job: view(w.job) };
   });
+}
+
+/** The page conversation a take belongs to (Image's or Studio's; an id the page made up, kept on the job). */
+function threadOf(body) {
+  const thread = f.text(body, "thread");
+  if (thread && !/^c-[a-z0-9]{4,32}$/.test(thread)) throw f.invalid("thread", "A conversation id is c- and 4 to 32 lowercase letters or digits.");
+  return thread;
 }
 
 function checkMessage(w) {

@@ -184,3 +184,36 @@ describe("SettingsScreen: layout", () => {
     expect(within(agents).getByRole("link", { name: "Your skills" })).toHaveAttribute("href", "#/skills");
   });
 });
+
+describe("SettingsScreen: archived Studio conversations", () => {
+  test("lists them, restores one, and deletes one only after asking", async () => {
+    let archived = [
+      { id: "c-boat1", title: "a paper boat", messages: 2, updatedAt: "2026-11-19T08:10:00.000Z" },
+      { id: "c-fox22", title: "a fox in the snow", messages: 1, updatedAt: "2026-11-18T08:00:00.000Z" },
+    ];
+    const fetch = setup({
+      "/api/explore/chats": () => archived,
+      "/api/explore/chats/c-boat1/archived": () => {
+        archived = archived.filter((c) => c.id !== "c-boat1");
+        return { id: "c-boat1", archived: false };
+      },
+      "/api/explore/chats/c-fox22": () => ({ id: "c-fox22", deleted: true }),
+    });
+    const list = await screen.findByRole("list", { name: "Archived conversations" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(calls(fetch, "/api/explore/chats?archived=1")).toHaveLength(1);
+
+    fireEvent.click(within(list).getByRole("button", { name: "Restore “a paper boat”" }));
+    await waitFor(() => expect(calls(fetch, "/api/explore/chats/c-boat1/archived")).toHaveLength(1));
+    expect(lastBody(fetch, "/api/explore/chats/c-boat1/archived")).toEqual({ archived: false });
+    await waitFor(() => expect(screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("a paper boat"))).toHaveLength(0));
+
+    const ask = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole("button", { name: "Delete “a fox in the snow”" }));
+    expect(calls(fetch, "/api/explore/chats/c-fox22")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Delete “a fox in the snow”" }));
+    await waitFor(() => expect(calls(fetch, "/api/explore/chats/c-fox22")).toHaveLength(1));
+    expect(calls(fetch, "/api/explore/chats/c-fox22")[0][1]!.method).toBe("DELETE");
+    ask.mockRestore();
+  });
+});

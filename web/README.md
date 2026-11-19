@@ -11,6 +11,14 @@ This builds the page if needed, starts a server on http://127.0.0.1:4317 (or the
 
 If you stop the server, the open page shows a banner and reconnects by itself when you start it again.
 
+## Studio
+
+The page you land on. Describe a scene in the prompt box; **Plan with AI** (or Enter) asks the AI you connected to plan one take: it picks the model, a Look, camera and lighting, and any Library character, product or place you name with `@`, writes the full prompt, and fills the bar. The green **Generate** button shows the price, and only pressing it spends. Everything the AI set stays yours to change, and with no AI connected the bar works on its own.
+
+- **The bar:** References, Look, Camera and Lighting above the box (each Auto until you or the AI pick one; Camera and Lighting are for video), then Image or Video, model, resolution, ratio, duration, sound on or off, and 1 to 4 takes.
+- **The AI:** Settings, **Chat AI**: your ChatGPT subscription through Codex, or an API key for OpenAI, Anthropic, OpenRouter or another OpenAI-compatible service (Gemini, DeepSeek, Mistral, Groq, xAI, or a free model on this computer through Ollama or LM Studio). Keys are saved on this computer and never shown again. The Studio's AI only has Shard's free tools: it can look things up and price a plan, never generate.
+- **Conversations:** each visit starts a new one; the panel at the left lists the earlier ones with their takes. Hover one to **Archive** it (hidden here, kept, and listed in Settings under **Archived conversations** to restore or delete) or **Delete** it for good. They are kept in `runs/explore/chats/`.
+
 ## Create Video
 
 Video opens on Create Video: one prompt, one take. Under the prompt box is a row of chips from the director's menu: Move (with a speed), Shot size, Angle, Lens and Lighting. Pick any of them and Shard adds their words after your prompt, in the wording the chosen model reads best (a Hailuo model gets its bracket command, such as `[Push in]`). The chips do not change the price. **Reuse** on a take made with chips brings back what you typed and the chips.
@@ -24,7 +32,7 @@ Each film in Films has four steps. Every step stays open, and nothing is paid fo
 3. **Scenes:** the same scene editor as Create, for this film. Each scene is one Seedance 2.5 generation: **New draft** (480p) and **Make final**, each with its price, and the list of versions to choose from. A stage's camera move, speed, shot size and angle, and the scene's lens and lighting, can be picked as chips from the director's menu; Shard writes their words into the prompt before what you typed.
 4. **Finish:** the film's takes and the finishing tools (assemble, captions, ratios, cards).
 
-A film made before Shard (no `scenes.json`) opens on Finish as "takes only". Home's **What are we making?** starts a new film on its Idea step.
+A film made before Shard (no `scenes.json`) opens on Finish as "takes only". **New film** (`#/newfilm`, from Films) asks **What are we making?** and starts a new film on its Idea step.
 
 **Create** is a scratchpad: its scenes are kept in `runs/create/` and are not a film. **Save into film…** copies a scene, its pictures and its versions' videos into a film you pick or name, and opens it there; Create keeps its copy. The film then counts what those versions cost.
 
@@ -36,7 +44,7 @@ The director's storyboard (brief, shots, stills) is no longer shown in the studi
 
 ## Agents
 
-There is no chat panel in the studio. To work by asking, use Claude Code, Codex or Claude Desktop with the MCP server: the **MCP** page shows the setup command for each, and jobs an agent starts appear in the studio like any other. The server still has the earlier chat backend (`server/chat/`), which the page no longer shows.
+The Studio page's chat plans takes but never makes them (see Studio above). To make films by asking, use Claude Code, Codex or Claude Desktop with the MCP server: the **MCP** page shows the setup command for each, and jobs an agent starts appear in the studio like any other. A film's own chat backend (`server/chat/`) is still on the server, without a panel on the page.
 
 ## Why it is safe to leave running
 

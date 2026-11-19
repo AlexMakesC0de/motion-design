@@ -9,11 +9,12 @@ import { createServer } from "./server.mjs";
 
 /**
  * Connect a client to a fresh server. `deps` and `catalog` go to
- * createServer() unchanged (tests pass provider stubs). Resolves
+ * createServer() unchanged (tests pass provider stubs); `mode` "explore"
+ * leaves out every tool that can spend. Resolves
  * { client, close }.
  */
-export async function connectInProcess({ deps = {}, catalog, name = "motion-design-studio" } = {}) {
-  const server = createServer(catalog ? { deps, catalog } : { deps });
+export async function connectInProcess({ deps = {}, catalog, name = "motion-design-studio", mode = "full" } = {}) {
+  const server = createServer(catalog ? { deps, catalog, mode } : { deps, mode });
   const client = new Client({ name, version: "0.1.0" });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await Promise.all([client.connect(clientSide), server.connect(serverSide)]);

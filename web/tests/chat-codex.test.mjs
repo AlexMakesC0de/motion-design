@@ -95,10 +95,13 @@ describe("how Codex is started", () => {
     assert.ok(!args.join(" ").includes(process.env.KIE_API_KEY), "names only, never the key");
   });
 
-  test("the features that would let Codex read local images or run code are off too", () => {
-    // Both names checked against `codex features list` in codex-cli 0.154.0, which refuses unknown --disable names.
+  test("reading local images is off; the code-mode sandbox stays on, since every 0.154 model reaches tools only through it", () => {
+    // Names checked against `codex features list` in codex-cli 0.154.0, which refuses unknown --disable names.
     assert.ok(codex.DISABLED_FEATURES.includes("view_image"));
-    assert.ok(codex.DISABLED_FEATURES.includes("code_mode_host"));
+    assert.ok(!codex.DISABLED_FEATURES.includes("code_mode_host"), "off, the model cannot call the motion-design tools at all");
+    assert.match(codex.ALLOWED_FEATURES.code_mode_host, /no require, import, process, fetch or file access/);
+    const args = codex.codexArgs({ repo: "/repo", node: "/bin/node", configText: "" });
+    assert.ok(!args.join(" ").includes("--disable code_mode_host"));
   });
 
   test("goals, hooks, notify and every feature the review named as able to act outside the MCP tools are off at spawn", () => {

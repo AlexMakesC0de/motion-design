@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
-import type { DoctorResult, LimitsView, ProviderInfo, SavedKey, SettingsView } from "../api/types";
+import type { ChatSettingsView, DoctorResult, LimitsView, ProviderInfo, SavedKey, SettingsView } from "../api/types";
+import { ConnectionForm, connectionLabel } from "../chat/ConnectionForm";
 import { Icon } from "../app/icons";
 import { usd } from "../studio/format";
 import "./settings.css";
@@ -354,6 +355,94 @@ function Providers({ view }: { view: SettingsView }) {
   );
 }
 
+/** The AI behind Studio's chat: the ChatGPT subscription, or an API key. */
+function ChatAI() {
+  const [view, setView] = useState<ChatSettingsView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api<ChatSettingsView>("/api/chat-settings")
+      .then(setView)
+      .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
+  }, []);
+  return (
+    <section className="set-card" id="chat-ai" aria-labelledby="chat-ai-title">
+      <CardHead id="chat-ai-title" icon="chat" title="Chat AI">
+        The AI that plans your scenes on Studio. It never spends kie credits: you press Generate. {view ? `Now: ${connectionLabel(view)}.` : ""}
+      </CardHead>
+      {error && (
+        <p className="settings__error" role="alert">
+          {error}
+        </p>
+      )}
+      {view && <ConnectionForm initial={view} onSaved={setView} />}
+    </section>
+  );
+}
+
+interface ArchivedChat {
+  id: string;
+  title: string;
+  messages: number;
+  updatedAt: string;
+}
+
+/** Studio conversations you archived: hidden from the page, kept here to restore or delete. */
+function ArchivedChats() {
+  const [list, setList] = useState<ArchivedChat[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () =>
+    api<ArchivedChat[]>("/api/explore/chats?archived=1")
+      .then((l) => setList(Array.isArray(l) ? l : []))
+      .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
+  useEffect(() => {
+    load();
+  }, []);
+  async function act(c: ArchivedChat, how: "restore" | "delete") {
+    if (how === "delete" && !window.confirm(`Delete “${c.title}” for good? It can't be brought back.`)) return;
+    setError(null);
+    try {
+      if (how === "restore") await api(`/api/explore/chats/${c.id}/archived`, { method: "PUT", body: { archived: false } });
+      else await api(`/api/explore/chats/${c.id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+  return (
+    <section className="set-card" id="archived-chats" aria-labelledby="archived-chats-title">
+      <CardHead id="archived-chats-title" icon="archive" title="Archived conversations">
+        Studio conversations you archived. They stay on this computer; restore one to see it in Studio again, or delete it for good.
+      </CardHead>
+      {error && (
+        <p className="settings__error" role="alert">
+          {error}
+        </p>
+      )}
+      {list && list.length === 0 && <p className="archived__empty">Nothing archived.</p>}
+      {list && list.length > 0 && (
+        <ul className="archived" aria-label="Archived conversations">
+          {list.map((c) => (
+            <li key={c.id} className="archived__row">
+              <span className="archived__text">
+                <span className="archived__title">{c.title}</span>
+                <span className="archived__meta">
+                  {c.messages} {c.messages === 1 ? "message" : "messages"} · {new Date(c.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              </span>
+              <button type="button" className="button button--quiet" aria-label={`Restore “${c.title}”`} onClick={() => act(c, "restore")}>
+                Restore
+              </button>
+              <button type="button" className="button button--quiet" aria-label={`Delete “${c.title}”`} onClick={() => act(c, "delete")}>
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** Settings: one centred column of cards. Limits first, since they guard every paid job. */
 export function SettingsScreen() {
   const [view, setView] = useState<SettingsView | null>(null);
@@ -379,6 +468,8 @@ export function SettingsScreen() {
         <>
           <LimitsForm initial={view.limits} />
           <Providers view={view} />
+          <ChatAI />
+          <ArchivedChats />
           <Doctor />
         </>
       )}
