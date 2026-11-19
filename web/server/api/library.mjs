@@ -18,6 +18,9 @@ import { resolveModel, routesFor } from "../../../cli/lib/models.mjs";
 import { estimateUsd } from "../../../cli/lib/budget.mjs";
 import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { makeSheet, adoptSheet, sheetWording } from "../../../cli/director/still.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "../../../cli/director/voice-make.mjs";
+import { presetVoices } from "../../../cli/core/voice.mjs";
+import { voiceTools } from "../../../cli/lib/ffmpeg.mjs";
 import { KINDS, sheetOf } from "../../../cli/core/assets.mjs";
 import { sheetPrompt } from "../../../cli/core/sheets.mjs";
 import { checkLocalFile, MAX_BYTES } from "../../../cli/core/inputs.mjs";
@@ -118,6 +121,21 @@ export function sheetOffer(catalog, asset) {
   return { model: model.id, usd: estimateUsd(route, {}).usd };
 }
 
+/** A character's voice for the page: the recording, the settings a sample uses, its price and the latest sample job. */
+function voiceDetail(a, jobs, following, catalog) {
+  if (a.kind !== "character") return { voice: null, voiceSettings: null, voicePrice: null, voiceJob: null, voiceJobKept: false };
+  const v = a.voice;
+  const settings = voiceSettings(a);
+  const voiceJob = jobs.filter((j) => j.stage === "voice" && j.voiceFor === a.name).at(-1) ?? null;
+  return {
+    voice: v ? { durationS: v.durationS, origin: v.origin, voiceId: v.voiceId ?? null, voiceName: v.voiceName ?? null, script: v.script ?? null, savedAt: v.savedAt, url: mediaUrl(v.path) } : null,
+    voiceSettings: settings,
+    voicePrice: catalog ? voicePrice(catalog, settings.script) : null,
+    voiceJob: voiceJob ? jobView(voiceJob, following) : null,
+    voiceJobKept: Boolean(v?.job && voiceJob && v.job === voiceJob.id),
+  };
+}
+
 export function assetDetail(name, following, catalog = null) {
   const { library, store } = context();
   const a = library.get(name);
@@ -140,6 +158,7 @@ export function assetDetail(name, following, catalog = null) {
     sheetJob: sheetJob ? jobView(sheetJob, following) : null,
     // Its picture is the sheet in the Library already: nothing new to keep.
     sheetJobKept: Boolean(sheet?.sha256 && sheetJob?.artifacts?.[0] && sha(sheetJob.artifacts[0]) === sheet.sha256),
+    ...voiceDetail(a, jobs, following, catalog),
     takes: jobs
       .filter((j) => Array.isArray(j.assets) && j.assets.includes(a.name))
       .reverse()
@@ -269,6 +288,80 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
     const { library, store, limits, roots } = context();
     const r = await makeSheet(catalog, LIBRARY_RUN, params.name, { store, limits, library, roots, upload, deps: deps.generate, via: "studio", outfit });
     follower?.follow(r.job.id);
+    return detail(params.name);
+  });
+
+  // A character's voice. Settings and recordings are free; a sample spends.
+  const tools = deps.voice ?? voiceTools;
+  router.get("/api/voices", () => presetVoices());
+
+  router.patch("/api/library/:name/voice-settings", ({ params, body = {} }) => {
+    const { library } = context();
+    const current = library.get(params.name).voiceProfile ?? {};
+    const changes = {};
+    for (const field of ["language", "accent", "age", "tone", "energy", "voiceId", "script"]) {
+      const v = body[field];
+      if (v === undefined) continue;
+      if (v !== null && typeof v !== "string") throw f.invalid(field, `${field} must be text.`);
+      changes[field] = v ?? "";
+    }
+    saveVoiceProfile(library, params.name, { ...current, ...changes });
+    return detail(params.name);
+  });
+
+  /** Free: the user's own recording, streamed in like a picture, checked, and saved as the voice. */
+  router.post(
+    "/api/library/:name/voice",
+    async ({ req, params }) => {
+      const { library } = context();
+      library.get(params.name);
+      const dir = incomingDir();
+      sweepIncoming(dir);
+      const part = join(dir, `${randomBytes(16).toString("hex")}.part`);
+      const name = label(req.headers["x-file-name"]);
+      try {
+        const size = await saveBody(req, part, MAX_BYTES.audio);
+        if (size > MAX_BYTES.audio) throw new HttpError(413, `${name} is over ${Math.round(MAX_BYTES.audio / 1e6)} MB; nothing was saved.`);
+        if (size === 0) throw f.invalid("file", `${name} is empty.`);
+        const script = library.get(params.name).voiceProfile?.script ?? null;
+        await saveRecordedVoice(library, params.name, part, { roots: [dir], ...tools, script });
+      } catch (err) {
+        if (typeof err.message === "string") err.message = err.message.replaceAll(part, name);
+        err.field ??= "file";
+        throw err;
+      } finally {
+        rmSync(part, { force: true });
+      }
+      return detail(params.name);
+    },
+    { raw: true },
+  );
+
+  router.delete("/api/library/:name/voice", ({ params }) => {
+    context().library.removeVoice(params.name);
+    return detail(params.name);
+  });
+
+  /** Spends: a sample of the script in the chosen preset voice. Keeping it is a separate, free step. */
+  router.post("/api/library/:name/make-voice", async ({ params }) => {
+    const { library, store, limits } = context();
+    const r = await makeVoice(catalog, params.name, { store, limits, library, deps: deps.generate, via: "studio" });
+    follower?.follow(r.job.id);
+    return detail(params.name);
+  });
+
+  router.post("/api/library/:name/adopt-voice", async ({ params, body = {} }) => {
+    const jobId = f.text(body, "job", { required: true });
+    const { library, store } = context();
+    let job;
+    try {
+      job = store.get(jobId);
+    } catch {
+      throw f.invalid("job", `No job ${jobId}.`);
+    }
+    if (job.stage !== "voice" || job.voiceFor !== params.name) throw f.invalid("job", `${jobId} is not ${params.name}'s voice sample.`);
+    if (job.state !== "succeeded" || !job.artifacts?.length) throw f.invalid("job", "That voice sample has not finished.");
+    await adoptVoice(library, store, jobId, tools);
     return detail(params.name);
   });
 

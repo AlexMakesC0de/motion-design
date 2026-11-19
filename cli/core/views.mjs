@@ -117,7 +117,7 @@ export function listPresets(catalog) {
  * limits, so the director can price a whole plan with it.
  */
 export function planJob(catalog, req) {
-  const { model: modelId, capability, durationS, resolution, aspectRatio, refs = [], params = {}, provider } = req;
+  const { model: modelId, capability, durationS, resolution, aspectRatio, refs = [], params = {}, provider, audioS } = req;
   const model = resolveModel(catalog, modelId, capability);
   const problems = model.capability === "video" ? validateVideoRequest(catalog, model, { durationS, aspectRatio, refs }) : [];
 
@@ -137,7 +137,7 @@ export function planJob(catalog, req) {
       params,
     });
     problems.push(...built.problems);
-    est = estimateUsd(call, { durationS: built.input.duration, resolution: built.input.resolution, quality: built.input.quality, input: built.input });
+    est = estimateUsd(call, { durationS: built.input.duration, resolution: built.input.resolution, quality: built.input.quality, input: built.input, audioS });
   } else {
     problems.push(`No route for ${model.id}${provider ? ` via ${provider}` : ""}.`);
   }

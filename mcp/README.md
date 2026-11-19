@@ -41,6 +41,8 @@ The server keeps the id `motion-design` from before the project was called Shard
 | Make (spend) | `make_sheet`, `make_still`, `film_shot`, `film_all` | spends kie credits; each takes `dry_run` |
 | Scenes (look) | `save_idea`, `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene`, `copy_scene` | free, local |
 | Scenes (spend) | `draft_scene`, `final_scene` | spends kie credits |
+| Voices (look) | `list_voices`, `get_voice`, `save_voice_settings`, `save_voice_recording`, `adopt_voice` | free, local |
+| Voices (spend) | `make_voice` | spends kie credits (a few cents) |
 | Skills | `list_skills`, `get_skill` | free, local |
 
 ## Skills
@@ -103,6 +105,9 @@ user asked.
   with it off, a redo waits for the user.
 - `make_sheet` and `adopt_sheet` make and adopt a reference sheet for a
   Library character, product or location; only when the user asked to cast.
+- A character's voice is either the user's recording (`save_voice_recording`)
+  or an ElevenLabs sample (`make_voice`, then `adopt_voice` once the user
+  likes it). Scenes then send it whenever that character has a line.
 - `cut_film` reads `music`, `vo` and `end_card` from the run folder (through
   the same path checks as `assemble`) and writes a numbered `film.mp4`.
 

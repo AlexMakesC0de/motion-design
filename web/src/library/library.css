@@ -111,3 +111,14 @@
 .sheet-maker__error { margin: 0; color: var(--bad-ink); font-size: var(--text-md); }
 .library__back { align-self: flex-start; color: var(--text-2); font-size: var(--text-sm); text-decoration: none; }
 .library__back:hover { color: var(--text); text-decoration: underline; }
+
+/* A character's voice: what it sounds like now, and the two ways to give it one. */
+.voice { display: flex; flex-direction: column; gap: var(--space-2); }
+.voice__top { display: flex; align-items: center; justify-content: space-between; }
+.voice__current { display: flex; flex-direction: column; gap: var(--space-1); }
+.voice__player { width: 100%; height: 36px; }
+.voice__note { margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: 1.45; }
+.voice__script { resize: vertical; min-height: 9em; background: var(--surface-1); font-size: var(--text-sm); }
+.voice__save, .voice__clear { align-self: flex-start; }
+.voice__pick { display: flex; gap: var(--space-2); }
+.voice__pick .field { flex: 1; min-width: 0; }

@@ -134,6 +134,21 @@ export function attachLibraryMentions(scene) {
   return refs.length === scene.refs.length ? scene : { ...scene, refs };
 }
 
+// "@{r1} says", "@library:mira whispers": a mention followed by a speaking verb.
+const SPEAKS = new RegExp(`(?:@\\{(r\\d+)\\}|@library:(${NAME}))\\s*(?:,\\s*)?(?:says|said|asks|asked|shouts|shouted|whispers|whispered|replies|replied|sings|sang|speaks|calls out|yells|mutters|answers)\\b`, "gi");
+
+/** The ref ids of the people who have a line in the scene, in order of first line. */
+export function speakerIds(scene) {
+  const ids = [];
+  for (const t of cardTexts(scene.cards)) {
+    for (const m of (t ?? "").matchAll(SPEAKS)) {
+      const id = m[1] ?? scene.refs.find((r) => r.source === `library:${m[2]}`)?.id;
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+  }
+  return ids;
+}
+
 /** The Library items a scene uses, attached or mentioned, each once, attached first. */
 export function libraryNames(scene) {
   const names = scene.refs.flatMap((r) => (r.source?.startsWith("library:") ? [r.source.slice("library:".length)] : []));
