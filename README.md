@@ -20,7 +20,7 @@ Plan a film shot by shot, generate it on today's video and image models, and fin
 
 </div>
 
-<p align="center"><a href="docs/images/product/trailer.mp4"><img src="docs/images/product/trailer-poster.jpg" alt="The Shard trailer: the Shard logo and wordmark over a sky of clouds as a jet climbs toward the camera" width="100%"></a><br><sub><b><a href="docs/images/product/trailer.mp4">Watch the trailer with sound (19s)</a></b>. Made in Shard: four Seedance 2.5 shots, cut and titled in the studio's Edit step.</sub></p>
+<p align="center"><a href="docs/images/product/trailer.mp4"><img src="docs/images/product/trailer.webp" alt="The Shard trailer: a painter in a meadow, a ninja, a blacksmith and a pilot each say part of one sentence, then the Shard logo and wordmark appear over the clouds as a jet flies at the camera" width="100%"></a><br><sub><b><a href="docs/images/product/trailer.mp4">Click to watch it with sound (19s)</a></b>. Made in Shard: four Seedance 2.5 shots, cut and titled in the studio's Edit step.</sub></p>
 
 ---
 
