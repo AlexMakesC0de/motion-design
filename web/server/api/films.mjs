@@ -137,20 +137,28 @@ export function filmProgress(slug, { jobs, jobById, assets } = {}) {
     assets ??= library.list();
   }
   const stored = readFilmJson(slug, "scenes.json", { ifInvalid: null });
-  const scenes = stored?.scenes ?? [];
+  // scenes.json keeps each take's job id; its state is in the job record (a take copied with its own file has finished).
+  const scenes = (stored?.scenes ?? []).map((s) => ({ ...s, versions: s.versions.map((v) => ({ ...v, state: v.state ?? jobById.get(v.job)?.state ?? (v.file ? "succeeded" : null) })) }));
   const idea = stored?.idea ?? null;
   const files = visible(dir);
   const outputs = files.filter((f) => OUTPUTS.has(fileOrigin(f.name, f.kind))).length;
-  const hasFilm = files.some((f) => fileOrigin(f.name, f.kind) === "film");
+  const films = files.filter((f) => fileOrigin(f.name, f.kind) === "film");
+  const hasFilm = films.length > 0;
+  const editFile = join(dir, "edit.json");
+  const editAt = existsSync(editFile) ? statSync(editFile).mtime.toISOString() : null;
+  const savedEdit = editAt ? readFilmJson(slug, "edit.json", { ifInvalid: null }) : null;
+  const edit = savedEdit ? { scenes: [...new Set(savedEdit.clips.map((c) => c.scene))] } : null;
+  const newestFilm = films.map((f) => f.modified).sort().at(-1) ?? null;
+  const filmStale = Boolean(hasFilm && editAt && newestFilm < editAt);
   const legacy = !stored && files.length > 0;
   // A version copied in from Create was paid for under Create's run: counted here too, once.
   const counted = new Map(jobs.map((j) => [j.id, j]));
   for (const v of scenes.flatMap((s) => s.versions)) if (!counted.has(v.job) && jobById.has(v.job)) counted.set(v.job, jobById.get(v.job));
   const spentUsd = r2([...counted.values()].reduce((t, j) => t + countedUsd(j), 0));
   return {
-    ...progressOf({ idea, scenes, sheets: sheetsFor(scenes, assets) }, { outputs, hasFilm, spentUsd, legacy }),
+    ...progressOf({ idea, scenes, sheets: sheetsFor(scenes, assets), edit }, { outputs, hasFilm, filmStale, spentUsd, legacy }),
     updatedAt: statSync(dir).mtime.toISOString(),
-    cover: pickCover(dir, files),
+    cover: newestFilm ? { kind: "video", url: mediaUrl(join(dir, films.find((f) => f.modified === newestFilm).name)) } : pickCover(dir, files),
   };
 }
 

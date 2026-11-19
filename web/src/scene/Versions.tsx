@@ -23,7 +23,7 @@ function stateWord(v: SceneVersion) {
 const isRunning = (v: SceneVersion) => Boolean(v.state && RUNNING.has(v.state));
 
 /** What a version's frame says when it has nothing to play. */
-const emptyText = (v: SceneVersion) => (v.state === "succeeded" ? "The video file is missing." : `This version is ${stateWord(v)}.`);
+const emptyText = (v: SceneVersion) => (v.state === "succeeded" ? "The video file is missing." : `This take is ${stateWord(v)}.`);
 
 function ago(iso: string, now: number) {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
@@ -113,7 +113,7 @@ export function Player({ scene, version, name, onChoose }: { scene: Scene; versi
   if (!version) {
     return (
       <div className="scene-player scene-player--empty" style={{ aspectRatio: ratio }}>
-        <p className="scene-player__empty">No versions yet. A draft is a quick 480p try, so you can see the motion before paying for a final.</p>
+        <p className="scene-player__empty">No takes yet. A draft is a quick 480p try, so you can see the motion before paying for a final.</p>
       </div>
     );
   }
@@ -128,15 +128,15 @@ export function Player({ scene, version, name, onChoose }: { scene: Scene; versi
       <div className="scene-player__tag">
         {chosen ? (
           <>
-            <Icon name="check" size={14} />
-            <span>{name} is in the film</span>
+            <Icon name="star" size={14} />
+            <span>{name} · starred, the film plays it</span>
           </>
         ) : (
           <>
             <span>{name}</span>
             {version.state === "succeeded" && (
               <button type="button" className="scene-player__use" onClick={() => onChoose(version.job)}>
-                Use in film
+                <Icon name="star" size={14} /> Star this take
               </button>
             )}
           </>
@@ -146,17 +146,17 @@ export function Player({ scene, version, name, onChoose }: { scene: Scene; versi
   );
 }
 
-/** Every version, newest first, as a small frame: pick one to watch it, Choose to put it in the film. */
+/** Every take, newest first, as a small frame: pick one to watch it, Star the one the film plays. */
 export function VersionList({ scene, shown, onShow, onChoose }: { scene: Scene; shown: string | null; onShow(job: string): void; onChoose(job: string): void }) {
   const now = useNow(1000);
   const labels = versionNames(scene.versions);
   if (scene.versions.length === 0) return null;
   return (
-    <section className="scene-versions" aria-label="Versions">
+    <section className="scene-versions" aria-label="Takes">
       <h2 className="scene-head">
-        Versions <span className="scene-head__n">{scene.versions.length}</span>
+        Takes <span className="scene-head__n">{scene.versions.length}</span>
       </h2>
-      <ol className="scene-versions__list" aria-label="Versions">
+      <ol className="scene-versions__list" aria-label="Takes">
         {scene.versions
           .map((v, i) => ({ v, name: labels[i] }))
           .reverse()
@@ -168,7 +168,7 @@ export function VersionList({ scene, shown, onShow, onChoose }: { scene: Scene; 
               <li
                 key={v.job}
                 className="scene-version"
-                aria-label={`${name}${chosen ? ", chosen" : ""}`}
+                aria-label={`${name}${chosen ? ", starred" : ""}`}
                 data-chosen={chosen ? "true" : undefined}
                 data-shown={shown === v.job ? "true" : undefined}
                 data-state={word ? (v.state ?? "missing") : undefined}
@@ -186,7 +186,7 @@ export function VersionList({ scene, shown, onShow, onChoose }: { scene: Scene; 
                     <span className="scene-version__empty">{emptyText(v)}</span>
                   )}
                   <span className="scene-version__name">
-                    {chosen && <Icon name="check" size={12} />}
+                    {chosen && <Icon name="star" size={12} />}
                     {name}
                   </span>
                 </button>
@@ -197,11 +197,11 @@ export function VersionList({ scene, shown, onShow, onChoose }: { scene: Scene; 
                   {price != null && <span className="mono scene-price">{usd(price)}</span>}
                 </div>
                 {chosen ? (
-                  <span className="scene-version__chosen">In the film</span>
+                  <span className="scene-version__chosen">Starred</span>
                 ) : (
                   v.state === "succeeded" && (
-                    <button type="button" className="button button--quiet scene-version__choose" aria-label={`Choose ${name.toLowerCase()}`} onClick={() => onChoose(v.job)}>
-                      Choose
+                    <button type="button" className="button button--quiet scene-version__choose" aria-label={`Star ${name.toLowerCase()}`} onClick={() => onChoose(v.job)}>
+                      <Icon name="star" size={12} /> Star
                     </button>
                   )
                 )}

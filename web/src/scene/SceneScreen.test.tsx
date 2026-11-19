@@ -154,10 +154,10 @@ describe("SceneScreen", () => {
     const draft = await screen.findByRole("button", { name: /^New draft/ });
     await waitFor(() => expect(draft).toBeEnabled());
     fireEvent.click(draft);
-    const list = await screen.findByRole("list", { name: "Versions" });
+    const list = await screen.findByRole("list", { name: "Takes" });
     const item = await within(list).findByRole("listitem", { name: "Draft 1" });
     expect(within(item).getByText(/480p · running/)).toBeInTheDocument();
-    expect(within(item).getByText("This version is running.")).toBeInTheDocument();
+    expect(within(item).getByText("This take is running.")).toBeInTheDocument();
     expect(calls(fetchMock, `${BASE}/s1/draft`)).toHaveLength(1);
     expect(calls(fetchMock, `${BASE}/s1/final`)).toHaveLength(0);
   });
@@ -207,16 +207,16 @@ describe("SceneScreen", () => {
       more: { [`${BASE}/s1/choose`]: () => scene({ versions: [one, two], chosen: "j-2" }) },
     });
     render(<SceneScreen run="create" />);
-    const list = await screen.findByRole("list", { name: "Versions" });
+    const list = await screen.findByRole("list", { name: "Takes" });
     // Newest first, each with its own video.
     const items = within(list).getAllByRole("listitem");
-    expect(items.map((li) => li.getAttribute("aria-label"))).toEqual(["Draft 2", "Draft 1, chosen"]);
+    expect(items.map((li) => li.getAttribute("aria-label"))).toEqual(["Draft 2", "Draft 1, starred"]);
     expect(within(items[0]).getByLabelText("Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4#t=1");
     expect(within(items[1]).getByLabelText("Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4#t=1");
-    expect(within(items[1]).getByText("In the film")).toBeInTheDocument();
-    fireEvent.click(within(items[0]).getByRole("button", { name: "Choose draft 2" }));
+    expect(within(items[1]).getByText("Starred")).toBeInTheDocument();
+    fireEvent.click(within(items[0]).getByRole("button", { name: "Star draft 2" }));
     await waitFor(() => expect(JSON.parse(String(calls(fetchMock, `${BASE}/s1/choose`)[0]?.[1]?.body))).toEqual({ job: "j-2" }));
-    expect(await within(list).findByRole("listitem", { name: "Draft 2, chosen" })).toBeInTheDocument();
+    expect(await within(list).findByRole("listitem", { name: "Draft 2, starred" })).toBeInTheDocument();
   });
 
   test("the player shows the chosen version, and clicking another version plays that one instead", async () => {
@@ -225,21 +225,21 @@ describe("SceneScreen", () => {
     stub({ scenes: [scene({ versions: [one, two], chosen: "j-1" })] });
     render(<SceneScreen run="create" />);
     expect(await screen.findByLabelText("Player: Draft 1 of Freefall")).toHaveAttribute("src", "/media/runs/create/one.mp4");
-    expect(screen.getByText("Draft 1 is in the film")).toBeInTheDocument();
+    expect(screen.getByText("Draft 1 · starred, the film plays it")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Watch draft 2" }));
     expect(screen.getByLabelText("Player: Draft 2 of Freefall")).toHaveAttribute("src", "/media/runs/create/two.mp4");
-    expect(screen.getByRole("button", { name: "Use in film" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Star this take" })).toBeInTheDocument();
   });
 
-  test("versions whose videos are gone say so instead of 'No versions yet'", async () => {
+  test("versions whose videos are gone say so instead of 'No takes yet'", async () => {
     const one = version({ job: "j-1", media: null, state: "failed" });
     const two = version({ job: "j-2", media: null });
     stub({ scenes: [scene({ versions: [one, two] })] });
     render(<SceneScreen run="create" />);
-    const list = await screen.findByRole("list", { name: "Versions" });
+    const list = await screen.findByRole("list", { name: "Takes" });
     expect(within(within(list).getByRole("listitem", { name: "Draft 2" })).getByText("The video file is missing.")).toBeInTheDocument();
-    expect(within(within(list).getByRole("listitem", { name: "Draft 1" })).getByText("This version is failed.")).toBeInTheDocument();
-    expect(screen.queryByText(/No versions yet/)).not.toBeInTheDocument();
+    expect(within(within(list).getByRole("listitem", { name: "Draft 1" })).getByText("This take is failed.")).toBeInTheDocument();
+    expect(screen.queryByText(/No takes yet/)).not.toBeInTheDocument();
   });
 
   test("moving image 2 up renumbers the mentions", async () => {

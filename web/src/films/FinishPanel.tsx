@@ -14,6 +14,10 @@ interface Props {
   shots: string[];
   /** Read the film again: a task ended or a file was added. */
   onChanged: () => void;
+  /** Show only these tools (Edit hides Assemble: its Export makes the film). */
+  only?: ("assemble" | "captions" | "variants" | "card")[];
+  /** A heading; Edit's More section has its own. */
+  heading?: boolean;
 }
 
 function MissingTools({ info }: { info: FinishInfo }) {
@@ -38,7 +42,8 @@ function MissingTools({ info }: { info: FinishInfo }) {
 }
 
 /** The finishing tools for one film. Each runs as a server task; one at a time per film. */
-export function FinishPanel({ film, shots, onChanged }: Props) {
+export function FinishPanel({ film, shots, onChanged, only, heading = true }: Props) {
+  const has = (t: "assemble" | "captions" | "variants" | "card") => !only || only.includes(t);
   const [info, setInfo] = useState<FinishInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState<TaskView | null>(null);
@@ -65,13 +70,13 @@ export function FinishPanel({ film, shots, onChanged }: Props) {
   if (!info) return <aside className="finish" aria-busy="true" />;
   return (
     <aside className="finish" aria-label="Finish">
-      <h2>Finish</h2>
+      {heading && <h2>Finish</h2>}
       <MissingTools info={info} />
       <TaskList tasks={tasks} />
-      <AssembleForm film={film} info={info} shots={shots} busy={busy} onStarted={setStarted} onChanged={onChanged} />
-      <CaptionsForm film={film} info={info} busy={busy} onStarted={setStarted} onChanged={onChanged} />
-      <VariantsForm film={film} info={info} busy={busy} onStarted={setStarted} />
-      <CardForm film={film} info={info} busy={busy} onStarted={setStarted} />
+      {has("assemble") && <AssembleForm film={film} info={info} shots={shots} busy={busy} onStarted={setStarted} onChanged={onChanged} />}
+      {has("captions") && <CaptionsForm film={film} info={info} busy={busy} onStarted={setStarted} onChanged={onChanged} />}
+      {has("variants") && <VariantsForm film={film} info={info} busy={busy} onStarted={setStarted} />}
+      {has("card") && <CardForm film={film} info={info} busy={busy} onStarted={setStarted} />}
     </aside>
   );
 }

@@ -82,7 +82,10 @@ function resolveAssets(value, seen = []) {
       throw usage(`Asset referenced in props does not exist: ${value}`);
     }
     seen.push(abs);
-    return `file://${abs}`;
+    // Remotion's browser refuses file:// URLs, so the picture travels inside the props.
+    const ext = abs.toLowerCase().split(".").pop();
+    const mime = ext === "svg" ? "image/svg+xml" : ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+    return `data:${mime};base64,${readFileSync(abs).toString("base64")}`;
   }
   if (Array.isArray(value)) return value.map((v) => resolveAssets(v, seen));
   if (value && typeof value === "object") {

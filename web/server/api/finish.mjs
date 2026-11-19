@@ -4,14 +4,17 @@
 // background task (tasks.mjs) that calls the same core function the CLI and
 // the MCP server call. Outputs always land in the film's folder under core's
 // next free default name; the studio never takes an output name or path.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
 import { assemble } from "../../../cli/lib/assemble.mjs";
 import { burnCaptions } from "../../../cli/lib/caption.mjs";
 import { makeVariants, MODES, captionOrderWarning } from "../../../cli/lib/variants.mjs";
 import { render, requireRemotion, TEMPLATES } from "../../../cli/lib/render.mjs";
-import { requireFfmpeg, RATIOS, dimsFor } from "../../../cli/lib/ffmpeg.mjs";
+import { requireFfmpeg, RATIOS, dimsFor, probe, ffmpeg } from "../../../cli/lib/ffmpeg.mjs";
+import { readEdit, saveEdit, resolveEdit, exportEdit, playable, scenesWithTakes, SPEEDS, INTO, PLACES, TITLE_KINDS, FADE_S } from "../../../cli/director/edit.mjs";
+import { readScenes } from "../../../cli/director/scenes.mjs";
 import { RUNS_DIR, runDir, outPath, writeRecord } from "../../../cli/lib/run.mjs";
 import { unknown, usage } from "../../../cli/lib/errors.mjs";
 import { checkLocalFile, confinePath, confineProps } from "../../../cli/core/inputs.mjs";
@@ -21,7 +24,7 @@ import { mediaUrl } from "../media.mjs";
 import * as f from "./fields.mjs";
 
 /** The core functions the endpoints run; tests replace the slow ones. */
-export const CORE_TOOLS = { assemble, burnCaptions, makeVariants, render };
+export const CORE_TOOLS = { assemble, burnCaptions, makeVariants, render, probe, ffmpeg };
 
 /** ffmpeg names offered for crossfades. A fixed list: the name goes into an ffmpeg filter. */
 export const TRANSITIONS = ["fade", "fadeblack", "fadewhite", "dissolve", "wipeleft", "wiperight", "slideleft", "slideright", "circleopen", "circleclose"];
@@ -103,6 +106,66 @@ export function registerFinish(router, { tasks, tools = CORE_TOOLS, check = tool
     captionStyles: CAPTION_STYLES,
     variantModes: MODES,
   }));
+
+  // A take's length, read once per file version: the edit asks for every clip on each read.
+  const lengths = new Map();
+  async function durationOf(file) {
+    const key = `${file}@${statSync(file).mtimeMs}`;
+    if (!lengths.has(key)) lengths.set(key, (await tools.probe(file)).durationS);
+    return lengths.get(key);
+  }
+  /** The edit as the page shows it: each clip with its take, where it sits and how long it plays. */
+  async function editView(slug) {
+    const dir = filmDir(slug);
+    const { scenes, idea } = scenesWithTakes(slug, context().store);
+    const r = await resolveEdit(slug, readEdit(slug, { scenes }), { scenes, durationOf });
+    const clips = r.clips.map(({ file, ...c }) => ({ ...c, url: file ? mediaUrl(file) : null }));
+    const titles = r.titles.map((t) => ({ ...t, imageUrl: t.image ? mediaUrl(join(dir, t.image)) : null }));
+    // Every shot with its finished takes, to swap a clip's take or add a shot; and the film's pictures, for a logo.
+    const shots = scenes.map((s) => ({
+      id: s.id,
+      title: s.title,
+      starred: s.chosen,
+      takes: playable(s).map((v) => ({ job: v.job, kind: v.kind, resolution: v.resolution, createdAt: v.createdAt, url: mediaUrl(v.file) })),
+    }));
+    const refsDir = join(dir, "refs");
+    const pictures = existsSync(refsDir)
+      ? readdirSync(refsDir).filter((n) => /\.(png|svg|jpe?g|webp)$/i.test(n)).map((n) => ({ name: `refs/${n}`, url: mediaUrl(join(refsDir, n)) }))
+      : [];
+    return { ...r, clips, titles, shots, pictures, targetS: idea?.lengthS ?? null, ratio: idea?.ratio ?? "16:9", choices: { speeds: SPEEDS, into: INTO, places: PLACES, titleKinds: TITLE_KINDS, fadeS: FADE_S } };
+  }
+
+  router.get("/api/films/:slug/edit", ({ params }) => editView(params.slug));
+
+  router.put("/api/films/:slug/edit", async ({ params, body = {} }) => {
+    filmDir(params.slug);
+    try {
+      saveEdit(params.slug, body, { scenes: scenesWithTakes(params.slug, context().store).scenes });
+    } catch (err) {
+      if (err.field) throw f.invalid(err.field, err.message);
+      throw err;
+    }
+    return editView(params.slug);
+  });
+
+  /** Export: the edit rendered to film-N.mp4 (titles drawn with the render engine, then one ffmpeg pass). */
+  router.post("/api/films/:slug/export", ({ params, body = {} }) => {
+    const dir = filmDir(params.slug);
+    const ratio = oneOf(body, "aspect_ratio", Object.keys(RATIOS), readScenes(params.slug).idea?.ratio ?? "16:9");
+    need(check, "ffmpeg");
+    const { scenes } = scenesWithTakes(params.slug, context().store);
+    if (readEdit(params.slug, { scenes }).titles.length) need(check, "render");
+    const task = tasks.start(params.slug, "export", "Export", async ({ progress, signal }) => {
+      const tmp = mkdtempSync(join(tmpdir(), "shard-export-"));
+      try {
+        const result = await exportEdit(params.slug, { dir, ratio, tools, outFor: () => outPath(dir, undefined, "film", ".mp4"), tmpDir: tmp, onLine: progress, signal, scenes });
+        return { outputs: [output(result.out)] };
+      } finally {
+        rmSync(tmp, { recursive: true, force: true });
+      }
+    });
+    return { task };
+  });
 
   /** Assemble: the chosen shots in order, optional music and voice-over, crossfades; loudness-normalised by core. */
   router.post("/api/films/:slug/assemble", ({ params, body = {} }) => {

@@ -105,3 +105,50 @@
   .film-ws:has(> .scene) { height: auto; }
   .film-ws > .scene { flex: none; }
 }
+
+/* The shared frame: one line saying what the step is for, then the step, then the film. */
+.film-ws__job { margin: calc(-1 * var(--space-2)) 0 0; color: var(--text-2); font-size: var(--text-md); }
+.film-ws__step { flex: 1 1 auto; min-height: 0; }
+
+/* The film, along the bottom of every step but Edit. */
+.filmstrip { position: sticky; bottom: 0; z-index: 2; margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5)); padding: var(--space-3) var(--space-5) var(--space-4); background: color-mix(in srgb, var(--bg) 94%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(10px); }
+.filmstrip__head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-2); }
+.filmstrip__title { margin: 0; font-size: var(--text-sm); font-weight: 600; }
+.filmstrip__len { color: var(--text-2); font-size: var(--text-sm); }
+.filmstrip__note { color: var(--text-3); font-size: var(--text-sm); }
+.filmstrip__edit { margin-left: auto; color: var(--text); font-size: var(--text-sm); }
+.filmstrip__lane { display: flex; gap: 3px; margin: 0; padding: 0; list-style: none; height: 64px; }
+.filmstrip__clip { flex: 1 1 0; min-width: 44px; position: relative; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-1); outline: 1px solid var(--line); outline-offset: -1px; }
+.filmstrip__clip[data-here] { outline: 2px solid var(--text); outline-offset: -2px; }
+.filmstrip__clip[data-missing] { outline: 1px dashed var(--warn); }
+.filmstrip__clip > a { display: block; height: 100%; color: var(--text); text-decoration: none; }
+.filmstrip__clip > a:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.filmstrip__frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
+.filmstrip__clip:hover .filmstrip__frame { opacity: 1; }
+.filmstrip__frame--empty { display: block; background: repeating-linear-gradient(135deg, var(--surface-1) 0 8px, var(--surface-2) 8px 16px); }
+.filmstrip__label { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; gap: 6px; padding: 14px 6px 4px; font-size: var(--text-xs); background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 85%, transparent)); }
+.filmstrip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.filmstrip__empty { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+
+/* Cast: one card per shot in the edit — its frame, how its words describe the people, their lines. */
+.refs-step { width: min(980px, 100%); }
+.refs-step__next { justify-self: end; }
+.cast-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.cast-card {
+  display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-4); align-items: start;
+  padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1);
+}
+@media (max-width: 640px) { .cast-card { grid-template-columns: 1fr; } }
+.cast-card__frame { position: relative; display: block; overflow: hidden; border-radius: var(--radius-sm); background: #000; }
+.cast-card__frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cast-card__frame:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.cast-card__none { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); font-size: var(--text-xs); }
+.cast-card__n { position: absolute; top: 6px; left: 6px; padding: 1px 6px; border-radius: var(--radius-sm); background: rgb(0 0 0 / 0.6); font-size: var(--text-xs); }
+.cast-card__text { display: grid; gap: var(--space-2); min-width: 0; }
+.cast-card__title { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.cast-card__words { margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; max-width: 68ch; }
+.cast-card__words[data-open] { -webkit-line-clamp: unset; display: block; }
+.cast-card__words--none { color: var(--text-3); }
+.cast-card__more { justify-self: start; padding-left: 0; }
+.cast-card__lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--text-sm); color: var(--text); font-style: italic; }
+.cast-others summary { cursor: pointer; color: var(--text-2); font-size: var(--text-sm); margin-bottom: var(--space-3); }
