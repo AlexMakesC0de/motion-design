@@ -105,4 +105,22 @@ describe("VoicePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep this voice" }));
     await waitFor(() => expect(sent(fetchMock, "/api/library/vera/keep-voicestudio")).toHaveLength(1));
   });
+
+  test("with a voice: its card plays, and a new name on the card is saved", async () => {
+    const voiced = {
+      ...base,
+      voice: { durationS: 27.6, origin: "recording" as const, voiceId: null, voiceName: null, script: null, savedAt: "", url: "/media/library/vera/voice.mp3", card: { url: "/media/library/vera/voice-card.mp4", seconds: 28, text: "Vera" } },
+      voiceCardName: "Vera",
+    };
+    const fetchMock = stub({ "/api/library/vera/voice-settings": () => ({ ...voiced, voiceCardName: "V" }) });
+    render(<VoicePanel asset={voiced} onSaved={() => {}} />);
+    expect(screen.getByLabelText("vera's voice card")).toHaveAttribute("src", "/media/library/vera/voice-card.mp4");
+    expect(screen.getByText(/Voice card · 28s/)).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: "Save name" });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Name on the card"), { target: { value: "V" } });
+    fireEvent.click(save);
+    await waitFor(() => expect(sent(fetchMock, "/api/library/vera/voice-settings")).toHaveLength(1));
+    expect(JSON.parse(String((sent(fetchMock, "/api/library/vera/voice-settings")[0][1] as RequestInit).body))).toEqual({ cardName: "V" });
+  });
 });

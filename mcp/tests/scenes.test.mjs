@@ -61,7 +61,7 @@ describe("scenes through the tools", { skip: !hasFfmpeg && "needs ffmpeg" }, () 
     ok(r);
     assert.deepEqual(data(r).problems, []);
     assert.match(data(r).prompt, /^\[GOAL\]\n\[Image 1\] answers the door to \[Image 2\]\./);
-    assert.match(data(r).prompt, /\[Image 2\] — courier, character\. Preserve his cap\./);
+    assert.match(data(r).prompt, /\[Image 2\] — character\. Preserve his cap\./);
     assert.equal(data(r).prices.draft.usd, 0.7); // 5s × $0.14 at 480p, from the catalog
     assert.equal(calls.create.length, 0);
   });
@@ -144,7 +144,7 @@ describe("picks through the tools", () => {
     const p = await call(client, "get_scene_prompt", { run: "picks", id: "s1" });
     ok(p);
     assert.match(data(p).prompt, /\[SCENE\]\nWarm, low golden-hour sunlight\.\n/);
-    assert.match(data(p).prompt, /\nCamera: Close-up; the camera slowly pushes in\. on her hands\n/);
+    assert.match(data(p).prompt, /\nCamera: Close-up; the camera slowly pushes in\. on her hands(\n|$)/);
 
     const added = await call(client, "save_scene", { run: "picks", id: "s1", cards: { picks: { lens: "85mm" } } });
     assert.deepEqual(data(added).cards.picks, { light: "golden-hour", lens: "85mm" });

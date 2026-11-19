@@ -43,7 +43,7 @@ import { suggestModel, suggestStillModel } from "./director/pick.mjs";
 import { shotWording } from "./director/wording.mjs";
 import { briefLines, planLines } from "./director/show.mjs";
 import { makeStill, makeSheet, adoptSheet, needsStyleFirst } from "./director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice } from "./director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice, ensureVoiceCard, makeVoiceClip, adoptVoiceClip, voiceClipPrices, voiceClipProblems } from "./director/voice-make.mjs";
 import { presetVoices } from "./core/voice.mjs";
 import { voiceStudioStatus, VOICESTUDIO_DOWNLOAD } from "./core/voicestudio.mjs";
 import { shotMedia } from "./director/media.mjs";
@@ -105,6 +105,8 @@ Director (making — spends kie credits; --dry-run plans and spends nothing, --n
   kie voice      studio                                  your VoiceStudio voices (a free voice app on this computer)
   kie voice      local <asset> [--voice NAME]            VoiceStudio reads the script on this computer (free)
   kie voice      adopt <job id | take>                   keep a finished sample or VoiceStudio take as the voice
+  kie voice      card <asset> [--name TEXT] [--words TEXT]   make the voice card: up to 15s of the voice on black with the name (free); --words: what it says
+  kie voice      clip <asset> --max-usd N [--resolution 480p|720p]   the talking clip: the character saying the card's words (spends; adopt it after)
   kie voice      clear <asset>                           take the voice away (kept in the item's history)
   kie still      --run SLUG [--shot ID]...               each shot's first frame (default: every shot without one), in order
   kie shot       --run SLUG --shot ID                    film one shot from its still (also redoes a take)
@@ -171,6 +173,8 @@ const OPTS = {
   vo: { type: "string" },
   "tts-file": { type: "string" },
   voice: { type: "string" },
+  name: { type: "string" },
+  words: { type: "string" },
   family: { type: "string" },
   provider: { type: "string" },
   shot: { type: "string", multiple: true, default: [] },
@@ -1181,7 +1185,7 @@ async function cmdCast(catalog, args, positionals) {
 async function cmdVoice(catalog, args, positionals) {
   const [sub, name, path] = positionals;
   const help =
-    "kie voice list | studio | show <asset> | set <asset> [--voice V] [--language L] [--file SCRIPT] | record <asset> <file> | make <asset> | local <asset> [--voice NAME] | adopt <job id | take> | clear <asset>";
+    "kie voice list | studio | show <asset> | set <asset> [--voice V] [--language L] [--file SCRIPT] | record <asset> <file> | make <asset> | local <asset> [--voice NAME] | adopt <job id | take> | card <asset> [--name TEXT] [--words TEXT] | clip <asset> --max-usd N [--resolution R] | clear <asset>";
   const library = openLibrary();
   if (sub === "list") {
     for (const v of presetVoices().voices) say(`${v.name.padEnd(22)} ${v.description.padEnd(44)} ${v.id}  ${v.previewUrl}`);
@@ -1230,8 +1234,39 @@ async function cmdVoice(catalog, args, positionals) {
     return EXIT.OK;
   }
   if (sub === "adopt") {
-    const a = name.startsWith("voicestudio-") ? await keepLocalVoice(library, name, voiceTools) : await adoptVoice(library, openJobs(), name, voiceTools);
+    const jobs = openJobs();
+    if (!name.startsWith("voicestudio-") && jobs.get(name).stage === "voiceclip") {
+      const kept = await adoptVoiceClip(library, jobs, name, voiceTools);
+      say(`${kept.name}'s talking clip is kept: ${kept.voice.clip.seconds}s (${kept.voice.clip.path}). Scenes where they speak send it now.`);
+      return EXIT.OK;
+    }
+    const a = name.startsWith("voicestudio-") ? await keepLocalVoice(library, name, voiceTools) : await adoptVoice(library, jobs, name, voiceTools);
     say(`${a.name} now speaks with ${a.voice.voiceName ?? "the sample"}: ${a.voice.durationS}s (${a.voice.path}).`);
+    return EXIT.OK;
+  }
+  if (sub === "card") {
+    const changes = { ...(args.name ? { cardName: args.name } : {}), ...(args.words ? { cardWords: args.words } : {}) };
+    if (Object.keys(changes).length) saveVoiceProfile(library, name, { ...(library.get(name).voiceProfile ?? {}), ...changes });
+    const a = await ensureVoiceCard(library, name, { card: voiceTools.card, again: true });
+    const c = a.voice.card;
+    say(`${a.name}'s voice card: ${c.seconds}s${c.voiceS != null && c.voiceS < a.voice.durationS ? ` (the first ${c.voiceS}s of the voice, cut ${c.faded ? "at 15s and faded out: no pause in reach" : "at a pause"})` : ""}, ${c.text ? `"${c.text}" on black` : "plain black (no way to draw the name here)"} (${c.path}).`);
+    say(a.voiceProfile?.cardWords ? `Its words: "${a.voiceProfile.cardWords}"` : `Play it and save its exact words for a talking clip: kie voice card ${a.name} --words "..."`);
+    return EXIT.OK;
+  }
+  if (sub === "clip") {
+    const c = directorCtx(catalog, args);
+    const a = library.get(name);
+    const problems = voiceClipProblems(a);
+    if (problems.length) throw usage(problems.join(" "));
+    const resolution = args.resolution ?? "720p";
+    const prices = voiceClipPrices(catalog, a, c);
+    const maxUsd = args["max-usd"] == null ? NaN : Number(args["max-usd"]);
+    if (!Number.isFinite(maxUsd)) throw usage(`A ${prices.seconds}s talking clip costs $${prices[resolution]?.usd} at ${resolution}. Pass that as --max-usd to make it.`);
+    const r = await makeVoiceClip(catalog, name, { ...c, card: voiceTools.card, resolution, maxUsd });
+    say(`${r.asset}'s talking clip, ${r.seconds}s at ${resolution}`);
+    if (r.dryRun) return dryLines(r), EXIT.OK;
+    const w = await waitFor(catalog, c.store, r, args);
+    if (w) say(`Watch it, then keep it: kie voice adopt ${r.job.id}`);
     return EXIT.OK;
   }
   if (sub === "clear") {

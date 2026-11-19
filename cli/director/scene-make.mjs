@@ -12,6 +12,8 @@ import { checkLocalFile } from "../core/inputs.mjs";
 import { expandRefs } from "../core/refs.mjs";
 import { submitJob } from "../core/generate.mjs";
 import { unknown } from "../lib/errors.mjs";
+import { voiceTools } from "../lib/ffmpeg.mjs";
+import { ensureVoiceCard } from "./voice-make.mjs";
 
 export const SCENE_MODEL = "seedance-2-5";
 export const FINALS = ["720p", "1080p"];
@@ -43,6 +45,7 @@ export function compileFor(catalog, film, scene, library) {
     refToken: model.promptProfile?.refToken ?? DEFAULT_REF_TOKEN,
     limits: route?.input?.refLimits?.image ?? null,
     audioLimits: route?.input?.refLimits?.audio ?? null,
+    videoLimits: route?.input?.refLimits?.video ?? null,
     sizeOf,
   });
 }
@@ -52,11 +55,12 @@ export function compileFor(catalog, film, scene, library) {
  * speaking characters' voices, which can change the price.
  */
 export function scenePrices(catalog, scene, { store, limits, compiled = null }) {
-  const voiceRefs = (compiled?.voices ?? []).map(() => ({ role: "voice" }));
+  const ROLE = { clip: "voiceclip", card: "voicecard", file: "voice" };
+  const voiceRefs = (compiled?.voices ?? []).map((v) => ({ role: ROLE[v.sends] ?? "voicecard" }));
   const price = (resolution, extra = {}) => {
     const r = estimate(
       catalog,
-      { model: SCENE_MODEL, capability: "video", durationS: scene.durationS, resolution, aspectRatio: scene.ratio, refs: voiceRefs, audioS: compiled?.audioS || undefined, params: { generate_audio: true, ...extra } },
+      { model: SCENE_MODEL, capability: "video", durationS: scene.durationS, resolution, aspectRatio: scene.ratio, refs: voiceRefs, inputS: compiled?.videoS || undefined, params: { generate_audio: true, ...extra } },
       { store, limits },
     );
     return { usd: r.estimateUsd ?? null, basis: r.basis ?? null };
@@ -96,14 +100,17 @@ export function addSceneImage(film, path, { roots, name }) {
  * A draft or a final: compile, refuse on problems before anything is
  * reserved, submit, then record the version. `via` marks who sent it.
  */
-export async function makeScene(catalog, film, id, kind, resolution, { store, limits, roots, library, upload, deps, via }) {
+export async function makeScene(catalog, film, id, kind, resolution, { store, limits, roots, library, upload, deps, via, card = voiceTools.card }) {
   if (kind === "final" && !FINALS.includes(resolution)) throw unknown(`A final is ${FINALS.join(" or ")}.`, { field: "resolution" });
   const scene = findScene(film, id);
-  const { prompt, refs, problems, audioS } = compileFor(catalog, film, scene, library);
+  const { prompt, refs, problems, voices, videoS } = compileFor(catalog, film, scene, library);
   if (problems.length) throw unknown(`Refused before submitting, nothing was spent. ${problems.join(" ")}`, { field: "scene", problems });
 
   const model = sceneModel(catalog);
   const params = kind === "draft" ? { draft: true, generate_audio: true } : { generate_audio: true };
+  // With a voice card or talking clip attached, Seedance must treat it as a reference, never as a video to edit or extend.
+  if (voices.some((v) => v.sends !== "file")) params.omni_reference_task_type = "reference";
+  for (const v of voices) if (v.sends === "card") await ensureVoiceCard(library, v.name, { card });
   const dir = runDir(film);
   const promptFile = `${id}-prompt.txt`;
   const inputsFile = `${id}-inputs.json`;
@@ -125,7 +132,7 @@ export async function makeScene(catalog, film, id, kind, resolution, { store, li
         artifactBase: `${id}-${kind}`,
         budgetUsd: null,
         only: null,
-        values: { prompt, duration: scene.durationS, aspect_ratio: scene.ratio, resolution, refs: expanded.refs, params, _useI2v: false, ...(audioS ? { _audioS: audioS } : {}) },
+        values: { prompt, duration: scene.durationS, aspect_ratio: scene.ratio, resolution, refs: expanded.refs, params, _useI2v: false, ...(videoS ? { _inputS: videoS } : {}) },
         record: { refMapping: expanded.refMapping, assets: expanded.assets, via },
       },
       { store, limits, deps },

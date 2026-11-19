@@ -66,7 +66,14 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       keep: r.keep ?? null,
       persona: r.persona ?? null,
       images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })),
-      voice: r.voice ? { ...r.voice, path: join(assetDir(name), r.voice.file) } : null,
+      voice: r.voice
+        ? {
+            ...r.voice,
+            path: join(assetDir(name), r.voice.file),
+            ...(r.voice.card ? { card: { ...r.voice.card, path: join(assetDir(name), r.voice.card.file) } } : {}),
+            ...(r.voice.clip ? { clip: { ...r.voice.clip, path: join(assetDir(name), r.voice.clip.file) } } : {}),
+          }
+        : null,
       voiceProfile: r.voiceProfile ?? null,
     };
   }
@@ -144,7 +151,9 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     const history = join(target, ".history", at.replace(/[:.]/g, "-"));
     mkdirSync(history, { recursive: true });
     writeFileSync(join(history, "asset.json"), JSON.stringify(record, null, 2) + "\n");
-    if (existsSync(join(target, record.voice.file))) renameSync(join(target, record.voice.file), join(history, record.voice.file));
+    for (const file of [record.voice.file, record.voice.card?.file, record.voice.clip?.file].filter(Boolean)) {
+      if (existsSync(join(target, file))) renameSync(join(target, file), join(history, file));
+    }
   }
 
   /**
@@ -206,6 +215,73 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     record.updatedAt = now().toISOString();
     write(record);
     return get(name);
+  }
+
+  /**
+   * The voice card (lib/ffmpeg.mjs makeVoiceCard): the voice on a black frame
+   * with the name, made from this exact voice. Replaces the previous card.
+   */
+  function setVoiceCard(name, { path, seconds, voiceS = null, faded = false, text = "", wanted = text }) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const record = read(name);
+    if (!record.voice) throw unknown(`"${name}" has no voice to make a card from.`);
+    const info = checkLocalFile(path, { kinds: ["video"] });
+    const bytes = readFileSync(info.path);
+    const file = "voice-card.mp4";
+    writeFileSync(join(assetDir(name), file), bytes);
+    record.voice.card = { file, sha256: sha256(bytes), bytes: info.bytes, mime: "video/mp4", seconds, voiceS, faded, text, wanted, voiceSha256: record.voice.sha256, madeAt: now().toISOString(), upload: null };
+    write(record);
+    return get(name);
+  }
+
+  /**
+   * The talking clip (director/voice-make.mjs makeVoiceClip): a short Seedance
+   * clip of the character saying their voice card's words in their voice. It
+   * stays with this exact voice; a new voice drops it.
+   */
+  function setVoiceClip(name, { path, seconds, words, width = null, height = null, job = null }) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const record = read(name);
+    if (!record.voice) throw unknown(`"${name}" has no voice for a talking clip.`);
+    const info = checkLocalFile(path, { kinds: ["video"] });
+    const bytes = readFileSync(info.path);
+    const file = "voice-clip.mp4";
+    // A replaced clip goes to history, like a replaced sheet.
+    if (record.voice.clip && existsSync(join(assetDir(name), record.voice.clip.file))) {
+      const history = join(assetDir(name), ".history", now().toISOString().replace(/[:.]/g, "-"));
+      mkdirSync(history, { recursive: true });
+      renameSync(join(assetDir(name), record.voice.clip.file), join(history, record.voice.clip.file));
+    }
+    writeFileSync(join(assetDir(name), file), bytes);
+    record.voice.clip = { file, sha256: sha256(bytes), bytes: info.bytes, mime: "video/mp4", seconds, width, height, words, job, voiceSha256: record.voice.sha256, madeAt: now().toISOString(), upload: null };
+    write(record);
+    return get(name);
+  }
+
+  /** A provider URL for the talking clip, reusing a recent upload of the same bytes. */
+  async function voiceClipUploadUrl(name, { upload }) {
+    const record = read(name);
+    const clip = record.voice?.clip;
+    if (!clip) throw unknown(`"${name}" has no talking clip yet.`);
+    const prior = clip.upload;
+    if (prior?.sha256 === clip.sha256 && now() - Date.parse(prior.at) < REUSE_UPLOAD_MS) return prior.url;
+    const { url } = await upload(join(assetDir(name), clip.file), { mime: clip.mime });
+    clip.upload = { url, at: now().toISOString(), sha256: clip.sha256 };
+    write(record);
+    return url;
+  }
+
+  /** A provider URL for the voice card, reusing a recent upload of the same bytes. */
+  async function voiceCardUploadUrl(name, { upload }) {
+    const record = read(name);
+    const card = record.voice?.card;
+    if (!card) throw unknown(`"${name}" has no voice card yet.`);
+    const prior = card.upload;
+    if (prior?.sha256 === card.sha256 && now() - Date.parse(prior.at) < REUSE_UPLOAD_MS) return prior.url;
+    const { url } = await upload(join(assetDir(name), card.file), { mime: card.mime });
+    card.upload = { url, at: now().toISOString(), sha256: card.sha256 };
+    write(record);
+    return url;
   }
 
   /** A provider URL for the voice, reusing a recent upload of the same bytes, like uploadUrl. */
@@ -283,5 +359,5 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     }
   }
 
-  return { dir, list, get, save, update, remove, uploadUrl, recordUse, setVoice, removeVoice, setVoiceProfile, voiceUploadUrl };
+  return { dir, list, get, save, update, remove, uploadUrl, recordUse, setVoice, removeVoice, setVoiceProfile, voiceUploadUrl, setVoiceCard, voiceCardUploadUrl, setVoiceClip, voiceClipUploadUrl };
 }

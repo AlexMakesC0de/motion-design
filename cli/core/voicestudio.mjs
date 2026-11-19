@@ -37,6 +37,8 @@ export function readVoices(body) {
   for (const v of Array.isArray(list) ? list : []) {
     if (typeof v === "string") out.push({ id: v, name: v });
     else if (v && typeof v === "object") {
+      // OpenAI names (alloy, ash, …) are all the engine's default voice under another name.
+      if (v.type === "openai_alias") continue;
       const id = v.id ?? v.profile_id ?? v.voice_id ?? v.name;
       if (id == null) continue;
       out.push({ id: String(id), name: String(v.name ?? v.display_name ?? id) });

@@ -94,7 +94,9 @@
     "first_frame",
     "last_frame",
     "motion",
-    "voice"
+    "voice",
+    "voicecard",
+    "voiceclip"
   ],
   "models": {
     "minimax-h3": {
@@ -583,7 +585,9 @@
         "style",
         "first_frame",
         "last_frame",
-        "voice"
+        "voice",
+        "voicecard",
+        "voiceclip"
       ],
       "notes": "Newest Seedance; what Higgsfield's Cinema Studio 4.0 runs on. Billed per second on both routes and cheaper on kie. A first frame cannot be combined with reference images. Audio is on unless --param generate_audio=false. Draft mode (--param draft=true at 480p) previews cheaply; draftFinalize turns a draft into 1080p.",
       "routes": [
@@ -599,16 +603,16 @@
               "720p": 0.315,
               "1080p": 0.79
             },
-            "source": "kie.ai/seedance-2-5, read 2026-10-24 and 2026-10-30: 28/63/158 credits/s without video input; reference images add nothing. With a reference video it is 17/38/95 credits/s billed on input plus output seconds (not modelled here).",
-            "audioInput": {
-              "field": "reference_audio_urls",
+            "source": "kie.ai/seedance-2-5, read 2026-10-24 and 2026-10-30: 28/63/158 credits/s without video input; reference images add nothing. With a reference video it is 17/38/95 credits/s billed on input plus output seconds (videoInput). Reference audio adds nothing (docs.kie.ai, read 2026-11-19).",
+            "videoInput": {
+              "field": "reference_video_urls",
               "usdPerSecond": {
                 "480p": 0.085,
                 "720p": 0.19,
                 "1080p": 0.475
               },
               "maxInputS": 30,
-              "source": "kie publishes no rate for reference audio (kie.ai/seedance-2-5, read 2026-11-19). Until a job is measured, a job with a voice is quoted at the higher of the plain rate on its output seconds and the with-video rate on input plus output seconds, so the quote never undercounts."
+              "source": "docs.kie.ai/market/bytedance/seedance-2-5.md, read 2026-11-19: with reference video(s), a lower per-second price x (total reference-video duration + output duration); reference images and reference audio add no billable seconds."
             }
           },
           "priceNote": "priceUsd is only the fallback when duration or resolution is unknown: 15s at 720p (945 credits).",
@@ -669,7 +673,9 @@
               "last_frame": "last_frame_url",
               "identity": "reference_image_urls",
               "style": "reference_image_urls",
-              "voice": "reference_audio_urls"
+              "voice": "reference_audio_urls",
+              "voicecard": "reference_video_urls",
+              "voiceclip": "reference_video_urls"
             },
             "refRules": {
               "exclusiveGroups": [
@@ -680,7 +686,9 @@
                 [
                   "identity",
                   "style",
-                  "voice"
+                  "voice",
+                  "voicecard",
+                  "voiceclip"
                 ]
               ],
               "requires": {
@@ -691,7 +699,19 @@
             "refLimits": {
               "maxCount": {
                 "reference_image_urls": 30,
-                "reference_audio_urls": 10
+                "reference_audio_urls": 10,
+                "reference_video_urls": 10
+              },
+              "video": {
+                "minS": 2,
+                "maxS": 30,
+                "maxTotalS": 30,
+                "maxBytes": 200000000,
+                "minPixels": 409600,
+                "maxPixels": 927408,
+                "fps": [24, 60],
+                "formats": "mp4, mov, mkv; 480p or 720p",
+                "source": "docs.kie.ai/market/bytedance/seedance-2-5.md, read 2026-11-19"
               },
               "audio": {
                 "minS": 2,
@@ -725,6 +745,15 @@
                 "enum": [
                   "mp4",
                   "mov"
+                ]
+              },
+              "omni_reference_task_type": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "reference",
+                  "edit",
+                  "extend"
                 ]
               }
             },

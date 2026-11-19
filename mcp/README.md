@@ -42,7 +42,7 @@ The server keeps the id `motion-design` from before the project was called Shard
 | Scenes (look) | `save_idea`, `list_scenes`, `get_scene_prompt`, `save_scene`, `add_scene_image`, `choose_version`, `delete_scene`, `copy_scene` | free, local |
 | Scenes (spend) | `draft_scene`, `final_scene` | spends kie credits |
 | Voices (look) | `list_voices`, `get_voice`, `save_voice_settings`, `save_voice_recording`, `make_local_voice`, `adopt_voice` | free, local (`make_local_voice` uses VoiceStudio on this computer) |
-| Voices (spend) | `make_voice` | spends kie credits (a few cents) |
+| Voices (spend) | `make_voice`, `make_voice_clip` | spends kie credits (a sample is a few cents; a talking clip is priced in `get_voice`, about $2 to $5) |
 | Skills | `list_skills`, `get_skill` | free, local |
 
 ## Skills
@@ -108,7 +108,14 @@ user asked.
 - A character's voice is the user's recording (`save_voice_recording`), a
   free take from VoiceStudio running on their computer (`make_local_voice`),
   or an ElevenLabs sample (`make_voice`). Takes and samples are kept with
-  `adopt_voice` once the user likes them. Scenes then send it whenever that character has a line.
+  `adopt_voice` once the user likes them. Each voice gets a voice card: up
+  to 15 seconds of it, cut at a pause, on a black video with the name
+  (`save_voice_settings` with `cardName` sets the name). With the card's exact
+  words saved as `cardWords`, `make_voice_clip` makes a talking clip: the
+  character saying those words in that voice, kept with `adopt_voice`.
+  Whenever a character has a line, scenes send their talking clip, or their
+  card until they have one. A scene's `voiceAs` can force `card`, or `file`
+  for the bare voice.
 - `cut_film` reads `music`, `vo` and `end_card` from the run folder (through
   the same path checks as `assemble`) and writes a numbered `film.mp4`.
 

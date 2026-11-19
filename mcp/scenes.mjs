@@ -34,6 +34,7 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     cards: Data,
     versions: z.array(Data),
     chosen: z.string().nullable(),
+    voiceAs: z.enum(["clip", "card", "file"]).optional(),
   };
   const pickId = (what, group) => z.string().nullable().optional().describe(`${what} An id from get_menu's "${group}" group.`);
   const Stage = z.object({
@@ -125,6 +126,10 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
         title: z.string().optional(),
         ratio: z.enum(RATIOS).optional(),
         durationS: z.number().int().optional().describe("Only for a scene with no stages."),
+        voiceAs: z
+          .enum(["clip", "card", "file"])
+          .optional()
+          .describe("How a speaking character's voice is sent: clip (default; their talking clip when they have one, else their voice card), card (a black video with their name and voice; its seconds are billed on top) or file (the bare voice, cheaper)."),
         refs: z.array(Ref).optional(),
         cards: z
           .object({

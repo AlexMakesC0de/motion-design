@@ -18,7 +18,7 @@ import { resolveModel, routesFor } from "../../../cli/lib/models.mjs";
 import { estimateUsd } from "../../../cli/lib/budget.mjs";
 import { uploadFile } from "../../../cli/lib/upload.mjs";
 import { makeSheet, adoptSheet, sheetWording } from "../../../cli/director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, localScript, latestLocalTake, makeLocalVoice, keepLocalVoice } from "../../../cli/director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, localScript, latestLocalTake, makeLocalVoice, keepLocalVoice, cardName, ensureVoiceCard, makeVoiceClip, adoptVoiceClip, voiceClipPrices, voiceClipProblems, CLIP_RESOLUTIONS } from "../../../cli/director/voice-make.mjs";
 import { voiceStudioStatus } from "../../../cli/core/voicestudio.mjs";
 import { presetVoices } from "../../../cli/core/voice.mjs";
 import { voiceTools } from "../../../cli/lib/ffmpeg.mjs";
@@ -129,19 +129,45 @@ function localTake(a) {
 }
 
 /** A character's voice for the page: the recording, the settings a sample uses, its price and the latest sample job. */
-function voiceDetail(a, jobs, following, catalog) {
-  if (a.kind !== "character") return { voice: null, voiceSettings: null, voicePrice: null, voiceJob: null, voiceJobKept: false, voiceStudioScript: null, voiceStudioTake: null };
+function voiceDetail(a, jobs, following, catalog, { store, limits } = {}) {
+  if (a.kind !== "character") return { voice: null, voiceSettings: null, voicePrice: null, voiceJob: null, voiceJobKept: false, voiceStudioScript: null, voiceStudioTake: null, voiceCardName: null, voiceCardWords: null, voiceClip: null };
   const v = a.voice;
   const settings = voiceSettings(a);
   const voiceJob = jobs.filter((j) => j.stage === "voice" && j.voiceFor === a.name).at(-1) ?? null;
   return {
-    voice: v ? { durationS: v.durationS, origin: v.origin, voiceId: v.voiceId ?? null, voiceName: v.voiceName ?? null, script: v.script ?? null, savedAt: v.savedAt, url: mediaUrl(v.path) } : null,
+    voice: v
+      ? {
+          durationS: v.durationS,
+          origin: v.origin,
+          voiceId: v.voiceId ?? null,
+          voiceName: v.voiceName ?? null,
+          script: v.script ?? null,
+          savedAt: v.savedAt,
+          url: mediaUrl(v.path),
+          card: v.card && v.card.voiceSha256 === v.sha256 ? { url: mediaUrl(v.card.path), seconds: v.card.seconds, text: v.card.text } : null,
+          clip: v.clip && v.clip.voiceSha256 === v.sha256 ? { url: mediaUrl(v.clip.path), seconds: v.clip.seconds, words: v.clip.words ?? "" } : null,
+        }
+      : null,
+    voiceCardName: cardName(a),
     voiceSettings: settings,
     voicePrice: catalog ? voicePrice(catalog, settings.script) : null,
     voiceJob: voiceJob ? jobView(voiceJob, following) : null,
     voiceJobKept: Boolean(v?.job && voiceJob && v.job === voiceJob.id),
     voiceStudioScript: localScript(a),
     voiceStudioTake: localTake(a),
+    voiceCardWords: a.voiceProfile?.cardWords ?? "",
+    voiceClip: v ? clipOffer(a, jobs, following, catalog, { store, limits }) : null,
+  };
+}
+
+/** The talking clip step: what stops it, what it costs, and the latest clip made for this voice. */
+function clipOffer(a, jobs, following, catalog, { store, limits }) {
+  const job = jobs.filter((j) => j.stage === "voiceclip" && j.voiceFor === a.name && j.voiceSha256 === a.voice.sha256).at(-1) ?? null;
+  return {
+    problems: voiceClipProblems(a),
+    prices: catalog && store && limits ? voiceClipPrices(catalog, a, { store, limits }) : null,
+    job: job ? jobView(job, following) : null,
+    kept: Boolean(job && a.voice.clip?.job === job.id),
   };
 }
 
@@ -167,7 +193,7 @@ export function assetDetail(name, following, catalog = null) {
     sheetJob: sheetJob ? jobView(sheetJob, following) : null,
     // Its picture is the sheet in the Library already: nothing new to keep.
     sheetJobKept: Boolean(sheet?.sha256 && sheetJob?.artifacts?.[0] && sha(sheetJob.artifacts[0]) === sheet.sha256),
-    ...voiceDetail(a, jobs, following, catalog),
+    ...voiceDetail(a, jobs, following, catalog, { store, limits: context().limits }),
     takes: jobs
       .filter((j) => Array.isArray(j.assets) && j.assets.includes(a.name))
       .reverse()
@@ -304,17 +330,19 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
   const tools = deps.voice ?? voiceTools;
   router.get("/api/voices", () => presetVoices());
 
-  router.patch("/api/library/:name/voice-settings", ({ params, body = {} }) => {
+  router.patch("/api/library/:name/voice-settings", async ({ params, body = {} }) => {
     const { library } = context();
     const current = library.get(params.name).voiceProfile ?? {};
     const changes = {};
-    for (const field of ["language", "accent", "age", "tone", "energy", "voiceId", "script"]) {
+    for (const field of ["language", "accent", "age", "tone", "energy", "voiceId", "script", "cardName", "cardWords"]) {
       const v = body[field];
       if (v === undefined) continue;
       if (v !== null && typeof v !== "string") throw f.invalid(field, `${field} must be text.`);
       changes[field] = v ?? "";
     }
     saveVoiceProfile(library, params.name, { ...current, ...changes });
+    // A new name on the card: make the card again now, so the panel shows it (free; skipped without ffmpeg).
+    if ("cardName" in changes && library.get(params.name).voice && tools.card) await ensureVoiceCard(library, params.name, { card: tools.card }).catch(() => {});
     return detail(params.name);
   });
 
@@ -371,6 +399,36 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
     if (job.stage !== "voice" || job.voiceFor !== params.name) throw f.invalid("job", `${jobId} is not ${params.name}'s voice sample.`);
     if (job.state !== "succeeded" || !job.artifacts?.length) throw f.invalid("job", "That voice sample has not finished.");
     await adoptVoice(library, store, jobId, tools);
+    return detail(params.name);
+  });
+
+  /**
+   * Spends: the talking clip, a short Seedance clip of the character saying
+   * their card's words. `maxUsd` is the price the button showed; a higher
+   * estimate is refused before anything is spent.
+   */
+  router.post("/api/library/:name/make-voice-clip", async ({ params, body = {} }) => {
+    const { library, store, limits } = context();
+    const resolution = f.text(body, "resolution") || "720p";
+    if (!CLIP_RESOLUTIONS.includes(resolution)) throw f.invalid("resolution", `A talking clip is ${CLIP_RESOLUTIONS.join(" or ")}.`);
+    const maxUsd = body.maxUsd;
+    if (typeof maxUsd !== "number" || !(maxUsd > 0)) throw f.invalid("maxUsd", "Send the price you agreed to, as maxUsd.");
+    const r = await makeVoiceClip(catalog, params.name, { store, limits, library, upload, deps: deps.generate, via: "studio", card: tools.card, resolution, maxUsd });
+    follower?.follow(r.job.id);
+    return detail(params.name);
+  });
+
+  router.post("/api/library/:name/adopt-voice-clip", async ({ params, body = {} }) => {
+    const jobId = f.text(body, "job", { required: true });
+    const { library, store } = context();
+    let job;
+    try {
+      job = store.get(jobId);
+    } catch {
+      throw f.invalid("job", `No job ${jobId}.`);
+    }
+    if (job.stage !== "voiceclip" || job.voiceFor !== params.name) throw f.invalid("job", `${jobId} is not ${params.name}'s talking clip.`);
+    await adoptVoiceClip(library, store, jobId, tools);
     return detail(params.name);
   });
 

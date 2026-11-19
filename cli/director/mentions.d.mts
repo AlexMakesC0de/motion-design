@@ -19,5 +19,9 @@ export function mapCardTexts(cards: Cards, fn: (t: string) => string): Cards;
 export function removeRef<S extends { refs: Ref[]; cards: Cards }>(scene: S, id: string): S;
 export function attachLibraryMentions<S extends { refs: Ref[]; cards: Cards }>(scene: S): S;
 export function libraryNames(scene: { refs: Ref[]; cards: Cards }): string[];
+/** The lines a named person says: who (a ref id) and the words, with the stage they are in (null outside one). */
+export function scriptLines(scene: { refs: Ref[]; cards: Cards }): { id: string; text: string; stage: number | null }[];
+/** The lines in each stage that name no speaker: whoever that stage shows says them. */
+export function stageLines(scene: { refs: Ref[]; cards: Cards }): { stage: number; text: string }[];
 export function emptyCards(): Cards;
 export function parseDanPrompt(text: string): Cards | null;

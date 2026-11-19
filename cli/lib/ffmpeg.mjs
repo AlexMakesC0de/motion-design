@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { usage, provider } from "./errors.mjs";
@@ -149,8 +149,124 @@ export async function toMp3(path, { signal } = {}) {
   return out;
 }
 
-/** What core/voice.mjs prepareVoice needs from ffmpeg. */
-export const voiceTools = { probe: (path) => probe(path), convert: (path) => toMp3(path) };
+/** A voice card runs 5 to 15 seconds: long enough to carry the voice, short enough not to pay for more (kie bills a reference video by the second). */
+export const CARD_MIN_S = 5;
+export const CARD_MAX_S = 15;
+
+/**
+ * Where to cut a voice for its card, given its length and its pauses
+ * ([{ start, end }] in seconds). A voice that fits is used whole. A longer one
+ * is cut in the last pause that ends the card by `maxS`, so no word is cut in
+ * half; with no such pause it is cut at `maxS` and faded out.
+ * Returns { voiceS, seconds, fade }: the voice kept, the card's whole seconds.
+ */
+export function cardCut(durationS, pauses = [], { minS = CARD_MIN_S, maxS = CARD_MAX_S } = {}) {
+  const whole = (t) => Math.max(2, Math.ceil(t - 1e-9));
+  if (whole(durationS) <= maxS) return { voiceS: durationS, seconds: whole(durationS), fade: false };
+  const cuts = pauses.filter((p) => p.start >= minS && p.start < maxS).map((p) => Math.min(p.end ?? Infinity, p.start + 0.25, maxS));
+  if (cuts.length) {
+    const voiceS = Math.round(Math.max(...cuts) * 100) / 100;
+    return { voiceS, seconds: Math.min(maxS, whole(voiceS)), fade: false };
+  }
+  return { voiceS: maxS, seconds: maxS, fade: true };
+}
+
+/**
+ * How quiet and how long a pause must be, strictest first. A trimmed or
+ * loudness-levelled recording has short, not quite silent gaps, which only
+ * the looser levels find.
+ */
+export const PAUSE_LEVELS = [
+  { noiseDb: -35, minS: 0.2 },
+  { noiseDb: -35, minS: 0.1 },
+  { noiseDb: -30, minS: 0.1 },
+];
+
+/** The pauses in a recording at one level: stretches quieter than `noiseDb` for at least `minS`. */
+export async function pauses(path, { noiseDb = -35, minS = 0.2, signal } = {}) {
+  requireFfmpeg();
+  const { stderr } = await ffmpeg(["-i", path, "-af", `silencedetect=noise=${noiseDb}dB:d=${minS}`, "-f", "null", "-"], { signal });
+  return parsePauses(stderr);
+}
+
+/** Where to cut `path` for its card: at the strictest level that finds a pause in reach. */
+async function cardCutOf(path, durationS, { signal } = {}) {
+  let cut = cardCut(durationS);
+  if (!cut.fade) return cut;
+  for (const level of PAUSE_LEVELS) {
+    cut = cardCut(durationS, await pauses(path, { ...level, signal }));
+    if (!cut.fade) return cut;
+  }
+  return cut;
+}
+
+export function parsePauses(text) {
+  const out = [];
+  for (const m of String(text).matchAll(/silence_(start|end): (-?[\d.]+)/g)) {
+    const t = Number(m[2]);
+    if (m[1] === "start") out.push({ start: Math.max(0, t), end: null });
+    else if (out.length && out.at(-1).end == null) out.at(-1).end = t;
+  }
+  return out;
+}
+
+/**
+ * A voice card: the character's voice on a black 1280x720 frame with their name
+ * in white, 5 to 15 whole seconds (see cardCut; silence pads the end). Scenes
+ * send it to Seedance as a reference video. The name is drawn by ffmpeg when
+ * its build has drawtext, else by ImageMagick, else the card is plain black.
+ * Returns { path, seconds, voiceS, faded, text }.
+ */
+export async function makeVoiceCard({ audio, out, text = "", durationS, signal } = {}) {
+  requireFfmpeg();
+  const length = durationS ?? (await probe(audio, { signal })).durationS;
+  if (!Number.isFinite(length) || length <= 0) throw usage("Could not read how long that voice is.");
+  const { voiceS, seconds, fade } = await cardCutOf(audio, length, { signal });
+  const dir = mkdtempSync(join(tmpdir(), "shard-card-"));
+  try {
+    const name = cardText(text);
+    const font = name ? cardFont() : null;
+    let input = ["-f", "lavfi", "-i", `color=c=black:s=1280x720:r=24:d=${seconds}`];
+    let vf = [];
+    let drawn = false;
+    if (name && font && (await hasFilter("drawtext"))) {
+      const file = join(dir, "name.txt");
+      writeFileSync(file, name);
+      vf = ["-vf", `drawtext=fontfile=${escapeFilterPath(font)}:textfile=${escapeFilterPath(file)}:fontcolor=white:fontsize=110:x=(w-text_w)/2:y=(h-text_h)/2`];
+      drawn = true;
+    } else if (name && font && onPath("magick")) {
+      const png = join(dir, "card.png");
+      await run("magick", ["-size", "1280x720", "xc:black", "-font", font, "-fill", "white", "-pointsize", "110", "-gravity", "center", "-annotate", "+0+0", magickText(name), png], { signal });
+      input = ["-loop", "1", "-framerate", "24", "-i", png];
+      drawn = true;
+    }
+    const af = [`atrim=0:${voiceS}`, ...(fade ? [`afade=t=out:st=${Math.max(0, voiceS - 0.3)}:d=0.3`] : []), "apad"].join(",");
+    await ffmpegWriting(
+      out,
+      [...input, "-i", audio, ...vf, "-map", "0:v", "-map", "1:a", "-af", af, "-t", String(seconds), "-r", "24", "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ac", "1", "-movflags", "+faststart", out],
+      { signal },
+    );
+    return { path: out, seconds, voiceS: Math.round(voiceS * 100) / 100, faded: fade, text: drawn ? name : "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** One line, at most 40 characters, no control characters. */
+export const cardText = (text) => String(text ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+// ImageMagick reads "@file" and expands "%" and "\" in annotate text.
+const magickText = (t) => t.replace(/\\/g, "\\\\").replace(/%/g, "%%").replace(/^@/, "\\@");
+const onPath = (bin) => (process.env.PATH ?? "").split(":").some((d) => d && existsSync(`${d}/${bin}`));
+const FONTS = ["/System/Library/Fonts/Helvetica.ttc", "/System/Library/Fonts/SFNS.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "C:\\Windows\\Fonts\\arial.ttf"];
+const cardFont = () => FONTS.find((f) => existsSync(f)) ?? null;
+const filters = new Map();
+async function hasFilter(name) {
+  if (!filters.has(name)) filters.set(name, run("ffmpeg", ["-hide_banner", "-filters"]).then(({ stdout }) => new RegExp(`\\s${name}\\s`).test(stdout)).catch(() => false));
+  return filters.get(name);
+}
+
+/** What core/voice.mjs prepareVoice and the voice card need from ffmpeg. */
+export const voiceTools = { probe: (path) => probe(path), convert: (path) => toMp3(path), card: (opts) => makeVoiceCard(opts) };
 
 /** Real numbers off the file. Never assume a generated clip is the length you asked for. */
 export async function probe(path, { signal } = {}) {

@@ -5,11 +5,11 @@ import assert from "node:assert/strict";
 const { connectInProcess } = await import("../client.mjs");
 
 describe("connectInProcess", () => {
-  test("lists the same 58 tools and the server's instructions, and calls a tool through the given deps", async () => {
+  test("lists the same 59 tools and the server's instructions, and calls a tool through the given deps", async () => {
     const { deps } = stubs();
     const { client, close } = await connectInProcess({ deps });
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 58);
+    assert.equal(tools.length, 59);
     assert.ok(tools.some((t) => t.name === "generate_video"));
     assert.match(client.getInstructions(), /^Shard, a motion-design studio over kie\.ai\./);
     const r = await call(client, "estimate", { model: "seedance-2-5", duration_s: 4, resolution: "480p" });

@@ -57,7 +57,8 @@ const INSTRUCTIONS =
   "(change only the fields the user named), get_scene_prompt (free: the exact prompt, its problems and prices), then " +
   "draft_scene or final_scene only when the user agreed that spend, then wait_job. copy_scene moves a scene from Create into a film. " +
   "A Library character can have a voice: get_voice, save_voice_settings and list_voices are free; save_voice_recording uses the user's own recording; make_local_voice is free through VoiceStudio on their computer; make_voice spends a few cents. adopt_voice keeps a take or sample. " +
-  "A scene sends a character's voice when that character has a line, written @{r1} says {\"line\"}. " +
+  "With a voice, make_voice_clip (spends; after cardWords is saved) makes a talking clip: the character saying their voice card's words. adopt_voice keeps it. " +
+  "A scene sends a character's voice when that character has a line, written @{r1} says {\"line\"}: their talking clip by default, else their voice card (a black video with their name and voice); voiceAs card always sends the card, voiceAs file the bare voice. " +
   "The user keeps a skill library (list_skills): when a request matches a skill's description, load it with get_skill and follow it.";
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
