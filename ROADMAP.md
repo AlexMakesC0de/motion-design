@@ -20,6 +20,7 @@ These are built, covered by the test suites and used day to day.
 These work, but have known limits or have not been checked end to end.
 
 - **Openjutsu** (beta): swaps a person, outfit, object or background into a clip through kie's MiniMax H3 or Wan 2.2 Animate. H3 keeps more detail but can drift from the original motion; Wan follows the motion but is softer. See [the self-hosting plan](docs/research/2026-11-18-openjutsu-self-hosting-plan.md) for the mask-guided approach, which is parked.
+- **Character voices**: a Library character can keep a voice, either your own 2 to 30 second recording (free) or an ElevenLabs v3 sample in one of 67 preset voices (a few cents). Scenes send it to Seedance 2.5 as reference audio whenever that character has a line (`@{r1} says "..."`). Built and unit-tested, not yet tried on a real scene. kie publishes no rate for reference audio, so a scene with a voice is quoted at the higher of two prices until a real job shows the charge. The built-in script is English only.
 - **Finishing with ffmpeg**: `kie assemble`, captions, loudness and `kie variants` (other aspect ratios) are built and unit-tested, but not yet verified on a complete film.
 - **WaveSpeed as a second provider**: used only for some routes (MiniMax H3, Seedance 2.0 and 2.5) and only when you have a WaveSpeed key.
 - **Prices**: read from the providers' pages on the date in `cli/models.json`. The CLI warns when the catalog is older than its `staleAfterDays`; check the provider's page before a large job.

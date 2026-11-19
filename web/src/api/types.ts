@@ -57,6 +57,7 @@ export interface AssetSummary {
   description: string;
   imageCount: number;
   hasSheet?: boolean;
+  hasVoice?: boolean;
   updatedAt: string;
   /** Only from GET /api/library; the SSE library event sends core's list without them. */
   cover?: string | null;
@@ -85,6 +86,44 @@ export interface AssetDetail {
   sheetJob?: JobView | null;
   /** That job's picture is already the item's sheet. */
   sheetJobKept?: boolean;
+  /** A character's voice recording; null when it has none (and for other kinds). */
+  voice?: AssetVoice | null;
+  /** What a voice sample would be made from; null for kinds that have no voice. */
+  voiceSettings?: VoiceSettings | null;
+  /** What a sample of the saved script costs. */
+  voicePrice?: { usd: number; basis: string; chars: number } | null;
+  /** The latest voice sample made for it. */
+  voiceJob?: JobView | null;
+  /** That sample is already the character's voice. */
+  voiceJobKept?: boolean;
+}
+
+export interface AssetVoice {
+  durationS: number;
+  origin: "recording" | "elevenlabs";
+  voiceId: string | null;
+  voiceName: string | null;
+  script: string | null;
+  savedAt: string;
+  url: string | null;
+}
+
+export interface VoiceSettings {
+  language?: string;
+  accent?: string;
+  age?: string;
+  tone?: string;
+  energy?: string;
+  voiceId?: string;
+  voiceName?: string;
+  script: string;
+}
+
+export interface PresetVoice {
+  id: string;
+  name: string;
+  description: string;
+  previewUrl: string;
 }
 
 export interface IncomingFile {

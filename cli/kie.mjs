@@ -28,7 +28,7 @@ import { loadLooks, lookView } from "./director/looks.mjs";
 import { allowedRoots, checkLocalFile } from "./core/inputs.mjs";
 import { doctor } from "./core/views.mjs";
 import { loadPresets, findPreset, routeFor } from "./lib/presets.mjs";
-import { probe, measureLoudness, dimsFor } from "./lib/ffmpeg.mjs";
+import { probe, measureLoudness, dimsFor, voiceTools } from "./lib/ffmpeg.mjs";
 import { extractFrames } from "./lib/frames.mjs";
 import { assemble } from "./lib/assemble.mjs";
 import { burnCaptions } from "./lib/caption.mjs";
@@ -43,6 +43,8 @@ import { suggestModel, suggestStillModel } from "./director/pick.mjs";
 import { shotWording } from "./director/wording.mjs";
 import { briefLines, planLines } from "./director/show.mjs";
 import { makeStill, makeSheet, adoptSheet, needsStyleFirst } from "./director/still.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "./director/voice-make.mjs";
+import { presetVoices } from "./core/voice.mjs";
 import { shotMedia } from "./director/media.mjs";
 import { filmShot, filmReady } from "./director/film.mjs";
 import { reviewShot, saveReview } from "./director/review.mjs";
@@ -94,6 +96,13 @@ Director (planning only — free):
 Director (making — spends kie credits; --dry-run plans and spends nothing, --no-wait returns at once):
   kie cast       <asset> --run SLUG [--model M]          a reference sheet for a Library character, product or location
   kie cast       adopt <job id>                          make a finished sheet the asset's first image
+  kie voice      list                                    ElevenLabs preset voices, each with a free preview link
+  kie voice      show <asset>                            a character's voice, its settings and its script
+  kie voice      set <asset> [--voice V] [--language L] [--file SCRIPT.txt]   save the voice settings (free)
+  kie voice      record <asset> <file>                   your own recording (2-30s) as the voice (free)
+  kie voice      make <asset>                            a sample in the chosen preset voice (spends, about $0.04)
+  kie voice      adopt <job id>                          keep a finished sample as the character's voice
+  kie voice      clear <asset>                           take the voice away (kept in the item's history)
   kie still      --run SLUG [--shot ID]...               each shot's first frame (default: every shot without one), in order
   kie shot       --run SLUG --shot ID                    film one shot from its still (also redoes a take)
   kie film       --run SLUG --max-usd U                  film every ready shot, wait, then the shots that continue from them;
@@ -1166,6 +1175,64 @@ async function cmdCast(catalog, args, positionals) {
   return EXIT.OK;
 }
 
+async function cmdVoice(catalog, args, positionals) {
+  const [sub, name, path] = positionals;
+  const help = "kie voice list | show <asset> | set <asset> [--voice V] [--language L] [--file SCRIPT] | record <asset> <file> | make <asset> | adopt <job id> | clear <asset>";
+  const library = openLibrary();
+  if (sub === "list") {
+    for (const v of presetVoices().voices) say(`${v.name.padEnd(22)} ${v.description.padEnd(44)} ${v.id}  ${v.previewUrl}`);
+    return EXIT.OK;
+  }
+  if (!name) throw usage(help);
+  if (sub === "show") {
+    const a = library.get(name);
+    const s = voiceSettings(a);
+    const from = a.voice?.origin === "recording" ? "your recording" : `ElevenLabs ${a.voice?.voiceName ?? ""}`.trim();
+    say(a.voice ? `${a.name}'s voice: ${a.voice.durationS}s, ${from} (${a.voice.path})` : `${a.name} has no voice yet.`);
+    say(`Voice: ${s.voiceName ?? "none picked"}${s.language ? ` · language ${s.language}` : ""}${s.accent ? ` · ${s.accent}` : ""}`);
+    const p = voicePrice(catalog, s.script);
+    say(`Script (${p.chars} characters; a sample costs $${p.usd}):`);
+    say(s.script || "(no built-in script for this language: write one and pass it with --file)");
+    return EXIT.OK;
+  }
+  if (sub === "set") {
+    const a = library.get(name);
+    const profile = { ...(a.voiceProfile ?? {}) };
+    if (args.voice) profile.voiceId = args.voice;
+    if (args.language) profile.language = args.language;
+    if (args.file) profile.script = readFileSync(args.file, "utf8");
+    const saved = saveVoiceProfile(library, name, profile);
+    say(`Saved ${saved.name}'s voice settings: ${saved.voiceProfile?.voiceName ?? "no voice picked"}.`);
+    return EXIT.OK;
+  }
+  if (sub === "record") {
+    if (!path) throw usage("kie voice record <asset> <file>");
+    const a = await saveRecordedVoice(library, name, path, { ...voiceTools, script: library.get(name).voiceProfile?.script ?? null });
+    say(`${a.name} now speaks with your recording: ${a.voice.durationS}s (${a.voice.path}).`);
+    return EXIT.OK;
+  }
+  if (sub === "adopt") {
+    const a = await adoptVoice(library, openJobs(), name, voiceTools);
+    say(`${a.name} now speaks with ${a.voice.voiceName ?? "the sample"}: ${a.voice.durationS}s (${a.voice.path}).`);
+    return EXIT.OK;
+  }
+  if (sub === "clear") {
+    library.removeVoice(name);
+    say(`${name} has no voice now; the old one is in its history.`);
+    return EXIT.OK;
+  }
+  if (sub === "make") {
+    const c = directorCtx(catalog, args);
+    const r = await makeVoice(catalog, name, c);
+    say(`${r.asset}'s voice sample on ${r.model}`);
+    if (r.dryRun) return dryLines(r), EXIT.OK;
+    const w = await waitFor(catalog, c.store, r, args);
+    if (w) say(`Listen to it, then keep it: kie voice adopt ${r.job.id}`);
+    return EXIT.OK;
+  }
+  throw usage(help);
+}
+
 async function cmdStill(catalog, args) {
   if (!args.run) throw usage("kie still --run SLUG [--shot ID]... [--dry-run] [--no-wait]");
   const c = directorCtx(catalog, args);
@@ -1493,6 +1560,8 @@ async function main(argv) {
       return cmdShots(args);
     case "cast":
       return cmdCast(catalog, args, positionals);
+    case "voice":
+      return cmdVoice(catalog, args, positionals);
     case "still":
       return cmdStill(catalog, args);
     case "shot":

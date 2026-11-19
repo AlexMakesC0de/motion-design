@@ -5,6 +5,9 @@ import { z } from "zod";
 import { runDir } from "../cli/lib/run.mjs";
 import { uploadFile } from "../cli/lib/upload.mjs";
 import { makeStill, makeSheet, adoptSheet } from "../cli/director/still.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "../cli/director/voice-make.mjs";
+import { presetVoices } from "../cli/core/voice.mjs";
+import { voiceTools } from "../cli/lib/ffmpeg.mjs";
 import { filmShot, filmReady } from "../cli/director/film.mjs";
 import { reviewShot, saveReview } from "../cli/director/review.mjs";
 import { cutFilm } from "../cli/director/cut.mjs";
@@ -116,6 +119,120 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       const asset = adoptSheet(library, store, a.job_id);
       const images = asset.images.map((im) => im.path);
       return ok(`${asset.name} now leads with its sheet:\n${images.join("\n")}`, { name: asset.name, images });
+    },
+  );
+
+  tool(
+    "list_voices",
+    {
+      title: "List preset voices",
+      description: "ElevenLabs preset voices for a character's voice, each with a free preview link. Free.",
+      inputSchema: {},
+      outputSchema: { voices: z.array(Data) },
+      annotations: LOOK,
+    },
+    async () => {
+      const { voices } = presetVoices();
+      return ok(voices.map((v) => `${v.name} (${v.id}): ${v.description}`).join("\n"), { voices });
+    },
+  );
+
+  tool(
+    "get_voice",
+    {
+      title: "A character's voice",
+      description:
+        "A Library character's voice (its recording's length and origin, if any), its voice settings and the script a sample would read, with the sample's price. Free.",
+      inputSchema: { asset: z.string().describe("The Library character's name.") },
+      outputSchema: { voice: Data.nullable(), settings: Data, price: Data },
+      annotations: LOOK,
+    },
+    async (a) => {
+      const asset = ctx().library.get(a.asset);
+      const settings = voiceSettings(asset);
+      const price = voicePrice(catalog, settings.script);
+      const voice = asset.voice ? { ...asset.voice, upload: undefined } : null;
+      const head = voice ? `${asset.name}'s voice: ${voice.durationS}s, ${voice.origin}` : `${asset.name} has no voice yet.`;
+      return ok(`${head}\nA sample of this script costs $${price.usd}.\n\n${settings.script}`, { voice, settings, price });
+    },
+  );
+
+  tool(
+    "save_voice_settings",
+    {
+      title: "Save voice settings",
+      description:
+        "A character's voice settings: language, accent, age, tone, energy, the preset voice (voiceId, a name or id from list_voices) and the script a sample reads. " +
+        "Only the fields given change. A script for a language other than English must be written out. Free.",
+      inputSchema: {
+        asset: z.string(),
+        language: z.string().optional(),
+        accent: z.string().optional(),
+        age: z.string().optional(),
+        tone: z.string().optional(),
+        energy: z.string().optional(),
+        voiceId: z.string().optional(),
+        script: z.string().optional(),
+      },
+      outputSchema: { settings: Data },
+      annotations: LOCAL_WRITE,
+    },
+    async ({ asset: name, ...changes }) => {
+      const { library } = ctx();
+      const asset = library.get(name);
+      const saved = saveVoiceProfile(library, name, { ...(asset.voiceProfile ?? {}), ...changes });
+      return ok(`Saved ${saved.name}'s voice settings.`, { settings: saved.voiceProfile ?? {} });
+    },
+  );
+
+  tool(
+    "make_voice",
+    {
+      title: "Make a voice sample",
+      description:
+        "Spends kie credits. A few cents (get_voice shows the price): an ElevenLabs v3 sample of the character's script in its chosen preset voice. " +
+        "Only when the user asked for it. Returns a job id at once; wait_job, let the user listen, then adopt_voice if they like it.",
+      inputSchema: { asset: z.string(), dry_run: dryRun },
+      outputSchema: Submitted,
+      annotations: SPEND,
+    },
+    async (a, extra) => {
+      const r = await makeVoice(catalog, a.asset, making(a, extra));
+      return submitted(r, `${r.asset}'s voice sample`, { asset: r.asset, voiceId: r.voiceId });
+    },
+  );
+
+  tool(
+    "adopt_voice",
+    {
+      title: "Keep a voice sample",
+      description: "Keep a finished voice sample as the character's voice; scenes where the character speaks then send it. The voice it replaces is kept in history. Free.",
+      inputSchema: { job_id: z.string() },
+      outputSchema: { name: z.string(), durationS: z.number(), path: z.string() },
+      annotations: LOCAL_WRITE,
+    },
+    async (a) => {
+      const { library, store } = ctx();
+      const asset = await adoptVoice(library, store, a.job_id, voiceTools);
+      return ok(`${asset.name} now speaks with ${asset.voice.voiceName ?? "the sample"} (${asset.voice.durationS}s).`, { name: asset.name, durationS: asset.voice.durationS, path: asset.voice.path });
+    },
+  );
+
+  tool(
+    "save_voice_recording",
+    {
+      title: "Use a recording as the voice",
+      description:
+        "Use the user's own recording (2 to 30 seconds; WAV, MP3, AAC, OGG, or M4A which becomes MP3) as the character's voice. " +
+        "The path must be inside runs/, library/ or a folder the user allowed. Free.",
+      inputSchema: { asset: z.string(), path: z.string() },
+      outputSchema: { name: z.string(), durationS: z.number(), path: z.string() },
+      annotations: LOCAL_WRITE,
+    },
+    async (a) => {
+      const { library, roots } = ctx();
+      const asset = await saveRecordedVoice(library, a.asset, runFile(runDir("."), a.path, roots), { roots, ...voiceTools, script: library.get(a.asset).voiceProfile?.script ?? null });
+      return ok(`${asset.name} now speaks with the recording (${asset.voice.durationS}s).`, { name: asset.name, durationS: asset.voice.durationS, path: asset.voice.path });
     },
   );
 

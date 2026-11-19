@@ -94,8 +94,9 @@ export function registerScenes(router, { catalog, deps = {}, follower, maxUpload
     const slug = slugOf(params);
     const scene = findScene(slug, params.id);
     const { store, limits, library } = context();
-    const { prompt, refs, problems } = compileFor(catalog, slug, scene, library);
-    return { prompt, refs, problems, prices: scenePrices(catalog, scene, { store, limits }) };
+    const compiled = compileFor(catalog, slug, scene, library);
+    const { prompt, refs, problems, voices } = compiled;
+    return { prompt, refs, problems, voices, prices: scenePrices(catalog, scene, { store, limits, compiled }) };
   });
 
   /** A draft or a final, followed in the background so the page hears when it lands. */

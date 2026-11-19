@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { usage, provider } from "./errors.mjs";
 
 let checked = false;
@@ -135,6 +137,20 @@ export async function ffmpegWriting(out, args, opts = {}) {
     throw err;
   }
 }
+
+/**
+ * An audio file as MP3 in a fresh temporary folder, for formats a provider will
+ * not take as they are (a phone's M4A voice memo). Returns the new path.
+ */
+export async function toMp3(path, { signal } = {}) {
+  requireFfmpeg();
+  const out = join(mkdtempSync(join(tmpdir(), "shard-voice-")), "voice.mp3");
+  await ffmpegWriting(out, ["-i", path, "-vn", "-ac", "1", "-ar", "44100", "-c:a", "libmp3lame", "-q:a", "2", out], { signal });
+  return out;
+}
+
+/** What core/voice.mjs prepareVoice needs from ffmpeg. */
+export const voiceTools = { probe: (path) => probe(path), convert: (path) => toMp3(path) };
 
 /** Real numbers off the file. Never assume a generated clip is the length you asked for. */
 export async function probe(path, { signal } = {}) {

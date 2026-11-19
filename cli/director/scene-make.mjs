@@ -42,16 +42,21 @@ export function compileFor(catalog, film, scene, library) {
     library,
     refToken: model.promptProfile?.refToken ?? DEFAULT_REF_TOKEN,
     limits: route?.input?.refLimits?.image ?? null,
+    audioLimits: route?.input?.refLimits?.audio ?? null,
     sizeOf,
   });
 }
 
-/** The draft and both finals' prices. */
-export function scenePrices(catalog, scene, { store, limits }) {
+/**
+ * The draft and both finals' prices. `compiled` (compileFor's result) adds the
+ * speaking characters' voices, which can change the price.
+ */
+export function scenePrices(catalog, scene, { store, limits, compiled = null }) {
+  const voiceRefs = (compiled?.voices ?? []).map(() => ({ role: "voice" }));
   const price = (resolution, extra = {}) => {
     const r = estimate(
       catalog,
-      { model: SCENE_MODEL, capability: "video", durationS: scene.durationS, resolution, aspectRatio: scene.ratio, refs: [], params: { generate_audio: true, ...extra } },
+      { model: SCENE_MODEL, capability: "video", durationS: scene.durationS, resolution, aspectRatio: scene.ratio, refs: voiceRefs, audioS: compiled?.audioS || undefined, params: { generate_audio: true, ...extra } },
       { store, limits },
     );
     return { usd: r.estimateUsd ?? null, basis: r.basis ?? null };
@@ -94,7 +99,7 @@ export function addSceneImage(film, path, { roots, name }) {
 export async function makeScene(catalog, film, id, kind, resolution, { store, limits, roots, library, upload, deps, via }) {
   if (kind === "final" && !FINALS.includes(resolution)) throw unknown(`A final is ${FINALS.join(" or ")}.`, { field: "resolution" });
   const scene = findScene(film, id);
-  const { prompt, refs, problems } = compileFor(catalog, film, scene, library);
+  const { prompt, refs, problems, audioS } = compileFor(catalog, film, scene, library);
   if (problems.length) throw unknown(`Refused before submitting, nothing was spent. ${problems.join(" ")}`, { field: "scene", problems });
 
   const model = sceneModel(catalog);
@@ -120,7 +125,7 @@ export async function makeScene(catalog, film, id, kind, resolution, { store, li
         artifactBase: `${id}-${kind}`,
         budgetUsd: null,
         only: null,
-        values: { prompt, duration: scene.durationS, aspect_ratio: scene.ratio, resolution, refs: expanded.refs, params, _useI2v: false },
+        values: { prompt, duration: scene.durationS, aspect_ratio: scene.ratio, resolution, refs: expanded.refs, params, _useI2v: false, ...(audioS ? { _audioS: audioS } : {}) },
         record: { refMapping: expanded.refMapping, assets: expanded.assets, via },
       },
       { store, limits, deps },

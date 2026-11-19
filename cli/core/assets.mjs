@@ -50,7 +50,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       .filter((n) => ASSET_NAME.test(n) && existsSync(join(dir, n, "asset.json")))
       .map((n) => {
         const r = read(n);
-        return { name: r.name, kind: r.kind, description: r.description, persona: r.persona ?? null, imageCount: r.images.length, hasSheet: r.images.some((im) => roleOf(im) === "sheet"), updatedAt: r.updatedAt };
+        return { name: r.name, kind: r.kind, description: r.description, persona: r.persona ?? null, imageCount: r.images.length, hasSheet: r.images.some((im) => roleOf(im) === "sheet"), hasVoice: Boolean(r.voice), updatedAt: r.updatedAt };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -61,7 +61,14 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       throw unknown(`No asset "${name}". Saved assets: ${list().map((a) => a.name).join(", ") || "none"}.`);
     }
     const r = read(name);
-    return { ...r, keep: r.keep ?? null, persona: r.persona ?? null, images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })) };
+    return {
+      ...r,
+      keep: r.keep ?? null,
+      persona: r.persona ?? null,
+      images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })),
+      voice: r.voice ? { ...r.voice, path: join(assetDir(name), r.voice.file) } : null,
+      voiceProfile: r.voiceProfile ?? null,
+    };
   }
 
   /**
@@ -95,11 +102,14 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     let createdAt = at;
     let usedIn = [];
     let keptPersona = persona ?? null;
+    // A new sheet or new photos never take the character's voice away.
+    let voiceFields = {};
     if (exists) {
       const prev = read(name);
       createdAt = prev.createdAt;
       usedIn = prev.usedIn ?? [];
       if (persona === undefined) keptPersona = prev.persona ?? null;
+      voiceFields = { ...(prev.voice ? { voice: prev.voice } : {}), ...(prev.voiceProfile ? { voiceProfile: prev.voiceProfile } : {}) };
       const history = join(target, ".history", at.replace(/[:.]/g, "-"));
       mkdirSync(history, { recursive: true });
       renameSync(join(target, "asset.json"), join(history, "asset.json"));
@@ -124,7 +134,90 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
         upload: null,
       };
     });
-    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), ...(keptPersona ? { persona: keptPersona } : {}), images: stored, createdAt, updatedAt: at, usedIn });
+    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), ...(keptPersona ? { persona: keptPersona } : {}), images: stored, ...voiceFields, createdAt, updatedAt: at, usedIn });
+  }
+
+  /** Move the current voice file and a copy of the record into .history/<stamp>/. */
+  function retireVoice(record, at) {
+    if (!record.voice) return;
+    const target = assetDir(record.name);
+    const history = join(target, ".history", at.replace(/[:.]/g, "-"));
+    mkdirSync(history, { recursive: true });
+    writeFileSync(join(history, "asset.json"), JSON.stringify(record, null, 2) + "\n");
+    if (existsSync(join(target, record.voice.file))) renameSync(join(target, record.voice.file), join(history, record.voice.file));
+  }
+
+  /**
+   * Give a character its voice: an audio file already checked by
+   * core/voice.mjs prepareVoice ({ path, durationS }), plus where it came from.
+   * The voice it replaces moves to .history/.
+   */
+  function setVoice(name, { path, durationS, origin, voiceId = null, voiceName = null, script = null, job = null }, { roots = null } = {}) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    if (!["recording", "elevenlabs"].includes(origin)) throw unknown(`A voice's origin is recording or elevenlabs, got "${origin}".`);
+    if (!Number.isFinite(durationS) || durationS <= 0) throw unknown("A voice needs its length in seconds.");
+    const info = checkLocalFile(path, { roots, kinds: ["audio"] });
+    const bytes = readFileSync(info.path);
+    const record = read(name);
+    if (record.kind !== "character") throw unknown(`Only characters have a voice; "${name}" is a ${record.kind}.`);
+    const at = now().toISOString();
+    retireVoice(record, at);
+    const file = `voice${info.ext}`;
+    writeFileSync(join(assetDir(name), file), bytes);
+    record.voice = {
+      file,
+      sha256: sha256(bytes),
+      bytes: info.bytes,
+      mime: info.mime,
+      durationS,
+      origin,
+      ...(voiceId ? { voiceId, voiceName } : {}),
+      ...(script ? { script } : {}),
+      ...(job ? { job } : {}),
+      savedAt: at,
+      upload: null,
+    };
+    record.updatedAt = at;
+    write(record);
+    return get(name);
+  }
+
+  /** Take the voice away; it moves to .history/, like a replaced sheet. */
+  function removeVoice(name) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const record = read(name);
+    if (!record.voice) throw unknown(`"${name}" has no voice.`);
+    const at = now().toISOString();
+    retireVoice(record, at);
+    delete record.voice;
+    record.updatedAt = at;
+    write(record);
+    return get(name);
+  }
+
+  /** The settings a voice sample is made from (core/voice.mjs cleanProfile), or null to clear them. */
+  function setVoiceProfile(name, profile) {
+    if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
+    const record = read(name);
+    if (record.kind !== "character") throw unknown(`Only characters have a voice; "${name}" is a ${record.kind}.`);
+    if (profile && Object.keys(profile).length) record.voiceProfile = profile;
+    else delete record.voiceProfile;
+    record.updatedAt = now().toISOString();
+    write(record);
+    return get(name);
+  }
+
+  /** A provider URL for the voice, reusing a recent upload of the same bytes, like uploadUrl. */
+  async function voiceUploadUrl(name, { upload }) {
+    const record = read(name);
+    const voice = record.voice;
+    if (!voice) throw unknown(`"${name}" has no voice. Add one in its Voice panel first.`);
+    const prior = voice.upload;
+    if (prior?.url?.includes(voice.sha256.slice(0, 16)) && prior.sha256 === voice.sha256 && now() - Date.parse(prior.at) < REUSE_UPLOAD_MS) return prior.url;
+    const { url } = await upload(join(assetDir(name), voice.file), { mime: voice.mime });
+    voice.upload = { url, at: now().toISOString(), sha256: voice.sha256 };
+    write(record);
+    return url;
   }
 
   /**
@@ -189,5 +282,5 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     }
   }
 
-  return { dir, list, get, save, update, remove, uploadUrl, recordUse };
+  return { dir, list, get, save, update, remove, uploadUrl, recordUse, setVoice, removeVoice, setVoiceProfile, voiceUploadUrl };
 }

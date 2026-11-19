@@ -11,6 +11,7 @@ import { Icon } from "../app/icons";
 import { onStudioEvent } from "../app/useStudio";
 import { usd } from "../studio/format";
 import { KIND_ORDER, kindLabel } from "./kinds";
+import { VoicePanel } from "./VoicePanel";
 
 interface Props {
   /** null: a new item. Otherwise the item being edited. */
@@ -393,6 +394,8 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
             />
           </div>
         )}
+
+        {asset && asset.kind === "character" && <VoicePanel asset={asset} onSaved={onSaved} />}
 
         {/* The details. */}
         <div className="sheet-maker__details">

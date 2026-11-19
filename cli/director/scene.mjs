@@ -2,12 +2,13 @@
 // reference images in order. Image N in the prompt is refs[N-1].
 import { join } from "node:path";
 import { sheetOf } from "../core/assets.mjs";
-import { IMAGE, LIBRARY, STORED, attachLibraryMentions, refLabel, MAX_REFS } from "./mentions.mjs";
+import { IMAGE, LIBRARY, STORED, attachLibraryMentions, refLabel, speakerIds, MAX_REFS } from "./mentions.mjs";
 import { stageTimes } from "./scenes.mjs";
 import { loadMenu, entry } from "./menu.mjs";
 import { stageWords, pickSentence, hasPicks } from "./picks.mjs";
 
 export const DEFAULT_REF_TOKEN = "[Image {n}]";
+export const DEFAULT_AUDIO_TOKEN = "[Audio {n}]";
 const KIND_WORD = { character: "character", product: "prop", location: "location", style: "style" };
 
 /** Why a picture of `width`×`height` would be refused, or null. `limits` is a route's refLimits.image. */
@@ -27,10 +28,11 @@ function sizeProblem(what, size, limits) {
  * `limits` and `sizeOf(path)` are optional: with them, pictures the model
  * would refuse are named here, in the preview, rather than at submit.
  */
-export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN, limits = null, sizeOf = () => null, menu = loadMenu() }) {
+export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKEN, audioToken: audioTokenFormat = DEFAULT_AUDIO_TOKEN, limits = null, audioLimits = null, sizeOf = () => null, menu = loadMenu() }) {
   const scene = attachLibraryMentions(input);
   const problems = [];
   const token = (i) => refToken.replace("{n}", String(i + 1));
+  const audioToken = (i) => audioTokenFormat.replace("{n}", String(i + 1));
   const item = (name) => {
     try {
       return library.get(name);
@@ -60,6 +62,25 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
     return { send: { source: join(film, rel), role: "identity" }, line: `${token(i)} — ${refLabel(r)}.${r.keep ? ` Preserve ${r.keep}.` : ""}` };
   });
   if (scene.refs.length > MAX_REFS) problems.push(`A scene holds at most ${MAX_REFS} images.`);
+
+  // A character with a voice who has a line gets that voice sent along, so the
+  // model copies how they sound. Audio is numbered on its own: [Audio 1] and on.
+  const voices = [];
+  for (const id of speakerIds(scene)) {
+    const i = scene.refs.findIndex((r) => r.id === id);
+    const r = scene.refs[i];
+    if (!r?.source?.startsWith("library:")) continue;
+    const a = item(refLabel(r));
+    if (!a?.voice) continue;
+    voices.push({ name: a.name, image: i, durationS: a.voice.durationS });
+  }
+  const audioS = voices.reduce((n, v) => n + (v.durationS ?? 0), 0);
+  if (audioLimits && audioS > audioLimits.maxTotalS) {
+    problems.push(`The speaking characters' voices last ${audioS.toFixed(1)}s together; Seedance takes at most ${audioLimits.maxTotalS}s of reference voice in one scene. Use shorter voice recordings.`);
+  }
+  const voiceLines = voices.map(
+    (v, n) => `${audioToken(n)} — ${v.name}'s voice. Whenever ${token(v.image)} speaks, use this exact voice: the same accent, pitch, tone and way of speaking. Do not copy its words; say only the lines written below.`,
+  );
   const says = [scene.cards.goal, scene.cards.scene, ...scene.cards.stages.flatMap((s) => [s.camera, s.action])].some((t) => t?.trim()) || hasPicks(scene.cards);
   if (!says) problems.push("Write the Goal, or what happens in a stage, first.");
 
@@ -99,7 +120,7 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
   };
   section("GOAL", render(c.goal));
   if (resolved.length) {
-    out.push("[REFERENCES]", ...resolved.filter(Boolean).map((r) => r.line), "Do not reproduce reference-sheet panels, grey studio backgrounds or labels.", "");
+    out.push("[REFERENCES]", ...resolved.filter(Boolean).map((r) => r.line), ...voiceLines, "Do not reproduce reference-sheet panels, grey studio backgrounds or labels.", "");
   }
   section("SCENE", lead(lightWords, render(c.scene)));
   const times = stageTimes(scene);
@@ -113,5 +134,12 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
   out.push("[MAINTAIN CONSISTENCY]", "Keep every person, product and place exactly as in their reference images in every stage.");
 
   const unique = [...new Set(problems)];
-  return { prompt: out.join("\n"), refs: unique.length ? [] : resolved.map((r) => r.send), problems: unique };
+  const sends = [...resolved.map((r) => r?.send), ...voices.map((v) => ({ source: `${v.name}@voice`, role: "voice" }))];
+  return {
+    prompt: out.join("\n"),
+    refs: unique.length ? [] : sends,
+    problems: unique,
+    voices: voices.map((v) => ({ name: v.name, durationS: v.durationS })),
+    audioS: Math.round(audioS * 100) / 100,
+  };
 }

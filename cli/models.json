@@ -93,7 +93,8 @@
     "style",
     "first_frame",
     "last_frame",
-    "motion"
+    "motion",
+    "voice"
   ],
   "models": {
     "minimax-h3": {
@@ -581,7 +582,8 @@
         "identity",
         "style",
         "first_frame",
-        "last_frame"
+        "last_frame",
+        "voice"
       ],
       "notes": "Newest Seedance; what Higgsfield's Cinema Studio 4.0 runs on. Billed per second on both routes and cheaper on kie. A first frame cannot be combined with reference images. Audio is on unless --param generate_audio=false. Draft mode (--param draft=true at 480p) previews cheaply; draftFinalize turns a draft into 1080p.",
       "routes": [
@@ -597,7 +599,17 @@
               "720p": 0.315,
               "1080p": 0.79
             },
-            "source": "kie.ai/seedance-2-5, read 2026-10-24 and 2026-10-30: 28/63/158 credits/s without video input; reference images add nothing. With a reference video it is 17/38/95 credits/s billed on input plus output seconds (not modelled here)."
+            "source": "kie.ai/seedance-2-5, read 2026-10-24 and 2026-10-30: 28/63/158 credits/s without video input; reference images add nothing. With a reference video it is 17/38/95 credits/s billed on input plus output seconds (not modelled here).",
+            "audioInput": {
+              "field": "reference_audio_urls",
+              "usdPerSecond": {
+                "480p": 0.085,
+                "720p": 0.19,
+                "1080p": 0.475
+              },
+              "maxInputS": 30,
+              "source": "kie publishes no rate for reference audio (kie.ai/seedance-2-5, read 2026-11-19). Until a job is measured, a job with a voice is quoted at the higher of the plain rate on its output seconds and the with-video rate on input plus output seconds, so the quote never undercounts."
+            }
           },
           "priceNote": "priceUsd is only the fallback when duration or resolution is unknown: 15s at 720p (945 credits).",
           "verified": true,
@@ -656,7 +668,8 @@
               "first_frame": "first_frame_url",
               "last_frame": "last_frame_url",
               "identity": "reference_image_urls",
-              "style": "reference_image_urls"
+              "style": "reference_image_urls",
+              "voice": "reference_audio_urls"
             },
             "refRules": {
               "exclusiveGroups": [
@@ -666,7 +679,8 @@
                 ],
                 [
                   "identity",
-                  "style"
+                  "style",
+                  "voice"
                 ]
               ],
               "requires": {
@@ -676,7 +690,16 @@
             },
             "refLimits": {
               "maxCount": {
-                "reference_image_urls": 30
+                "reference_image_urls": 30,
+                "reference_audio_urls": 10
+              },
+              "audio": {
+                "minS": 2,
+                "maxS": 30,
+                "maxTotalS": 30,
+                "maxBytes": 15000000,
+                "formats": "wav, mp3, aac, ogg",
+                "source": "docs.kie.ai/market/bytedance/seedance-2-5.md, read 2026-11-19"
               },
               "image": {
                 "minSide": 300,
@@ -1146,6 +1169,44 @@
                 "image_input": 10
               }
             }
+          }
+        }
+      ]
+    },
+    "elevenlabs-v3": {
+      "capability": "audio",
+      "kind": "tts",
+      "notes": "Character voices: one speaker reading a script with emotion tags such as [whispers] and [laughs]. Voices are kie's ElevenLabs presets (cli/voices.json); each previews free.",
+      "routes": [
+        {
+          "provider": "kie",
+          "family": "jobs",
+          "model": "elevenlabs/text-to-dialogue-v3",
+          "priceUsd": 0.07,
+          "verified": false,
+          "schemaVerified": true,
+          "schemaSource": "docs.kie.ai/market/elevenlabs/text-to-dialogue-v3.md, read 2026-11-19",
+          "pricing": {
+            "per": "characters",
+            "usdPer1000": 0.07,
+            "field": "dialogue"
+          },
+          "priceNote": "kie.ai/pricing, read 2026-11-19: Elevenlabs V3 14 credits ($0.07) per 1,000 characters. priceUsd (1,000 characters) is only the fallback when the script is not known.",
+          "input": {
+            "required": [
+              "dialogue"
+            ],
+            "defaults": {
+              "stability": 0.5
+            },
+            "enums": {
+              "stability": [
+                0,
+                0.5,
+                1
+              ]
+            },
+            "note": "dialogue is a list of { text, voice }; all text together at most 5,000 characters. language_code is optional (blank detects the language)."
           }
         }
       ]

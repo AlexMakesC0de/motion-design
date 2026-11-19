@@ -99,8 +99,9 @@ export function registerScenes(tool, { catalog, ctx, deps = {} }) {
     async ({ run, id }) => {
       const { store, limits, library } = ctx();
       const scene = findScene(run, id);
-      const { prompt, refs, problems } = compileFor(catalog, run, scene, library);
-      const prices = scenePrices(catalog, scene, { store, limits });
+      const compiled = compileFor(catalog, run, scene, library);
+      const { prompt, refs, problems } = compiled;
+      const prices = scenePrices(catalog, scene, { store, limits, compiled });
       const head = problems.length ? `PROBLEMS:\n${problems.join("\n")}` : `draft $${prices.draft.usd} · 720p $${prices.final720.usd} · 1080p $${prices.final1080.usd}`;
       return ok(`${head}\n\n${prompt}`, { prompt, refs, problems, prices });
     },
