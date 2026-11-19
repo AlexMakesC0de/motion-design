@@ -12,14 +12,14 @@ beforeEach(() => {
 const pending = () => vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise(() => {})));
 
 describe("App", () => {
-  test("a top bar of places, Explore lit by default, with no chat button", () => {
+  test("a top bar of places, Studio lit by default, with no chat button", () => {
     pending();
     render(<App />);
     const nav = screen.getByRole("navigation", { name: "Shard" });
-    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Explore", "Image", "Video", "MCP", "OpenjutsuBeta", "AI InfluencersNew", "Films", "Library", "Looks", "Skills"]);
-    expect(within(nav).getByRole("link", { name: "Explore" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["Studio", "Image", "Video", "MCP", "OpenjutsuBeta", "AI InfluencersNew", "Films", "Library", "Looks", "Skills"]);
+    expect(within(nav).getByRole("link", { name: "Studio" })).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "What are we making?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Describe it. Shard directs it." })).toBeInTheDocument();
   });
 
   test("each rail place shows its screen", () => {

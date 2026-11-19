@@ -65,18 +65,21 @@ describe("not connected", () => {
   test("the settings say nothing is set up", async () => {
     const r = await call("/api/chat-settings");
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json, {
+    const { keys, ...rest } = r.json;
+    assert.deepEqual(rest, {
       backend: null,
       model: null,
       openai: { keySaved: false, keySource: null, keyFile: process.env.KIE_OPENAI_KEY_FILE, keyEnv: "OPENAI_API_KEY" },
     });
+    assert.deepEqual(Object.keys(keys), ["openai", "anthropic", "openrouter", "compatible"]);
+    for (const k of Object.values(keys)) assert.equal(k.keySaved, false);
   });
 
   test("sending a message is refused with connect: true, so the page shows the two options; nothing is saved", async () => {
     const r = await call("/api/chat/chat-none", { method: "POST", body: { text: "hello" } });
     assert.equal(r.status, 409);
     assert.equal(r.json.error.connect, true);
-    assert.equal(r.json.error.message, "Chat isn't connected. Choose the ChatGPT subscription, or paste an OpenAI API key.");
+    assert.equal(r.json.error.message, "Chat isn't connected. In Settings, choose your ChatGPT subscription or paste an API key (OpenAI, Anthropic, OpenRouter or another service).");
     assert.equal(existsSync(join(RUNS, "chat-none")), false);
   });
 

@@ -3,7 +3,7 @@
 // old hashes from the six-tab studio redirect so links in docs keep working.
 import type { FilmStep } from "../api/types";
 
-export type NavId = "home" | "image" | "video" | "jutsu" | "influencers" | "mcp" | "projects" | "library" | "presets" | "skills" | "spend" | "settings";
+export type NavId = "home" | "newfilm" | "image" | "video" | "jutsu" | "influencers" | "mcp" | "projects" | "library" | "presets" | "skills" | "spend" | "settings";
 /** Kept for older imports: the place a top-bar item opens. */
 export type RailId = NavId;
 export type Screen = NavId | "film";
@@ -28,7 +28,7 @@ export const STEPS: { id: FilmStep; label: string }[] = [
 /** The top bar: the making pages first (each opens a menu on hover), then the studio's places. */
 export const NAV: { main: { id: NavId; label: string }[]; studio: { id: NavId; label: string; badge?: string }[] } = {
   main: [
-    { id: "home", label: "Explore" },
+    { id: "home", label: "Studio" },
     { id: "image", label: "Image" },
     { id: "video", label: "Video" },
     { id: "mcp", label: "MCP" },
@@ -42,8 +42,8 @@ export const NAV: { main: { id: NavId; label: string }[]; studio: { id: NavId; l
     { id: "skills", label: "Skills" },
   ],
 };
-/** Reached from the top bar's right side: the spend meter and the settings button. */
-const UTILITY: NavId[] = ["spend", "settings"];
+/** Reached from the top bar's right side (the spend meter and the settings button), and New film from Films. */
+const UTILITY: NavId[] = ["spend", "settings", "newfilm"];
 
 export const navHref = (id: NavId) => (id === "home" ? "#/" : `#/${id}`);
 

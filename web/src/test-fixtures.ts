@@ -153,6 +153,12 @@ export const chatSettings = (over: Partial<ChatSettingsView> = {}): ChatSettings
   backend: null,
   model: null,
   openai: { keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/openai.key", keyEnv: "OPENAI_API_KEY" },
+  keys: {
+    openai: { label: "OpenAI", keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/openai.key", keyEnv: "OPENAI_API_KEY" },
+    anthropic: { label: "Anthropic (Claude)", keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/chat-anthropic.key", keyEnv: "ANTHROPIC_API_KEY" },
+    openrouter: { label: "OpenRouter", keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/chat-openrouter.key", keyEnv: "OPENROUTER_API_KEY" },
+    compatible: { label: "Another OpenAI-compatible service", keySaved: false, keySource: null, keyFile: "/Users/x/.config/kie/chat-compatible.key", keyEnv: null },
+  },
   ...over,
 });
 

@@ -89,8 +89,8 @@ export function ImageScreen() {
   const convos = conversationsOf(allTakes);
   const takes = convos.find((c) => c.id === convo)?.takes ?? [];
   const open: JobView | null = takes.find((j) => j.id === openId) ?? null;
-  // Your own takes first, then the Look previews (the repository ships no template stills).
-  const pictures = [...allTakes.filter((j) => j.state === "succeeded").map((j) => j.media[0]), ...looks.looks.map((l) => l.still), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
+  // The hero shows the Look previews only, never your own takes (the repository ships no template stills).
+  const pictures = [...looks.looks.map((l) => l.still), ...templates.map((l) => l.still)].filter((s): s is string => Boolean(s)).slice(0, 4);
 
   return (
     <div className="image-page">
