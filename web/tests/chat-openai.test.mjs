@@ -44,7 +44,7 @@ describe("runTurn", () => {
     assert.equal(req.body.stream, true);
     assert.equal(req.body.store, false);
     assert.deepEqual(req.body.input, [{ role: "user", content: "Make a 4s fox clip." }]);
-    assert.equal(req.body.tools.length, 56);
+    assert.equal(req.body.tools.length, 57);
   });
 
   test("runs the function loop: the model calls estimate, the MCP tool answers, the result goes back, then the model answers", async () => {

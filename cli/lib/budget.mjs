@@ -7,7 +7,7 @@ import { budget as budgetError } from "./errors.mjs";
  * draft by 4x and understates a 30s film by 5x -- and the budget cap is only as
  * honest as this number. Routes without per-second pricing keep `priceUsd`.
  */
-export function estimateUsd(route, { durationS, resolution, quality, input, inputS, audioS } = {}) {
+export function estimateUsd(route, { durationS, resolution, quality, input, inputS } = {}) {
   const pricing = route.pricing;
   if (pricing?.per === "image") return imagePrice(route, { resolution, quality });
   if (pricing?.per === "characters") return scriptPrice(route, input);
@@ -22,10 +22,7 @@ export function estimateUsd(route, { durationS, resolution, quality, input, inpu
   }
   const video = pricing.videoInput;
   if (video && input?.[video.field]?.length) return videoInputPrice(video, seconds, res, inputS);
-  const plain = outputPrice(route, pricing, seconds, res);
-  const audio = pricing.audioInput;
-  if (audio && input?.[audio.field]?.length) return audioInputPrice(audio, plain, seconds, res, audioS);
-  return plain;
+  return outputPrice(route, pricing, seconds, res);
 }
 
 function outputPrice(route, pricing, seconds, res) {
@@ -47,7 +44,7 @@ function outputPrice(route, pricing, seconds, res) {
 }
 
 /**
- * A job that sends a reference video. kie's Seedance 2 Fast and MiniMax H3
+ * A job that sends a reference video. kie's Seedance 2.5 (a voice card), Seedance 2 Fast and MiniMax H3
  * reference-to-video then charge for the input seconds plus the output seconds.
  * When the caller knows the video's length (`inputS`, counted in whole seconds
  * as kie bills it, rounded up) that is used; otherwise the longest the provider
@@ -61,24 +58,6 @@ function videoInputPrice({ usdPerSecond = {}, maxInputS }, seconds, res, inputS)
   const at = known == null ? "(highest rate; resolution unknown)" : `at ${res}`;
   const of = given != null ? `${given}s of reference video` : `up to ${maxInputS}s of reference video`;
   return { usd, basis: `(${seconds}s + ${of}) × $${rate}/s ${at}` };
-}
-
-/**
- * A job that sends a reference voice. kie publishes no rate for reference audio
- * on Seedance 2.5, only a lower per-second rate "with video" billed on input plus
- * output seconds. Until a job is measured, quote whichever of the two is higher,
- * so the cap never undercounts. `audioS` is the voices' total length; unknown,
- * the most the provider accepts is assumed.
- */
-function audioInputPrice({ usdPerSecond = {}, maxInputS }, plain, seconds, res, audioS) {
-  const known = usdPerSecond[res];
-  const rate = known ?? Math.max(...Object.values(usdPerSecond).filter(Number.isFinite));
-  const given = Number.isFinite(audioS) && audioS > 0 ? Math.ceil(audioS - 1e-9) : null;
-  const usd = Math.round(rate * (seconds + (given ?? maxInputS)) * 10_000) / 10_000;
-  const note = "kie publishes no rate for a reference voice, so the higher quote is used";
-  if (usd <= plain.usd) return { ...plain, basis: `${plain.basis} (with a voice; ${note})` };
-  const of = given != null ? `${given}s of reference voice` : `up to ${maxInputS}s of reference voice`;
-  return { usd, basis: `(${seconds}s + ${of}) × $${rate}/s (${note})` };
 }
 
 /** Speech billed by the script's length (ElevenLabs on kie: per 1,000 characters). */
@@ -135,9 +114,9 @@ export function priceLabel(route) {
 export async function preflight(
   catalog,
   route,
-  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution, quality, input, inputS, audioS } = {},
+  { budgetUsd, quantity = 1, key, modelId, capability, durationS, resolution, quality, input, inputS } = {},
 ) {
-  const { usd, basis } = estimateUsd(route, { durationS, resolution, quality, input, inputS, audioS });
+  const { usd, basis } = estimateUsd(route, { durationS, resolution, quality, input, inputS });
   const estimatedUsd = usd * quantity;
   const cap = budgetUsd ?? catalog.defaultBudgetUsd?.[capability] ?? null;
 

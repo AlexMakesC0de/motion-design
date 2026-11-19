@@ -17,7 +17,17 @@ const mp3 = Buffer.concat([Buffer.from("ID3"), Buffer.alloc(61)]);
 const LIMITS = process.env.KIE_LIMITS_FILE;
 // No ffmpeg in these tests: every recording "lasts" what this says.
 let length = 12.5;
-const voice = { probe: async () => ({ durationS: length }), convert: async () => { throw new Error("no conversion in tests"); } };
+const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from("ftypisom"), Buffer.alloc(52)]);
+const voice = {
+  probe: async () => ({ durationS: length, width: 1280, height: 720 }),
+  convert: async () => { throw new Error("no conversion in tests"); },
+  // Stands in for ffmpeg's voice card.
+  card: async (opts) => {
+    writeFileSync(opts.out, mp4);
+    const seconds = Math.min(15, Math.ceil(opts.durationS));
+    return { path: opts.out, seconds, voiceS: Math.min(opts.durationS, 15), text: opts.text };
+  },
+};
 
 // A fake VoiceStudio: its voice list, and speech that records what it was asked.
 const spoken = [];
@@ -164,5 +174,72 @@ describe("a voice from VoiceStudio, free and on this computer", () => {
     studioOpen = true;
     assert.equal(r.status, 400);
     assert.match(r.json.error.message, /VoiceStudio isn't open/);
+  });
+});
+
+describe("a scene where a character with a voice speaks", () => {
+  test("sends the voice card by default, priced on its seconds; the voice file is the cheaper choice", async () => {
+    // vera's VoiceStudio take from above is her voice: 12.5s, so a 13s card.
+    const scene = {
+      title: "Talk", durationS: 10, ratio: "16:9",
+      refs: [{ id: "r1", source: "library:vera" }],
+      cards: { goal: "Vera on a roof.", scene: "", stages: [{ title: "Line", seconds: 10, camera: "Close.", action: '@{r1} says "Made in Shard."', end: "" }], style: "", audio: "" },
+    };
+    const made = await post("/api/films/talk/scenes", scene);
+    assert.equal(made.status, 200, made.text);
+    let p = await req(port, `/api/films/talk/scenes/${made.json.id}/prompt`);
+    assert.equal(p.status, 200, p.text);
+    assert.equal(p.json.voiceAs, "clip");
+    assert.deepEqual(p.json.voices, [{ name: "vera", durationS: 12.5, cardS: 13, sends: "card", videoS: 13 }], "no talking clip yet: the card");
+    assert.deepEqual(p.json.refs.at(-1), { source: "vera@voicecard", role: "voicecard" });
+    assert.equal(p.json.prices.draft.usd, 1.955, "(10s + 13s) x $0.085");
+    await req(port, `/api/films/talk/scenes/${made.json.id}`, { method: "PUT", body: { ...scene, voiceAs: "file" } });
+    p = await req(port, `/api/films/talk/scenes/${made.json.id}/prompt`);
+    assert.equal(p.json.voiceAs, "file");
+    assert.equal(p.json.prices.draft.usd, 1.4, "a voice file adds nothing");
+  });
+});
+
+describe("a character's talking clip", () => {
+  test("waits for the card's words, is priced, spends only with the agreed price, and once kept is what scenes send", async () => {
+    let r = await req(port, "/api/library/vera");
+    assert.match(r.json.voiceClip.problems.join(" "), /exact words heard on the voice card/);
+    r = await patch("/api/library/vera/voice-settings", { cardWords: "Hi, I'm Vera. Watch this." });
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.voiceClip.problems, []);
+    assert.equal(r.json.voiceClip.prices.seconds, 13);
+    assert.equal(r.json.voiceClip.prices["480p"].usd, 2.21, "(13s + 13s of card) x $0.085");
+
+    const before = calls.create.length;
+    r = await post("/api/library/vera/make-voice-clip", { resolution: "480p" });
+    assert.equal(r.status, 400);
+    assert.equal(calls.create.length, before, "no agreed price, nothing sent");
+
+    r = await post("/api/library/vera/make-voice-clip", { resolution: "480p", maxUsd: 2.21 });
+    assert.equal(r.status, 200, r.text);
+    const sent = calls.create.at(-1).input;
+    assert.equal(sent.duration, 13);
+    assert.equal(sent.draft, true);
+    assert.equal(sent.omni_reference_task_type, "reference");
+    assert.equal(sent.reference_image_urls.length, 1);
+    assert.equal(sent.reference_video_urls.length, 1);
+    assert.match(sent.prompt, /The words, in order: "Hi, I'm Vera\. Watch this\."/);
+    assert.doesNotMatch(sent.prompt, /— vera|vera.s /i, "Shard adds no name to the prompt");
+
+    await app.follower.idle();
+    r = await req(port, "/api/library/vera");
+    const job = r.json.voiceClip.job;
+    assert.equal(job.state, "succeeded");
+    writeFileSync(openJobs().get(job.id).artifacts[0], mp4);
+    r = await post("/api/library/vera/adopt-voice-clip", { job: job.id });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.voice.clip.seconds, 13);
+    assert.equal(r.json.voiceClip.kept, true);
+
+    const scenes = (await req(port, "/api/films/talk/scenes")).json.scenes;
+    await req(port, `/api/films/talk/scenes/${scenes[0].id}`, { method: "PUT", body: { ...scenes[0], voiceAs: undefined } });
+    const p = await req(port, `/api/films/talk/scenes/${scenes[0].id}/prompt`);
+    assert.deepEqual(p.json.refs.at(-1), { source: "vera@voiceclip", role: "voiceclip" });
+    assert.match(p.json.prompt, /\[Video 1\] — \[Image 1\] talking/);
   });
 });

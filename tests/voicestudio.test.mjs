@@ -69,6 +69,8 @@ describe("talking to VoiceStudio", () => {
     assert.deepEqual(readVoices(["A"]), [{ id: "A", name: "A" }]);
     assert.deepEqual(readVoices({ data: [{ profile_id: 7, name: "B" }] }), [{ id: "7", name: "B" }]);
     assert.deepEqual(readVoices(null), []);
+    // VoiceStudio 0.5.7's real reply: OpenAI aliases of the default voice, then the user's profiles.
+    assert.deepEqual(readVoices({ voices: [{ voice_id: "alloy", name: "Alloy", type: "openai_alias", id: "alloy" }, { voice_id: "demo0001", name: "Demo Voice", type: "profile", id: "demo0001" }] }), [{ id: "demo0001", name: "Demo Voice" }]);
   });
 
   test("status says whether it is open, and lists the voices made in it", async () => {

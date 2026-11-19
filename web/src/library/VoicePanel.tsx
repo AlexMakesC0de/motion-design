@@ -9,6 +9,7 @@ import { api, ApiError } from "../api/client";
 import type { AssetDetail, JobView, PresetVoice, VoiceStudioStatus } from "../api/types";
 import { onStudioEvent } from "../app/useStudio";
 import { usd } from "../studio/format";
+import { VoiceClip } from "./VoiceClip";
 
 interface Props {
   asset: AssetDetail;
@@ -36,6 +37,7 @@ export function VoicePanel({ asset, onSaved }: Props) {
   const [studio, setStudio] = useState<VoiceStudioStatus | null>(null);
   const [studioVoice, setStudioVoice] = useState("default");
   const [making, setMaking] = useState(false);
+  const [cardText, setCardText] = useState(asset.voiceCardName ?? "");
   const [open, setOpen] = useState(!voice);
   const [voiceId, setVoiceId] = useState(settings.voiceId ?? "");
   const [script, setScript] = useState(settings.script ?? "");
@@ -53,6 +55,7 @@ export function VoicePanel({ asset, onSaved }: Props) {
     setVoiceId(asset.voiceSettings?.voiceId ?? "");
     setScript(asset.voiceSettings?.script ?? "");
     setLocalText(asset.voiceStudioScript ?? "");
+    setCardText(asset.voiceCardName ?? "");
   }, [asset]);
   useEffect(() => {
     if (way === "voicestudio" && !studio) checkStudio();
@@ -138,6 +141,26 @@ export function VoicePanel({ asset, onSaved }: Props) {
           <p className="voice__note">
             {voice.origin === "recording" ? "Your recording" : voice.origin === "voicestudio" ? `VoiceStudio · ${voice.voiceName ?? "default voice"}` : `ElevenLabs · ${voice.voiceName ?? "preset voice"}`} · {voice.durationS.toFixed(1)}s. Scenes send it whenever {asset.name} has a line.
           </p>
+          <div className="voice__card">
+            {voice.card?.url ? (
+              <video className="voice__card-video" controls preload="none" src={voice.card.url} aria-label={`${asset.name}'s voice card`} />
+            ) : (
+              <p className="voice__note">The voice card is made from this voice when a scene needs it.</p>
+            )}
+            <p className="voice__note">
+              Voice card{voice.card ? ` · ${voice.card.seconds}s` : ""}: up to 15 seconds of the voice, cut at a pause, on a black screen with the name. Scenes send it until {asset.name} has a talking clip; creators find Seedance keeps a voice more consistent this way.
+            </p>
+            <label className="field__label" htmlFor={`${id}-card-name`}>
+              Name on the card
+            </label>
+            <div className="voice__pick">
+              <input id={`${id}-card-name`} className="field" maxLength={40} value={cardText} onChange={(e) => setCardText(e.target.value)} />
+              <button type="button" className="button" disabled={busy || !cardText.trim() || cardText.trim() === (asset.voiceCardName ?? "")} onClick={() => saveSettings({ cardName: cardText.trim() })}>
+                Save name
+              </button>
+            </div>
+          </div>
+          <VoiceClip asset={asset} busy={busy} run={run} call={(sub, body, method = "POST") => api<AssetDetail>(`${path}/${sub}`, { method, body })} />
         </div>
       ) : (
         <p className="voice__note">No voice yet. Give {asset.name} one and every scene where they speak sends it, so they sound the same each time.</p>

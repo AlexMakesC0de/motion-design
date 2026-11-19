@@ -54,8 +54,14 @@ function clean(input) {
   if (!Number.isInteger(durationS) || durationS < DURATION.min || durationS > DURATION.max) {
     throw bad("durationS", `A Seedance scene lasts ${DURATION.min} to ${DURATION.max} seconds, got ${durationS}.`);
   }
-  return { title, durationS, ratio, refs: cleanRefs, cards };
+  // How a speaking character's voice is sent: a voice card (a video, the default) or the bare voice file (cheaper).
+  const voiceAs = input.voiceAs ?? "clip";
+  if (!VOICE_AS.includes(voiceAs)) throw bad("voiceAs", `voiceAs is ${VOICE_AS.join(", ")}, got "${voiceAs}".`);
+  return { title, durationS, ratio, refs: cleanRefs, cards, ...(voiceAs === "clip" ? {} : { voiceAs }) };
 }
+
+/** How a speaker's voice is sent: their talking clip when they have one, else their voice card (clip, the default); always the card; or the bare voice file. */
+export const VOICE_AS = ["clip", "card", "file"];
 
 function update(film, fn) {
   return withFilmLock(film, () => {

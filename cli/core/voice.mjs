@@ -71,11 +71,13 @@ export function voiceScript({ name, language = "en", style = "elevenlabs" } = {}
 /** A profile with only the known fields, trimmed; empty strings dropped. */
 export function cleanProfile(p = {}) {
   const out = {};
-  for (const k of [...PROFILE_FIELDS, "voiceId", "script"]) {
+  for (const k of [...PROFILE_FIELDS, "voiceId", "script", "cardName", "cardWords"]) {
     const v = p[k];
-    if (typeof v === "string" && v.trim()) out[k] = k === "script" ? v.replace(/\r\n/g, "\n").trim() : v.trim();
+    if (typeof v === "string" && v.trim()) out[k] = k === "script" || k === "cardWords" ? v.replace(/\r\n/g, "\n").trim() : v.trim();
   }
   if (out.voiceId) out.voiceName = findVoice(out.voiceId).name;
+  if (out.cardName && out.cardName.length > 40) throw unknown("The name on the voice card is at most 40 characters.", { field: "cardName" });
+  if (out.cardWords && out.cardWords.length > 600) throw unknown("The words on the voice card are at most 600 characters.", { field: "cardWords" });
   if (out.script && out.script.length > 5000) throw unknown("A voice script is at most 5,000 characters (ElevenLabs' limit).", { field: "script" });
   return out;
 }

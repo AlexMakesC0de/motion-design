@@ -70,9 +70,9 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
   // `_durationS` prices a job whose length is not a request field (motion
   // control bills the reference video's seconds). `_inputS` is a reference
   // video's length where the provider bills it on top of the output (H3
-  // reference-to-video). `_audioS` is the reference voices' total length (Seedance 2.5).
+  // reference-to-video, Seedance 2.5's voice cards).
   // None is sent.
-  const { _useI2v, _durationS, _inputS, _audioS, ...inputValues } = values;
+  const { _useI2v, _durationS, _inputS, ...inputValues } = values;
   const attempts = [];
   let lastError = null;
   const refusals = []; // each route's own refusal, so the final error names them all
@@ -121,7 +121,6 @@ export async function submitJob(catalog, req, { store, limits, deps = {}, onEven
       capability,
       durationS: built.input.duration ?? _durationS,
       inputS: _inputS,
-      audioS: _audioS,
       resolution: built.input.resolution,
       quality: built.input.quality,
       input: built.input,

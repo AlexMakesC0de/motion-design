@@ -6,7 +6,7 @@ import { runDir } from "../cli/lib/run.mjs";
 import { usage } from "../cli/lib/errors.mjs";
 import { uploadFile } from "../cli/lib/upload.mjs";
 import { makeStill, makeSheet, adoptSheet } from "../cli/director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice } from "../cli/director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice, makeVoiceClip, adoptVoiceClip, voiceClipPrices, voiceClipProblems, CLIP_RESOLUTIONS } from "../cli/director/voice-make.mjs";
 import { voiceStudioStatus } from "../cli/core/voicestudio.mjs";
 import { presetVoices } from "../cli/core/voice.mjs";
 import { voiceTools } from "../cli/lib/ffmpeg.mjs";
@@ -162,7 +162,10 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       const price = voicePrice(catalog, settings.script);
       const voice = asset.voice ? { ...asset.voice, upload: undefined } : null;
       const head = voice ? `${asset.name}'s voice: ${voice.durationS}s, ${voice.origin}` : `${asset.name} has no voice yet.`;
-      return ok(`${head}\nA sample of this script costs $${price.usd}.\n\n${settings.script}`, { voice, settings, price });
+      const { store, limits } = ctx();
+      const clip = asset.voice ? { problems: voiceClipProblems(asset), prices: voiceClipPrices(catalog, asset, { store, limits }), has: Boolean(asset.voice.clip && asset.voice.clip.voiceSha256 === asset.voice.sha256) } : null;
+      const clipLine = clip ? `\nTalking clip: ${clip.has ? "made" : "none yet"}; a new one costs $${clip.prices["720p"].usd} at 720p or $${clip.prices["480p"].usd} at 480p${clip.problems.length ? `. First: ${clip.problems.join(" ")}` : "."}` : "";
+      return ok(`${head}\nA sample of this script costs $${price.usd}.${clipLine}\n\n${settings.script}`, { voice, settings, price, clip });
     },
   );
 
@@ -171,7 +174,7 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
     {
       title: "Save voice settings",
       description:
-        "A character's voice settings: language, accent, age, tone, energy, the preset voice (voiceId, a name or id from list_voices) and the script a sample reads. " +
+        "A character's voice settings: language, accent, age, tone, energy, the preset voice (voiceId, a name or id from list_voices), the script a sample reads, cardName (the name shown on the voice card scenes send) and cardWords (the exact words heard on the card, which a talking clip lip-syncs to). " +
         "Only the fields given change. A script for a language other than English must be written out. Free.",
       inputSchema: {
         asset: z.string(),
@@ -182,6 +185,8 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
         energy: z.string().optional(),
         voiceId: z.string().optional(),
         script: z.string().optional(),
+        cardName: z.string().optional(),
+        cardWords: z.string().optional(),
       },
       outputSchema: { settings: Data },
       annotations: LOCAL_WRITE,
@@ -217,7 +222,7 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
       title: "Keep a voice sample",
       description:
         "Keep a finished voice sample as the character's voice: job_id for an ElevenLabs sample, or take for a make_local_voice take. " +
-        "Scenes where the character speaks then send it. The voice it replaces is kept in history. Free.",
+        "Also keeps a finished talking clip (job_id from make_voice_clip). Scenes where the character speaks then send it. What it replaces is kept in history. Free.",
       inputSchema: { job_id: z.string().optional(), take: z.string().optional() },
       outputSchema: { name: z.string(), durationS: z.number(), path: z.string() },
       annotations: LOCAL_WRITE,
@@ -225,8 +230,35 @@ export function registerMaking(tool, { catalog, ctx, deps = {}, runFile }) {
     async (a) => {
       const { library, store } = ctx();
       if (!a.job_id === !a.take) throw usage("Pass either job_id (an ElevenLabs sample) or take (a VoiceStudio take).");
+      if (a.job_id && store.get(a.job_id).stage === "voiceclip") {
+        const kept = await adoptVoiceClip(library, store, a.job_id, voiceTools);
+        return ok(`${kept.name}'s talking clip is kept (${kept.voice.clip.seconds}s); scenes where they speak send it from now on.`, { name: kept.name, durationS: kept.voice.clip.seconds, path: kept.voice.clip.path });
+      }
       const asset = a.take ? await keepLocalVoice(library, a.take, voiceTools) : await adoptVoice(library, store, a.job_id, voiceTools);
       return ok(`${asset.name} now speaks with ${asset.voice.voiceName ?? "the sample"} (${asset.voice.durationS}s).`, { name: asset.name, durationS: asset.voice.durationS, path: asset.voice.path });
+    },
+  );
+
+  tool(
+    "make_voice_clip",
+    {
+      title: "Make a talking clip",
+      description:
+        "Spends kie credits. Its price is in get_voice. One Seedance 2.5 clip of the character saying their voice card's words (cardWords) in their voice, lip-synced to the card. " +
+        "Scenes then send this clip instead of the card, so face, voice and manner travel together. Only when the user asked for it and agreed the price: max_usd is that price. " +
+        "Returns a job id at once; wait_job, let the user watch it, then adopt_voice with the job id if they like it.",
+      inputSchema: {
+        asset: z.string(),
+        resolution: z.enum(CLIP_RESOLUTIONS).optional().describe("720p (default) or 480p, the cheaper draft."),
+        max_usd: z.number().positive().describe("The price the user agreed to for this clip, in dollars."),
+        dry_run: dryRun,
+      },
+      outputSchema: Submitted,
+      annotations: SPEND,
+    },
+    async (a, extra) => {
+      const r = await makeVoiceClip(catalog, a.asset, { ...making(a, extra), card: voiceTools.card, resolution: a.resolution ?? "720p", maxUsd: a.max_usd });
+      return submitted(r, `${r.asset}'s talking clip`, { asset: r.asset, seconds: r.seconds });
     },
   );
 

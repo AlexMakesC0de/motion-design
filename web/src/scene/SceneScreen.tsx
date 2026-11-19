@@ -3,7 +3,7 @@ import { MAX_REFS, attachLibraryMentions, cardTexts, mapCardTexts, nextRefId, re
 import { hasPicks } from "../../../cli/director/picks.mjs";
 import { DURATION, RATIOS, emptyScene } from "../../../cli/director/scene-shape.mjs";
 import { api } from "../api/client";
-import type { AssetSummary, Cards, Ref, Scene, ScenePreview, Span } from "../api/types";
+import type { AssetSummary, Cards, Ref, Scene, ScenePreview, Span, VoiceAs } from "../api/types";
 import { libraryItemHref, libraryNewHref } from "../app/route";
 import { leaveFor } from "../app/back";
 import { onStudioEvent } from "../app/useStudio";
@@ -36,7 +36,7 @@ function fit(s: Scene): Scene {
  * One scene at a time: its references on the left, the cards in the centre,
  * versions and the two spending buttons on the right. Edits save as you go.
  */
-export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true }: {
+export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true, inFilm }: {
   run: string;
   /** The scene to open (#/films/<slug>/scenes/<id>). */
   initialId?: string;
@@ -44,7 +44,10 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
   saveInto?: boolean;
   /** Make a first scene on a first visit (Create); a film shows an empty state instead. */
   autoFirst?: boolean;
+  /** A film's Shots step: the shot ids its edit plays (null until the edit loads). Create leaves it out. */
+  inFilm?: string[] | null;
 }) {
+  const film = inFilm !== undefined;
   const { scenes, loading, error, flush, create, save, preview, draft, final, choose, uploadRef } = useScenes(run);
   const [library, setLibrary] = useState<AssetSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialId ?? null);
@@ -60,6 +63,7 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
   // The version in the player and the stage open in the notes, both per scene.
   const [picked, setPicked] = useState<{ scene: string; job: string } | null>(null);
   const [openStage, setOpenStage] = useState<{ scene: string; i: number } | null>(null);
+  const shownVoices = scene && shownPreview?.id === scene.id ? shownPreview.data.voices : undefined;
   const making = useMaking({
     preview: scene && shownPreview?.id === scene.id ? shownPreview.data : null,
     onDraft: () => draft(scene!.id),
@@ -111,20 +115,24 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
     void newScene(0);
   }, [autoFirst, loading, error, scenes.length, run, newScene]);
 
-  // Prices and problems for what is on screen, asked for once typing pauses.
+  // Prices and problems for what is on screen, asked for once typing pauses. Only the
+  // wording counts as a change: a take's progress refreshes the scene every second
+  // while it films, and that used to hold the price back ("no price") the whole time.
+  const sceneId = scene?.id ?? null;
+  const wording = scene ? JSON.stringify({ ...scene, versions: undefined, chosen: undefined }) : "";
   useEffect(() => {
-    if (!scene) return;
+    if (!sceneId) return;
     let live = true;
     const t = setTimeout(() => {
-      preview(scene.id)
-        .then((data) => live && setShownPreview({ id: scene.id, data }))
+      preview(sceneId)
+        .then((data) => live && setShownPreview({ id: sceneId, data }))
         .catch((e: Error) => live && setNote(e.message));
     }, PREVIEW_PAUSE_MS);
     return () => {
       live = false;
       clearTimeout(t);
     };
-  }, [scene, preview]);
+  }, [sceneId, wording, preview]);
 
   const onText = useCallback(
     (change: (c: Cards) => Cards, refs: Ref[] | null) =>
@@ -247,16 +255,21 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
 
   return (
     <div className="scene">
-      <nav className="scene-strip" aria-label="Scenes in this film">
+      <nav className="scene-strip" aria-label={film ? "Shots in this film" : "Scenes"}>
         <h2 className="scene-head">
-          Scenes <span className="scene-head__n">{scenes.reduce((n, s) => n + s.durationS, 0)}s</span>
+          {film ? "Shots" : "Scenes"}{" "}
+          <span className="scene-head__n">
+            {film && inFilm ? `${scenes.filter((s) => inFilm.includes(s.id)).length} of ${scenes.length} in the edit` : `${scenes.reduce((n, s) => n + s.durationS, 0)}s`}
+          </span>
         </h2>
         <div className="scene-strip__list" role="tablist" aria-label="Scenes" aria-orientation="vertical">
           {scenes.map((s, i) => {
             const cover = shownVersion(s, null);
-            const status = s.versions.length === 0 ? "No versions yet" : `${s.versions.length} version${s.versions.length === 1 ? "" : "s"} · ${s.chosen ? "picked" : "pick one"}`;
+            const takes = s.versions.length === 0 ? "No takes yet" : `${s.versions.length} take${s.versions.length === 1 ? "" : "s"}${s.chosen ? " · starred" : ""}`;
+            const spare = Boolean(inFilm && s.versions.some((v) => v.state === "succeeded") && !inFilm.includes(s.id));
+            const status = inFilm?.includes(s.id) ? `In the edit · ${takes}` : spare ? `Not in the edit · ${takes}` : takes;
             return (
-              <button key={s.id} type="button" role="tab" className="scene-tab" aria-selected={s.id === scene.id} aria-label={`${i + 1} ${s.title || "Untitled"}`} onClick={() => setSelectedId(s.id)}>
+              <button key={s.id} type="button" role="tab" className="scene-tab" data-spare={spare || undefined} aria-selected={s.id === scene.id} aria-label={`${i + 1} ${s.title || "Untitled"}`} onClick={() => setSelectedId(s.id)}>
                 <span className="scene-tab__thumb" style={{ aspectRatio: s.ratio.replace(":", " / ") }}>
                   {cover?.media && <video src={`${cover.media}#t=1`} muted playsInline preload="metadata" tabIndex={-1} aria-hidden="true" />}
                   <span className="scene-tab__n mono">{i + 1}</span>
@@ -275,9 +288,9 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
             );
           })}
         </div>
-        <button type="button" className="scene-strip__new" aria-label="New scene" onClick={() => void newScene(scenes.length, scene.ratio)}>
+        <button type="button" className="scene-strip__new" aria-label={film ? "New shot" : "New scene"} onClick={() => void newScene(scenes.length, scene.ratio)}>
           <Icon name="plus" size={16} />
-          New scene
+          {film ? "New shot" : "New scene"}
         </button>
       </nav>
 
@@ -304,6 +317,16 @@ export function SceneScreen({ run, initialId, saveInto = false, autoFirst = true
               </label>
             ) : (
               <span className="scene-title__data mono" title="The stages set the length">{scene.durationS}s</span>
+            )}
+            {(shownVoices?.length ?? 0) > 0 && (
+              <label className="chip-select" title="A talking clip is the character saying a few lines in their voice, made once in their Voice panel; a voice card is a black video with the name and the voice. Either one's seconds are billed on top of the scene's.">
+                Voice
+                <select aria-label="Send the voice as" value={scene.voiceAs ?? "clip"} onChange={(e) => update((s) => ({ ...s, voiceAs: e.target.value as VoiceAs }))}>
+                  <option value="clip">Talking clip, else card</option>
+                  <option value="card">Voice card</option>
+                  <option value="file">Voice file · cheaper</option>
+                </select>
+              </label>
             )}
             <span className="scene-title__model">Seedance 2.5</span>
             {saveInto && (

@@ -135,18 +135,96 @@ export function attachLibraryMentions(scene) {
 }
 
 // "@{r1} says", "@library:mira whispers": a mention followed by a speaking verb.
-const SPEAKS = new RegExp(`(?:@\\{(r\\d+)\\}|@library:(${NAME}))\\s*(?:,\\s*)?(?:says|said|asks|asked|shouts|shouted|whispers|whispered|replies|replied|sings|sang|speaks|calls out|yells|mutters|answers)\\b`, "gi");
+const VERBS = "says|said|asks|asked|shouts|shouted|whispers|whispered|replies|replied|sings|sang|speaks|calls out|yells|mutters|answers";
+// "@{r1} says", "@library:mira, whispering," — the name right before the verb.
+const SPEAKS = new RegExp(`(?:@\\{(r\\d+)\\}|@library:(${NAME}))\\s*(?:,\\s*)?(?:${VERBS})\\b`, "gi");
+// A verb that opens a quoted line: "… and says "Hi."" or "says with a slight, knowing smile: "Hi.""
+// (up to six words of how, then a colon or comma). The speaker is the last person named before it in the same sentence.
+const SAYS_LINE = new RegExp(`\\b(?:${VERBS})\\b(?:(?:\\s+[^\\s"\u201c.!?:]+){1,6}?\\s*[:,]|\\s*[:,]?)\\s*["\u201c]`, "gi");
+const MENTION = new RegExp(`@\\{(r\\d+)\\}|@library:(${NAME})`, "g");
+
+/**
+ * Who says the line whose verb starts at `at`: within the same sentence, the
+ * person it is about (the first one named), or after "who" the one just named
+ * ("nods at @{r2}, who says"). A sentence or another line ending in between
+ * means nobody named said it.
+ */
+function speakerBefore(t, at) {
+  const before = t.slice(0, at);
+  let from = 0;
+  for (const m of before.matchAll(/[.!?]["\u201d]?(\s|$)|["\u201d]/g)) from = m.index + m[0].length;
+  const sentence = before.slice(from);
+  const named = [...sentence.matchAll(MENTION)];
+  if (!named.length) return null;
+  const pick = /\bwho\s*$/i.test(sentence) ? named.at(-1) : named[0];
+  return Object.assign(pick, { index: pick.index + from });
+}
 
 /** The ref ids of the people who have a line in the scene, in order of first line. */
 export function speakerIds(scene) {
   const ids = [];
+  const add = (m) => {
+    const id = m[1] ?? scene.refs.find((r) => r.source === `library:${m[2]}`)?.id;
+    if (id && !ids.includes(id)) ids.push(id);
+  };
   for (const t of cardTexts(scene.cards)) {
-    for (const m of (t ?? "").matchAll(SPEAKS)) {
-      const id = m[1] ?? scene.refs.find((r) => r.source === `library:${m[2]}`)?.id;
-      if (id && !ids.includes(id)) ids.push(id);
+    const text = t ?? "";
+    const found = [];
+    for (const m of text.matchAll(SPEAKS)) found.push({ at: m.index, m });
+    for (const v of text.matchAll(SAYS_LINE)) {
+      const m = speakerBefore(text, v.index);
+      if (m) found.push({ at: m.index, m });
     }
+    for (const { m } of found.sort((x, y) => x.at - y.at)) add(m);
   }
   return ids;
+}
+
+/**
+ * Every quoted line someone says, in the order written: [{ id, text, stage }],
+ * where id is the speaker's ref id and stage the index of the stage it is
+ * written in (null outside the stages). A quote with no speech verb before it,
+ * or no one named in its sentence, is not a line.
+ */
+export function scriptLines(scene) {
+  const lines = [];
+  const texts = cardTexts(scene.cards);
+  // cardTexts: goal, scene, then camera, action and end for each stage, then style and audio.
+  const stageOf = (k) => (k >= 2 && k < 2 + 3 * scene.cards.stages.length ? Math.floor((k - 2) / 3) : null);
+  for (const [k, t] of texts.entries()) {
+    const text = t ?? "";
+    for (const v of text.matchAll(SAYS_LINE)) {
+      const open = v.index + v[0].length;
+      const close = text.slice(open).search(/["\u201d]/);
+      if (close < 0) continue;
+      const words = text.slice(open, open + close).trim();
+      const m = speakerBefore(text, v.index);
+      const id = m && (m[1] ?? scene.refs.find((r) => r.source === `library:${m[2]}`)?.id);
+      if (id && words) lines.push({ id, text: words, stage: stageOf(k) });
+    }
+  }
+  return lines;
+}
+
+/**
+ * Lines in a stage that nobody named says ("A painter … says softly: "Hi.""):
+ * how a scene with no images has dialogue. In stage order, with the stage's index.
+ */
+export function stageLines(scene) {
+  const lines = [];
+  scene.cards.stages.forEach((s, stage) => {
+    for (const t of [s.camera, s.action, s.end]) {
+      const text = t ?? "";
+      for (const v of text.matchAll(SAYS_LINE)) {
+        if (speakerBefore(text, v.index)) continue;
+        const open = v.index + v[0].length;
+        const close = text.slice(open).search(/["\u201d]/);
+        const words = close < 0 ? "" : text.slice(open, open + close).trim();
+        if (words) lines.push({ stage, text: words });
+      }
+    }
+  });
+  return lines;
 }
 
 /** The Library items a scene uses, attached or mentioned, each once, attached first. */
@@ -159,7 +237,7 @@ export function libraryNames(scene) {
 // Cards and pasted prompts live here, not in scenes.mjs, because the page needs them too.
 export const emptyCards = () => ({ goal: "", scene: "", stages: [], style: "", audio: "" });
 
-const SECTION = /^\[(GOAL|REFERENCES|SCENE|VISUAL STYLE|AUDIO|MAINTAIN CONSISTENCY|STAGE (\d+) \| (\d+)\s*[–-]\s*(\d+) SECONDS \| ([^\]]+))\]\s*$/i;
+const SECTION = /^\[(GOAL|REFERENCES|SCRIPT|SCENE|VISUAL STYLE|AUDIO|MAINTAIN CONSISTENCY|STAGE (\d+) \| (\d+)\s*[–-]\s*(\d+) SECONDS \| ([^\]]+))\]\s*$/i;
 
 /** A whole prompt in Dan's sections → cards, or null when the text has no sections. */
 export function parseDanPrompt(raw) {

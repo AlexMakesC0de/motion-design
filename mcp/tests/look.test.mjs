@@ -19,18 +19,18 @@ const TOOLS = [
   "get_shots", "make_sheet", "adopt_sheet", "make_still", "film_shot", "film_all", "review_shot", "save_review", "cut_film",
   "list_scenes", "get_scene_prompt", "save_scene", "add_scene_image", "delete_scene", "choose_version", "draft_scene", "final_scene", "save_idea", "copy_scene",
   "list_skills", "get_skill",
-  "list_voices", "get_voice", "save_voice_settings", "make_voice", "adopt_voice", "save_voice_recording", "make_local_voice",
+  "list_voices", "get_voice", "save_voice_settings", "make_voice", "adopt_voice", "save_voice_recording", "make_local_voice", "make_voice_clip",
 ];
 
 describe("the tool list", () => {
-  test("all 58 tools; spending tools say so first and are marked open-world, not destructive", async () => {
+  test("all 59 tools; spending tools say so first and are marked open-world, not destructive", async () => {
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(), [...TOOLS].sort());
     assert.ok(!tools.some((t) => t.name === "set_auto_redo"), "auto-redo is the user's switch: studio and CLI only");
     const filmAll = tools.find((t) => t.name === "film_all");
     assert.match(filmAll.description, /the total the user stated/);
     assert.match(filmAll.inputSchema.properties.max_usd.description, /never one you worked out/);
-    for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "draft_scene", "final_scene", "make_voice"]) {
+    for (const name of ["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "draft_scene", "final_scene", "make_voice", "make_voice_clip"]) {
       const t = tools.find((x) => x.name === name);
       assert.match(t.description, /^Spends kie credits\./);
       assert.equal(t.annotations.openWorldHint, true);

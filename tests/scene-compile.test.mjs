@@ -41,7 +41,7 @@ describe("compileScene", () => {
     assert.equal(prompt, [
       "[GOAL]", "[Image 1] leaves the plane.", "",
       "[REFERENCES]",
-      "[Image 1] — alexandros, character. Preserve exact face and glasses.",
+      "[Image 1] — character. Preserve exact face and glasses.",
       "[Image 2] — door.png. Preserve the door frame.",
       "[Image 3] — jumpsuit, prop. Preserve A neon green jumpsuit.",
       "Do not reproduce reference-sheet panels, grey studio backgrounds or labels.", "",
@@ -79,9 +79,37 @@ describe("compileScene", () => {
     assert.equal(prompt, [
       "[SCENE]", `${cap(light("neon"))}.`, "",
       "[STAGE 1 | 0–8 SECONDS | STAGE 1]", "Camera: The camera holds still.", "",
-      "[VISUAL STYLE]", `${cap(lens("24mm"))}.`, "",
-      "[MAINTAIN CONSISTENCY]", "Keep every person, product and place exactly as in their reference images in every stage.",
+      "[VISUAL STYLE]", `${cap(lens("24mm"))}.`,
     ].join("\n"));
+  });
+
+  test("a scene with no images keeps its stage lines in a script, with no text or music", () => {
+    const s = scene({ refs: [] });
+    s.cards = {
+      goal: "", scene: "", style: "", audio: "Wind.",
+      stages: [
+        { title: "Painter", seconds: 4, camera: "", action: "A painter looks up and says softly: \"I've always seen it...\"", end: "" },
+        { title: "Pilot", seconds: 4, camera: "", action: "A pilot says, \"...and watch it fly.\" The jet climbs.", end: "" },
+      ],
+    };
+    const { prompt, problems } = compileScene(s, { film: "sky", library });
+    assert.deepEqual(problems, []);
+    assert.match(prompt, /\[SCRIPT\]\n.*\nEach line starts at the beginning of its seconds[^\n]*lips move in sync[^\n]*\nNo on-screen text of any kind[^\n]*\n1\. the person in stage 1, 0–4s: "I've always seen it\.\.\."\n2\. the person in stage 2, 4–8s: "\.\.\.and watch it fly\."\n/);
+    assert.match(prompt, /Line 2 — the person in stage 2, 4–8s: "\.\.\.and watch it fly\."\nThese are the only words spoken\. No music/);
+    assert.doesNotMatch(prompt, /MAINTAIN CONSISTENCY|reference images/);
+  });
+
+  test("a line keeps its place when several words of how come before it", () => {
+    const s = scene({ refs: [] });
+    s.cards = {
+      goal: "", scene: "", style: "", audio: "",
+      stages: [
+        { title: "Strike", seconds: 1, camera: "", action: "A blacksmith strikes the steel.", end: "" },
+        { title: "Line", seconds: 3, camera: "", action: "He looks up and says with a slight, knowing smile: \"Now I just say it...\"", end: "" },
+      ],
+    };
+    const { prompt } = compileScene(s, { film: "sky", library });
+    assert.match(prompt, /\n1\. the person in stage 2, 1–4s: "Now I just say it\.\.\."\n/);
   });
 
   test("a pick the menu no longer has is a problem, not a crash", () => {

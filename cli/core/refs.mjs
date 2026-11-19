@@ -3,8 +3,12 @@ import { unknown } from "../lib/errors.mjs";
 import { checkHttpsUrl, checkLocalFile } from "./inputs.mjs";
 
 const ASSET_REF = /^([a-z0-9][a-z0-9-]{0,80})(?:#(\d+))?$/;
-/** `zed@voice`: the Library character zed's voice recording. */
-const ASSET_VOICE = /^([a-z0-9][a-z0-9-]{0,80})@voice$/;
+/**
+ * `zed@voice`: the Library character zed's voice recording; `zed@voicecard`:
+ * the same voice as a video card; `zed@voiceclip`: zed's talking clip, saying
+ * the card's words in that voice.
+ */
+const ASSET_VOICE = /^([a-z0-9][a-z0-9-]{0,80})@voice(card|clip)?$/;
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const SINGLE = new Set(["first_frame", "last_frame"]);
 const LABEL = { image: "Image", video: "Video", audio: "Audio" };
@@ -36,6 +40,26 @@ export async function expandRefs(refs, { catalog, library, upload, roots = null,
     }
 
     const voice = (source ?? "").match(ASSET_VOICE);
+    if (voice?.[2] === "clip") {
+      const asset = library.get(voice[1]);
+      const clip = asset.voice?.clip;
+      if (!asset.voice) throw unknown(`"${asset.name}" has no voice. Add one in its Voice panel first.`);
+      if (!clip || clip.voiceSha256 !== asset.voice.sha256) throw unknown(`${asset.name}'s talking clip is missing or older than the voice. Make it again in the Voice panel (kie voice clip ${asset.name}).`);
+      if (role !== "voiceclip") throw unknown(`${asset.name}@voiceclip is a talking clip; its role must be voiceclip, got ${role}.`);
+      const url = dryRun ? `pending-upload:${asset.name}@voiceclip` : await library.voiceClipUploadUrl(asset.name, { upload });
+      out.push({ url, role, label: `${asset.name}@voiceclip`, kind: "video", asset: asset.name, file: { mime: clip.mime, bytes: clip.bytes, durationS: clip.seconds, width: clip.width ?? null, height: clip.height ?? null } });
+      continue;
+    }
+    if (voice?.[2]) {
+      const asset = library.get(voice[1]);
+      const card = asset.voice?.card;
+      if (!asset.voice) throw unknown(`"${asset.name}" has no voice. Add one in its Voice panel first.`);
+      if (!card || card.voiceSha256 !== asset.voice.sha256) throw unknown(`${asset.name}'s voice card is missing or older than the voice. Make it again (kie voice card ${asset.name}).`);
+      if (role !== "voicecard") throw unknown(`${asset.name}@voicecard is a voice card; its role must be voicecard, got ${role}.`);
+      const url = dryRun ? `pending-upload:${asset.name}@voicecard` : await library.voiceCardUploadUrl(asset.name, { upload });
+      out.push({ url, role, label: `${asset.name}@voicecard`, kind: "video", asset: asset.name, file: { mime: card.mime, bytes: card.bytes, durationS: card.seconds, width: 1280, height: 720 } });
+      continue;
+    }
     if (voice) {
       const asset = library.get(voice[1]);
       if (!asset.voice) throw unknown(`"${asset.name}" has no voice. Add one in its Voice panel first.`);
@@ -55,6 +79,8 @@ export async function expandRefs(refs, { catalog, library, upload, roots = null,
     const m = (source ?? "").match(ASSET_REF);
     if (m) {
       if (role === "voice") throw unknown(`The voice role takes a character's voice (${m[1]}@voice) or an audio file, not a picture.`);
+      if (role === "voicecard") throw unknown(`The voicecard role takes a character's voice card (${m[1]}@voicecard) or a video, not a picture.`);
+      if (role === "voiceclip") throw unknown(`The voiceclip role takes a character's talking clip (${m[1]}@voiceclip) or a video, not a picture.`);
       const asset = library.get(m[1]);
       let images = asset.images;
       if (m[2]) {
@@ -102,6 +128,8 @@ export async function expandRefs(refs, { catalog, library, upload, roots = null,
   for (const r of out) {
     if (r.role === "voice" && r.kind !== "audio") throw unknown(`A voice reference must be audio; ${r.label} is ${r.kind === "image" ? "an image" : `a ${r.kind}`}.`);
     if (r.kind === "audio" && r.role !== "voice") throw unknown(`${r.label} is audio; give it the voice role.`);
+    if (r.role === "voicecard" && r.kind !== "video") throw unknown(`A voice card must be a video; ${r.label} is ${r.kind === "image" ? "an image" : `a ${r.kind}`}.`);
+    if (r.role === "voiceclip" && r.kind !== "video") throw unknown(`A talking clip must be a video; ${r.label} is ${r.kind === "image" ? "an image" : `a ${r.kind}`}.`);
   }
 
   const counters = {};

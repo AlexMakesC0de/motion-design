@@ -100,6 +100,23 @@ export interface AssetDetail {
   voiceStudioScript?: string | null;
   /** The newest VoiceStudio take not kept yet. */
   voiceStudioTake?: VoiceStudioTake | null;
+  /** The name the voice card shows. */
+  voiceCardName?: string | null;
+  /** The exact words heard on the voice card; the talking clip's lips follow them. */
+  voiceCardWords?: string | null;
+  /** The talking clip step; null without a voice. */
+  voiceClip?: VoiceClipOffer | null;
+}
+
+export interface VoiceClipOffer {
+  /** What stops a clip being made now; empty when it can be. */
+  problems: string[];
+  /** Its length (the card's) and price at each resolution. */
+  prices: ({ seconds: number } & Record<"480p" | "720p", { usd: number | null; basis: string | null }>) | null;
+  /** The latest clip made for this voice. */
+  job: JobView | null;
+  /** That clip is already the character's talking clip. */
+  kept: boolean;
 }
 
 export interface AssetVoice {
@@ -110,6 +127,10 @@ export interface AssetVoice {
   script: string | null;
   savedAt: string;
   url: string | null;
+  /** The voice card scenes send: the voice on a black frame with the name. Null until it is made. */
+  card?: { url: string | null; seconds: number; text: string } | null;
+  /** The talking clip: the character saying the card's words in this voice. Scenes send it instead of the card. */
+  clip?: { url: string | null; seconds: number; words: string } | null;
 }
 
 export interface VoiceSettings {
@@ -331,7 +352,7 @@ export interface FilmDetail {
 export interface TaskView {
   id: string;
   run: string;
-  tool: "assemble" | "caption" | "variants" | "card";
+  tool: "assemble" | "caption" | "variants" | "card" | "export";
   label: string;
   state: "running" | "done" | "failed";
   startedAt: string;
@@ -628,8 +649,10 @@ export type { Ref, Cards, Stage, Span, StagePicks, ScenePicks } from "../../../c
 export interface SceneVersion { job: string; kind: "draft" | "final"; resolution: string; prompt: string; createdAt: string; file?: string; state: string | null; media: string | null; estimateUsd: number | null; actualUsd: number | null }
 /** What a film is about: its words, and the ratio and total length it aims for. */
 export interface Idea { text: string; ratio: string | null; lengthS: number | null }
-export interface Scene { id: string; title: string; durationS: number; ratio: string; refs: Ref[]; cards: Cards; versions: SceneVersion[]; chosen: string | null }
-export interface ScenePreview { prompt: string; refs: { source: string; role: string }[]; problems: string[]; prices: Record<"draft" | "final720" | "final1080", { usd: number | null; basis: string | null } | null> }
+/** How a speaking character's voice is sent: a voice card video (the default) or the bare voice file (cheaper). */
+export type VoiceAs = "clip" | "card" | "file";
+export interface Scene { id: string; title: string; durationS: number; ratio: string; refs: Ref[]; cards: Cards; versions: SceneVersion[]; chosen: string | null; voiceAs?: VoiceAs }
+export interface ScenePreview { prompt: string; refs: { source: string; role: string }[]; problems: string[]; voices?: { name: string; durationS: number; cardS: number; sends: VoiceAs; videoS: number }[]; voiceAs?: VoiceAs; prices: Record<"draft" | "final720" | "final1080", { usd: number | null; basis: string | null } | null> }
 
 /** One Openjutsu model (web/server/api/jutsu.mjs). */
 export interface JutsuModel {
@@ -769,4 +792,48 @@ export interface InfluencerView {
   availableTodayUsd: number;
   batches: FaceBatch[];
   influencers: Influencer[];
+}
+
+/** One clip in a film's edit (cli/director/edit.mjs), placed in the film. */
+export interface EditClip {
+  id: string;
+  scene: string;
+  /** The take it plays; null follows the shot's starred (or newest) take. */
+  take: string | null;
+  inS: number;
+  outS: number | null;
+  speed: number;
+  into: "cut" | "fade";
+  sceneTitle: string;
+  takeJob: string | null;
+  kind: "draft" | "final" | null;
+  resolution: string | null;
+  url: string | null;
+  sourceS: number | null;
+  endS: number | null;
+  startS: number;
+  lengthS: number;
+  missing: boolean;
+}
+export type TitlePlace = "upper" | "center" | "lower";
+export interface EditTitle { id: string; kind: "logo" | "text"; text: string; image: string | null; imageUrl?: string | null; atS: number; durationS: number; place: TitlePlace }
+export interface EditTake { job: string; kind: "draft" | "final"; resolution: string; createdAt: string; url: string | null }
+export interface EditShot { id: string; title: string; starred: string | null; takes: EditTake[] }
+export interface EditView {
+  version: number;
+  saved: boolean;
+  clips: EditClip[];
+  titles: EditTitle[];
+  lengthS: number;
+  shots: EditShot[];
+  pictures: { name: string; url: string | null }[];
+  /** The length and shape the Idea aims for. */
+  targetS: number | null;
+  ratio: string;
+  choices: { speeds: number[]; into: ("cut" | "fade")[]; places: TitlePlace[]; titleKinds: ("logo" | "text")[]; fadeS: number };
+}
+/** What the page sends when it saves: the clips and titles as the user arranged them. */
+export interface EditInput {
+  clips: Pick<EditClip, "scene" | "take" | "inS" | "outS" | "speed" | "into">[];
+  titles: Pick<EditTitle, "kind" | "text" | "image" | "atS" | "durationS" | "place">[];
 }
