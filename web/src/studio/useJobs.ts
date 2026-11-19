@@ -40,7 +40,7 @@ export function useJobs(run: string) {
     return api<JobView[]>(`/api/jobs?${q}`)
       .then((list) => {
         if (ticket !== latest.current) return;
-        setJobs((held) => mergeJobs(held, list));
+        setJobs((held) => mergeJobs(held, Array.isArray(list) ? list : []));
         setError(null);
       })
       .catch((e: ApiError) => ticket === latest.current && setError(e.message));

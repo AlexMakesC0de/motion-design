@@ -9,8 +9,9 @@
 // the studio's runs/, library/ and limits file) from -c overrides given at
 // spawn. Every other MCP server in ~/.codex/config.toml is turned off, and
 // so are the features that bring tools of their own (the shell, plugins,
-// apps, computer and browser use, image generation and viewing, code mode,
-// sub-agents), keep a thread working on its own (goals) or run the user's
+// apps, computer and browser use, image generation and viewing,
+// sub-agents). Code mode's sandbox stays on: Codex's models reach tools only
+// through it, and it can call nothing the chat does not already have, keep a thread working on its own (goals) or run the user's
 // programs (hooks, notify). Before the first turn on a Codex process, the
 // same flags go through `codex features list`: every feature still on must be
 // on ALLOWED_FEATURES, and Codex must be the version the protocol types were
@@ -64,7 +65,6 @@ export const DISABLED_FEATURES = [
   "in_app_dictation",
   "in_app_updates",
   "view_image",
-  "code_mode_host",
   "goals",
   "hooks",
   "workspace_dependencies",
@@ -90,6 +90,8 @@ export const ALLOWED_FEATURES = {
   enable_request_compression: "compresses requests to OpenAI; transport only",
   remote_compaction_v2: "OpenAI compacts a long thread's context; needed for long film chats",
   unbounded_connection_retries: "retries a dropped connection to OpenAI; Stop still interrupts the turn",
+  code_mode_host:
+    "every model in Codex 0.154's catalog is code_mode_only: it reaches tools only by writing a script that a bare JavaScript sandbox runs. The sandbox has no require, import, process, fetch or file access; its tools are the ones this chat already has, and each call still arrives as an ordinary mcpToolCall item the studio checks. Checked 2026-11-19 by running probes in it with the studio's flags",
   unified_exec:
     "stays on in 0.154 whatever --disable says; it is the engine behind the shell tool, which shell_tool=false removes, and the sandbox is read-only with every command approval declined",
   // Removed: Codex no longer reads these flags, so on or off changes nothing.
@@ -282,7 +284,7 @@ const key = (name) => (/^[A-Za-z0-9_-]+$/.test(name) ? name : q(name));
  * appears here. `keyEnvs` are the provider key variables Codex may pass
  * through to our MCP server (env_vars takes names, not values).
  */
-export function codexArgs({ repo = REPO_ROOT, node = process.execPath, runsDir = RUNS_DIR, libraryDir = LIBRARY_DIR, limitsFile = limitsPath(), keyEnvs = [], configText = "" } = {}) {
+export function codexArgs({ repo = REPO_ROOT, node = process.execPath, runsDir = RUNS_DIR, libraryDir = LIBRARY_DIR, limitsFile = limitsPath(), keyEnvs = [], configText = "", mode = "full" } = {}) {
   const s = `mcp_servers.${MCP_NAME}`;
   return [
     "app-server",
@@ -293,7 +295,8 @@ export function codexArgs({ repo = REPO_ROOT, node = process.execPath, runsDir =
     "-c", `${s}.command=${q(node)}`,
     "-c", `${s}.args=[${q(join(repo, "mcp", "server.mjs"))}]`,
     "-c", `${s}.cwd=${q(repo)}`,
-    "-c", `${s}.env={KIE_RUNS_DIR=${q(runsDir)},KIE_LIBRARY_DIR=${q(libraryDir)},KIE_LIMITS_FILE=${q(limitsFile)}}`,
+    // KIE_MCP_MODE=explore: the server registers only Explore's free, read-only tools, so this Codex cannot spend.
+    "-c", `${s}.env={KIE_RUNS_DIR=${q(runsDir)},KIE_LIBRARY_DIR=${q(libraryDir)},KIE_LIMITS_FILE=${q(limitsFile)}${mode === "explore" ? ",KIE_MCP_MODE=\"explore\"" : ""}}`,
     "-c", `${s}.env_vars=[${keyEnvs.map(q).join(",")}]`,
     "-c", `${s}.tool_timeout_sec=${TOOL_TIMEOUT_SEC}`,
     "-c", `${s}.required=true`,
@@ -432,6 +435,7 @@ export function createCodex({
   args,
   repo = REPO_ROOT,
   keyEnvs = [],
+  mode = "full",
   requestTimeoutMs = REQUEST_TIMEOUT_MS,
   interruptGraceMs = INTERRUPT_GRACE_MS,
 } = {}) {
@@ -440,7 +444,7 @@ export function createCodex({
     (() => {
       const file = codexConfigPath();
       const configText = existsSync(file) ? readFileSync(file, "utf8") : "";
-      return codexArgs({ repo, keyEnvs, configText });
+      return codexArgs({ repo, keyEnvs, configText, mode });
     });
   const listeners = new Set();
   let proc = null;
@@ -457,7 +461,7 @@ export function createCodex({
   function start() {
     if (proc) return proc.ready;
     // Codex logs in with ChatGPT; an OpenAI key in the studio's environment is not its to see.
-    const { OPENAI_API_KEY: _openaiKey, ...env } = process.env;
+    const { OPENAI_API_KEY: _openaiKey, ANTHROPIC_API_KEY: _anthropicKey, OPENROUTER_API_KEY: _openrouterKey, ...env } = process.env;
     const args = build();
     const child = spawn(command, [...prefixArgs, ...args], { cwd: repo, env, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); // Codex logs there; not ours to keep

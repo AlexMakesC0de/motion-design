@@ -36,6 +36,7 @@ import { registerDirector } from "./director.mjs";
 import { registerMaking } from "./making.mjs";
 import { registerScenes } from "./scenes.mjs";
 import { registerSkills } from "./skills.mjs";
+import { registerExplore, EXPLORE_INSTRUCTIONS, EXPLORE_TOOLS } from "./explore.mjs";
 import { stoppable } from "./stop.mjs";
 
 const VERSION = "0.1.0";
@@ -60,6 +61,14 @@ const INSTRUCTIONS =
   "With a voice, make_voice_clip (spends; after cardWords is saved) makes a talking clip: the character saying their voice card's words. adopt_voice keeps it. " +
   "A scene sends a character's voice when that character has a line, written @{r1} says {\"line\"}: their talking clip by default, else their voice card (a black video with their name and voice); voiceAs card always sends the card, voiceAs file the bare voice. " +
   "The user keeps a skill library (list_skills): when a request matches a skill's description, load it with get_skill and follow it.";
+
+/** Every tool that can reserve and submit a paid job. Explore mode registers none of them. */
+export const SPENDING_TOOLS = new Set(["generate_image", "generate_video", "make_sheet", "make_still", "film_shot", "film_all", "save_review", "draft_scene", "final_scene", "make_voice", "make_voice_clip"]);
+/** A tool spends when it is named above or annotated like one (open world, not read-only, not idempotent). */
+export const spends = (name, config) => {
+  const a = config?.annotations ?? {};
+  return SPENDING_TOOLS.has(name) || (a.openWorldHint === true && a.readOnlyHint !== true && a.idempotentHint !== true);
+};
 
 const LOOK = { readOnlyHint: true, openWorldHint: false };
 const LOCAL_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -125,12 +134,16 @@ const assetView = (a) => ({
  * `upload` and `credits` (the balance read). Tests pass stubs; production
  * passes nothing.
  */
-export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
-  const server = new McpServer({ name: "motion-design", version: VERSION }, { instructions: INSTRUCTIONS });
+export function createServer({ deps = {}, catalog = loadCatalog(), mode = process.env.KIE_MCP_MODE === "explore" ? "explore" : "full" } = {}) {
+  const explore = mode === "explore";
+  const server = new McpServer({ name: "motion-design", version: VERSION }, { instructions: explore ? EXPLORE_INSTRUCTIONS : INSTRUCTIONS });
 
   // `extra` carries the call's signal, aborted when the client cancels it: spending tools pass it to stoppable().
+  // In Explore mode only the free tools that read are registered (and never one that can spend), so no client of this server can spend or change anything.
   const tool = (name, config, fn) =>
-    server.registerTool(name, config, async (args, extra) => {
+    explore && (spends(name, config) || !EXPLORE_TOOLS.has(name))
+      ? null
+      : server.registerTool(name, config, async (args, extra) => {
       try {
         return await fn(args ?? {}, extra ?? {});
       } catch (err) {
@@ -179,6 +192,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
   registerMaking(tool, { catalog, ctx, deps, runFile });
   registerScenes(tool, { catalog, ctx, deps });
   registerSkills(tool, server);
+  if (explore) registerExplore(tool, { catalog, ctx });
   return server;
 
   function registerLook() {
@@ -235,6 +249,7 @@ export function createServer({ deps = {}, catalog = loadCatalog() } = {}) {
               resolutions: z.array(z.string()),
               refRoles: z.array(z.string()),
               nativeAudio: z.boolean(),
+              audioOff: z.object({ param: z.string(), value: z.unknown() }).nullable(),
               notes: z.string().nullable(),
               routes: z.array(
                 z.object({

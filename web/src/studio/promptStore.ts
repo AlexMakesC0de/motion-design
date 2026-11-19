@@ -27,6 +27,8 @@ export interface Draft {
   preset: string | null;
   /** A per-job budget the user raised for this job; null keeps the catalog default. */
   budgetUsd: number | null;
+  /** Explore's Sound off: sent as the model's own sound switch (audioOff), where it has one. */
+  soundOff?: boolean;
 }
 
 export const EMPTY_DRAFT: Draft = {
@@ -173,6 +175,9 @@ export function removeRef(index: number) {
   setDraft({ refs: state.draft.refs.filter((_, i) => i !== index) });
 }
 
+/** The route field that turns the sound off, when the draft asks for silence and the model has a switch. */
+export const soundParams = (d: Draft, m: ModelInfo) => (d.soundOff && m.capability === "video" && m.audioOff ? { params: { [m.audioOff.param]: m.audioOff.value } } : {});
+
 /** POST /api/estimate's body (camelCase, as that endpoint has always taken). */
 export function estimateBody(d: Draft, m: ModelInfo) {
   return {
@@ -182,6 +187,7 @@ export function estimateBody(d: Draft, m: ModelInfo) {
     aspectRatio: d.aspectRatio ?? undefined,
     refs: d.refs,
     budgetUsd: d.budgetUsd ?? undefined,
+    ...soundParams(d, m),
   };
 }
 
@@ -202,5 +208,6 @@ export function generateBody(d: Draft, m: ModelInfo, run: string) {
     aspect_ratio: d.aspectRatio ?? undefined,
     refs: d.refs,
     budget_usd: d.budgetUsd ?? undefined,
+    ...soundParams(d, m),
   };
 }

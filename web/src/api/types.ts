@@ -191,6 +191,8 @@ export interface ModelInfo {
   defaultResolution: string | null;
   refRoles: string[];
   nativeAudio: boolean;
+  /** The route field that turns the model's own sound off; absent or null when it has no switch. */
+  audioOff?: { param: string; value: unknown } | null;
   notes: string | null;
   routes: { provider: string; price: string; verified: boolean; usable: boolean; skipReason: string | null }[];
 }
@@ -454,7 +456,7 @@ export interface DoctorResult {
 export type ChatEntry =
   | { id: string; kind: "user"; at: string; text: string }
   | { id: string; kind: "assistant"; at: string; text: string; streaming: boolean }
-  | { id: string; kind: "tool"; at: string; name: string; args: string; result: string | null; state: "running" | "done" | "failed" }
+  | { id: string; kind: "tool"; at: string; name: string; args: string; result: string | null; state: "running" | "done" | "failed"; proposal?: Proposal }
   | { id: string; kind: "notice"; at: string; text: string; tone: "error" | "info" };
 
 export interface ChatView {
@@ -463,12 +465,43 @@ export interface ChatView {
   entries: ChatEntry[];
 }
 
-export type ChatBackend = "codex" | "openai";
+/** Explore's take as the chat planned it (propose_take): the prompt bar's settings and the price. */
+export interface Proposal {
+  kind: "image" | "video";
+  prompt: string;
+  model: string;
+  aspectRatio: string | null;
+  durationS: number | null;
+  resolution: string | null;
+  look: string | null;
+  picks: Record<string, string>;
+  refs: { source: string; role: string }[];
+  sound: boolean;
+  count: number;
+  estimateUsd: number | null;
+  totalUsd: number | null;
+  allowed: boolean;
+  problems: string[];
+}
+
+export type KeyBackend = "openai" | "anthropic" | "openrouter" | "compatible";
+export type ChatBackend = "codex" | KeyBackend;
+
+export interface ChatKeyView {
+  label: string;
+  keySaved: boolean;
+  keySource: "env" | "file" | null;
+  keyFile: string;
+  keyEnv: string | null;
+}
 
 export interface ChatSettingsView {
   backend: ChatBackend | null;
   model: string | null;
+  /** The compatible service's address. */
+  baseUrl?: string;
   openai: { keySaved: boolean; keySource: "env" | "file" | null; keyFile: string; keyEnv: string };
+  keys: Record<KeyBackend, ChatKeyView>;
 }
 
 export interface CodexStatus {
@@ -485,7 +518,7 @@ export type StudioEvent =
   | { event: "library"; data: AssetSummary[] }
   | { event: "task"; data: TaskView }
   /** A chat entry was added or changed (entry), or a turn began or ended (busy). */
-  | { event: "chat"; data: { film: string; busy: boolean; entry: ChatEntry | null } };
+  | { event: "chat"; data: { film: string; busy: boolean; entry: ChatEntry | null; reset?: boolean } };
 
 // ---------------------------------------------------------------- director
 

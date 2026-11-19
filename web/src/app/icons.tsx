@@ -41,12 +41,20 @@ const paths: Record<string, string> = {
   code: "M7 6l-4 4 4 4M13 6l4 4-4 4M11 4l-2 12",
   plug: "M7 3v4M13 3v4M5 7h10v3a5 5 0 0 1-10 0zM10 15v2",
   model: "M4 15V9M8 15V5M12 15v-4M16 15V7",
+  // A box with a lid (keep it out of sight), and a bin (gone for good).
+  archive: "M3.5 4.5h13v3h-13zM4.5 7.5v8h11v-8M8 10.5h4",
+  trash: "M4 6h12M8 6V4.5h4V6M5.5 6l.8 10h7.4l.8-10M8.5 9v4.5M11.5 9v4.5",
+  // Studio's setting pills: who is in it, the look, the camera, the light.
+  refs: "M5 7.5a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0zM2.5 16c.5-2.4 2.4-3.8 5-3.8s4.5 1.4 5 3.8M12.5 5.2a2.5 2.5 0 1 1 1 4.7M14.5 12.4c1.5.4 2.5 1.6 3 3.6",
+  look: "M10 3a7 7 0 1 0 0 14c1 0 1.5-.6 1.5-1.4 0-.9-.8-1.3-.8-2.1 0-.8.6-1.5 1.5-1.5H14a3 3 0 0 0 3-3C17 5.8 13.9 3 10 3zM6.5 10h.01M8 6.8h.01M12 6.8h.01",
+  camera: "M7.5 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM12.5 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM3.5 9h10v7h-10zM13.5 11.5l3.5-2v6l-3.5-2",
+  light: "M8 14h4M8.5 16.5h3M10 3a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.7.6 1.2V14h4v-1.6c0-.5.2-.9.6-1.2A4.5 4.5 0 0 0 10 3z",
 };
 
 export function Icon({ name, size = 20 }: { name: keyof typeof paths | string; size?: number }) {
   // The dots of "more" need a heavier pen to read as dots.
   return (
-    <svg className="icon" width={size} height={size} viewBox="0 0 20 20" fill={name === "play" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={name === "more" ? 2.6 : name === "pause" ? 2.4 : 1.5} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" focusable="false">
+    <svg className="icon" width={size} height={size} viewBox="0 0 20 20" fill={name === "play" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={name === "more" ? 2.6 : name === "look" ? 1.6 : name === "pause" ? 2.4 : 1.5} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" focusable="false">
       <path d={paths[name] ?? ""} />
     </svg>
   );

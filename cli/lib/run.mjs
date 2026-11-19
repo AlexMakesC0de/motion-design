@@ -28,8 +28,10 @@ export const INFLUENCER_RUN = "influencers";
 export const LIBRARY_RUN = "library";
 /** The looks' preview pictures. Hidden from film lists. */
 export const LOOKS_RUN = "looks";
+/** Explore's cinema studio: its chat and the takes made from it. Hidden from film lists. */
+export const EXPLORE_RUN = "explore";
 /** Runs that are pages' workspaces, not films. */
-export const SIDE_RUNS = new Set([SCRATCH_RUN, JUTSU_RUN, INFLUENCER_RUN, LIBRARY_RUN, LOOKS_RUN]);
+export const SIDE_RUNS = new Set([SCRATCH_RUN, JUTSU_RUN, INFLUENCER_RUN, LIBRARY_RUN, LOOKS_RUN, EXPLORE_RUN]);
 
 /**
  * Every generation is scoped to a run directory. There is no such thing as a

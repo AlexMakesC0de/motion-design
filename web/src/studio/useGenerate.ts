@@ -53,17 +53,19 @@ export function useGenerate({ models, capability, roles, run, onSubmitted, onUnc
     if (m) setDraft(fitToModel(m, getDraft()));
   }
 
-  async function generate() {
-    if (!model || unsure) return;
+  /** One take. True when it was submitted. */
+  async function generate(): Promise<boolean> {
+    if (!model || unsure) return false;
     // Send exactly the settings the shown price was estimated for.
     const now = getDraft();
-    if (estimateKey(now, model) !== estimatedFor) return;
+    if (estimateKey(now, model) !== estimatedFor) return false;
     setSending(true);
     setFailure(null);
     try {
       const path = model.capability === "image" ? "/api/generate/image" : "/api/generate/video";
       const r = await api<SubmitResult>(path, { method: "POST", body: { ...generateBody(now, model, run), ...extra } });
       onSubmitted?.(r);
+      return true;
     } catch (e) {
       if (e instanceof ApiError && e.code === 5) {
         setUnsure(e.message);
@@ -71,6 +73,7 @@ export function useGenerate({ models, capability, roles, run, onSubmitted, onUnc
       } else {
         setFailure(e instanceof ApiError ? e.message : String(e));
       }
+      return false;
     } finally {
       setSending(false);
     }

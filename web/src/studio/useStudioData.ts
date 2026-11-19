@@ -27,11 +27,13 @@ export function useStudioData() {
 
   useEffect(() => {
     loadRuns();
-    api<ModelInfo[]>("/api/models").then(setModels).catch(() => {});
-    api<AssetSummary[]>("/api/library").then(setAssets).catch(() => {});
-    api<Vocab>("/api/vocab").then(setVocab).catch(() => {});
-    api<PresetInfo[]>("/api/presets").then(setTemplates).catch(() => {});
-    api<LooksView>("/api/looks").then(setLooks).catch(() => {});
+    // An answer of the wrong shape (a server mid-restart) keeps the empty default.
+    const list = <T,>(set: (v: T[]) => void) => (v: T[] | null) => Array.isArray(v) && set(v);
+    api<ModelInfo[]>("/api/models").then(list(setModels)).catch(() => {});
+    api<AssetSummary[]>("/api/library").then(list(setAssets)).catch(() => {});
+    api<Vocab>("/api/vocab").then((v) => v && Array.isArray(v.roles) && setVocab(v)).catch(() => {});
+    api<PresetInfo[]>("/api/presets").then(list(setTemplates)).catch(() => {});
+    api<LooksView>("/api/looks").then((v) => v && Array.isArray(v.looks) && setLooks(v)).catch(() => {});
   }, [loadRuns]);
 
   // The stream's library list has no covers; keep the ones already loaded.
