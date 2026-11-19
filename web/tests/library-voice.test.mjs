@@ -19,9 +19,20 @@ const LIMITS = process.env.KIE_LIMITS_FILE;
 let length = 12.5;
 const voice = { probe: async () => ({ durationS: length }), convert: async () => { throw new Error("no conversion in tests"); } };
 
+// A fake VoiceStudio: its voice list, and speech that records what it was asked.
+const spoken = [];
+let studioOpen = true;
+const studioFetch = async (url, init = {}) => {
+  if (!studioOpen) throw new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } });
+  if (url.endsWith("/v1/audio/voices")) return Response.json({ voices: [{ id: "p-1", name: "Gravel" }] });
+  spoken.push(JSON.parse(init.body));
+  return new Response(wav, { headers: { "content-type": "audio/wav" } });
+};
+const voiceStudio = { env: { SHARD_VOICESTUDIO_URL: "http://127.0.0.1:3900" }, fetch: studioFetch };
+
 let app, port;
 before(async () => {
-  app = createApp({ key: KEY, deps: { ...deps, voice }, distDir: join(tmp, "nodist"), pollMs: 60_000 });
+  app = createApp({ key: KEY, deps: { ...deps, voice, voiceStudio }, distDir: join(tmp, "nodist"), pollMs: 60_000 });
   await new Promise((r) => app.listen(0, "127.0.0.1", r));
   port = app.address().port;
   const photo = join(tmp, "vera.png");
@@ -112,5 +123,46 @@ describe("a character's voice in the studio", () => {
     const r = await req(port, "/api/library/vera/voice", { method: "DELETE" });
     assert.equal(r.status, 200, r.text);
     assert.equal(r.json.voice, null);
+  });
+});
+
+describe("a voice from VoiceStudio, free and on this computer", () => {
+  test("the panel learns whether VoiceStudio is open and which voices it has", async () => {
+    let r = await req(port, "/api/voicestudio");
+    assert.deepEqual(r.json.voices, [{ id: "p-1", name: "Gravel" }]);
+    assert.equal(r.json.running, true);
+    studioOpen = false;
+    r = await req(port, "/api/voicestudio");
+    assert.equal(r.json.running, false);
+    studioOpen = true;
+  });
+
+  test("a take is made without spending, offered to keep, and kept as the voice", async () => {
+    const before = calls.create.length;
+    let r = await req(port, "/api/library/vera");
+    assert.doesNotMatch(r.json.voiceStudioScript, /\[whispers\]/);
+    r = await post("/api/library/vera/voicestudio", { voice: "p-1", script: "[excited] Big boat!" });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(calls.create.length, before, "nothing was sent to kie");
+    assert.deepEqual(spoken.at(-1), { model: "tts-1", input: "Big boat!", voice: "p-1", response_format: "wav" });
+    const take = r.json.voiceStudioTake;
+    assert.match(take.id, /^voicestudio-vera-/);
+    assert.equal(take.durationS, 12.5);
+    assert.match(take.url, /voices\/voicestudio-vera-.*\.wav$/);
+
+    assert.equal((await post("/api/library/crate/keep-voicestudio", { take: take.id })).json.error.field, "take");
+    r = await post("/api/library/vera/keep-voicestudio", { take: take.id });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.voice.origin, "voicestudio");
+    assert.equal(r.json.voice.voiceName, "p-1");
+    assert.equal(r.json.voiceStudioTake, null);
+  });
+
+  test("with VoiceStudio closed, making a take says how to open it", async () => {
+    studioOpen = false;
+    const r = await post("/api/library/vera/voicestudio", {});
+    studioOpen = true;
+    assert.equal(r.status, 400);
+    assert.match(r.json.error.message, /VoiceStudio isn't open/);
   });
 });

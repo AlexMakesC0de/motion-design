@@ -43,8 +43,9 @@ import { suggestModel, suggestStillModel } from "./director/pick.mjs";
 import { shotWording } from "./director/wording.mjs";
 import { briefLines, planLines } from "./director/show.mjs";
 import { makeStill, makeSheet, adoptSheet, needsStyleFirst } from "./director/still.mjs";
-import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice } from "./director/voice-make.mjs";
+import { makeVoice, adoptVoice, saveRecordedVoice, saveVoiceProfile, voiceSettings, voicePrice, makeLocalVoice, keepLocalVoice } from "./director/voice-make.mjs";
 import { presetVoices } from "./core/voice.mjs";
+import { voiceStudioStatus, VOICESTUDIO_DOWNLOAD } from "./core/voicestudio.mjs";
 import { shotMedia } from "./director/media.mjs";
 import { filmShot, filmReady } from "./director/film.mjs";
 import { reviewShot, saveReview } from "./director/review.mjs";
@@ -101,7 +102,9 @@ Director (making — spends kie credits; --dry-run plans and spends nothing, --n
   kie voice      set <asset> [--voice V] [--language L] [--file SCRIPT.txt]   save the voice settings (free)
   kie voice      record <asset> <file>                   your own recording (2-30s) as the voice (free)
   kie voice      make <asset>                            a sample in the chosen preset voice (spends, about $0.04)
-  kie voice      adopt <job id>                          keep a finished sample as the character's voice
+  kie voice      studio                                  your VoiceStudio voices (a free voice app on this computer)
+  kie voice      local <asset> [--voice NAME]            VoiceStudio reads the script on this computer (free)
+  kie voice      adopt <job id | take>                   keep a finished sample or VoiceStudio take as the voice
   kie voice      clear <asset>                           take the voice away (kept in the item's history)
   kie still      --run SLUG [--shot ID]...               each shot's first frame (default: every shot without one), in order
   kie shot       --run SLUG --shot ID                    film one shot from its still (also redoes a take)
@@ -1177,17 +1180,25 @@ async function cmdCast(catalog, args, positionals) {
 
 async function cmdVoice(catalog, args, positionals) {
   const [sub, name, path] = positionals;
-  const help = "kie voice list | show <asset> | set <asset> [--voice V] [--language L] [--file SCRIPT] | record <asset> <file> | make <asset> | adopt <job id> | clear <asset>";
+  const help =
+    "kie voice list | studio | show <asset> | set <asset> [--voice V] [--language L] [--file SCRIPT] | record <asset> <file> | make <asset> | local <asset> [--voice NAME] | adopt <job id | take> | clear <asset>";
   const library = openLibrary();
   if (sub === "list") {
     for (const v of presetVoices().voices) say(`${v.name.padEnd(22)} ${v.description.padEnd(44)} ${v.id}  ${v.previewUrl}`);
+    return EXIT.OK;
+  }
+  if (sub === "studio") {
+    const st = await voiceStudioStatus();
+    if (!st.running) throw usage(`VoiceStudio isn't open at ${st.url}. Open it on this computer; get it free at ${VOICESTUDIO_DOWNLOAD}.`);
+    say("default  (the engine's own voice)");
+    for (const v of st.voices) say(`${v.name}${v.id !== v.name ? `  (${v.id})` : ""}`);
     return EXIT.OK;
   }
   if (!name) throw usage(help);
   if (sub === "show") {
     const a = library.get(name);
     const s = voiceSettings(a);
-    const from = a.voice?.origin === "recording" ? "your recording" : `ElevenLabs ${a.voice?.voiceName ?? ""}`.trim();
+    const from = a.voice?.origin === "recording" ? "your recording" : `${a.voice?.origin === "voicestudio" ? "VoiceStudio" : "ElevenLabs"} ${a.voice?.voiceName ?? ""}`.trim();
     say(a.voice ? `${a.name}'s voice: ${a.voice.durationS}s, ${from} (${a.voice.path})` : `${a.name} has no voice yet.`);
     say(`Voice: ${s.voiceName ?? "none picked"}${s.language ? ` · language ${s.language}` : ""}${s.accent ? ` · ${s.accent}` : ""}`);
     const p = voicePrice(catalog, s.script);
@@ -1211,8 +1222,15 @@ async function cmdVoice(catalog, args, positionals) {
     say(`${a.name} now speaks with your recording: ${a.voice.durationS}s (${a.voice.path}).`);
     return EXIT.OK;
   }
+  if (sub === "local") {
+    say(`VoiceStudio is reading ${name}'s script… the first time can take several minutes while it downloads its model.`);
+    const t = await makeLocalVoice(library, name, { voice: args.voice ?? "default", probe: voiceTools.probe });
+    say(`Take ${t.id} in "${t.voice}"${t.durationS != null ? `, ${t.durationS}s` : ""}: ${t.path}`);
+    say(`Listen to it, then keep it: kie voice adopt ${t.id}`);
+    return EXIT.OK;
+  }
   if (sub === "adopt") {
-    const a = await adoptVoice(library, openJobs(), name, voiceTools);
+    const a = name.startsWith("voicestudio-") ? await keepLocalVoice(library, name, voiceTools) : await adoptVoice(library, openJobs(), name, voiceTools);
     say(`${a.name} now speaks with ${a.voice.voiceName ?? "the sample"}: ${a.voice.durationS}s (${a.voice.path}).`);
     return EXIT.OK;
   }
