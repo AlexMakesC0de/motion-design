@@ -27,7 +27,8 @@ function ticks(total: number): number[] {
   return out;
 }
 
-export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => void }) {
+/** `lengthS` is the edit's length: what the film runs once the shots are trimmed. Null before any shot has a take. */
+export function IdeaStep({ slug, onChange, lengthS: editS = null }: { slug: string; onChange?: () => void; lengthS?: number | null }) {
   const { idea, scenes, loading, error, save, remove, order, saveIdea, create } = useScenes(slug);
   const [text, setText] = useState("");
   const [ratio, setRatio] = useState("16:9");
@@ -45,9 +46,10 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
 
   const current: Idea = { text: text.trim(), ratio, lengthS };
   const changed = !idea || idea.text !== current.text || idea.ratio !== ratio || idea.lengthS !== lengthS;
-  const total = scenes.reduce((n, s) => n + s.durationS, 0);
-
-  const over = total - lengthS;
+  const planned = scenes.reduce((n, s) => n + s.durationS, 0);
+  // Once there is an edit, the film runs as long as the edit; the shots' own lengths are only what was filmed.
+  const total = editS != null && editS > 0 ? Math.round(editS * 10) / 10 : planned;
+  const over = Math.round((total - lengthS) * 10) / 10;
   const nextLabel = STEPS[STEPS.findIndex((x) => x.id === "idea") + 1]?.label ?? "";
 
   const run = (p: Promise<unknown>) =>
@@ -88,7 +90,7 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
   return (
     <section className="idea" aria-labelledby="idea-h">
       <h2 id="idea-h" className="idea__title">What's the film?</h2>
-      <p className="idea__sub">Who, where, what happens. Then split it into scenes.</p>
+      <p className="idea__sub">Who, where, what happens. Then split it into shots.</p>
       <form
         className="idea__prompt"
         onSubmit={(e) => {
@@ -143,15 +145,17 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
       )}
 
       <div className="idea__budget">
-        <h2 className="idea__subtitle">Scenes</h2>
-        <span className="mono idea__total">{total}s planned</span>
+        <h2 className="idea__subtitle">Shots</h2>
+        <span className="mono idea__total">
+          {total === planned ? `${total}s planned` : `${total}s in the edit · ${planned}s filmed`}
+        </span>
         {over > 0 && (
           <>
             <span className="idea__over">
               <i aria-hidden="true" />
               {over}s longer than the {lengthS}s you set
             </span>
-            {TARGETS.includes(total) && (
+            {total === planned && TARGETS.includes(total) && (
               <button type="button" className="button button--quiet" onClick={() => (setLengthS(total), setSaved(false))}>
                 Make it {total}s
               </button>
@@ -161,10 +165,10 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
       </div>
 
       {loading ? (
-        <p className="film-step__loading">Loading scenes…</p>
+        <p className="film-step__loading">Loading shots…</p>
       ) : (
         <>
-          {scenes.length === 0 && <p className="idea__empty">No scenes yet. Plan them in Claude Code, or add one.</p>}
+          {scenes.length === 0 && <p className="idea__empty">No shots yet. Plan them in Claude Code, or add one.</p>}
           <div className="idea__ruler" style={{ "--n": scenes.length } as React.CSSProperties}>
             <ol className="idea__lane" aria-label="Scenes">
               {scenes.map((s, i) => {
@@ -187,7 +191,7 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
                       </button>
                     </div>
                     <div className="idea__bt">
-                      <span className="idea__stepper" title={staged ? "Set by its stages in the Scenes step" : undefined}>
+                      <span className="idea__stepper" title={staged ? "Set by its stages in the Shots step" : undefined}>
                         <button type="button" aria-label={`Shorter scene ${i + 1}`} disabled={staged || s.durationS <= DURATION.min} onClick={() => retime(s, s.durationS - 1)}>
                           <Icon name="minus" size={14} />
                         </button>
@@ -206,18 +210,18 @@ export function IdeaStep({ slug, onChange }: { slug: string; onChange?: () => vo
               <li className="idea__addcell">
                 <button type="button" className="idea__add" onClick={add}>
                   <Icon name="plus" size={16} />
-                  Scene
+                  Shot
                 </button>
               </li>
             </ol>
-            {over > 0 && total > 0 && (
-              <span className="idea__limit" aria-hidden="true" style={{ left: `calc((100% - 120px - var(--n) * 8px) * ${lengthS / total})` }}>
+            {planned > lengthS && (
+              <span className="idea__limit" aria-hidden="true" style={{ left: `calc((100% - 120px - var(--n) * 8px) * ${lengthS / planned})` }}>
                 <span>{lengthS}s</span>
               </span>
             )}
           </div>
           <div className="idea__ticks mono" aria-hidden="true">
-            {ticks(total).map((t) => (
+            {ticks(planned).map((t) => (
               <span key={t}>{t}s</span>
             ))}
           </div>

@@ -128,7 +128,7 @@ describe("film steps", () => {
     assert.deepEqual(r.json.scenes.map((s) => [s.id, s.title, s.ratio]), [["s1", "Harbour", "9:16"]]);
     const p = await req(port, "/api/films/boat-at-dawn/progress");
     assert.deepEqual(p.json.steps, { idea: "done", references: "done", scenes: "current", finish: "todo" });
-    assert.deepEqual(p.json.next, { text: "Draft scene 1", step: "scenes" });
+    assert.deepEqual(p.json.next, { text: "Make Harbour", step: "scenes" });
   });
 
   test("a mentioned item with no sheet holds References, naming it", async () => {

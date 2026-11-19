@@ -1,6 +1,6 @@
 // web/src/projects/FilmCard.tsx
-// One film as a card: cover, name, four step markers, how many scenes and
-// versions, what it cost, and the next thing to do as a link straight to that
+// One film as a card: cover (its newest export once there is one), name, four
+// step markers, how many shots and takes, what it cost, and the next thing to do as a link straight to that
 // step. Shared by Home and Projects.
 import type { FilmProgress, FilmSummary, StepState } from "../api/types";
 import { STEPS, filmHref } from "../app/route";
@@ -10,10 +10,10 @@ const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { date
 /** The marker's state in words, for screen readers (the marker shows it by its look). */
 const STATE_WORDS: Record<StepState, string> = { done: "done", current: "current", locked: "locked", todo: "not started" };
 
-/** "3 scenes · 4 versions", leaving out what is zero; empty when nothing is counted yet. */
+/** "3 shots · 4 takes", leaving out what is zero; empty when nothing is counted yet. */
 function countLine(c: FilmProgress["counts"]): string {
   const part = (n: number, one: string) => (n ? `${n} ${one}${n === 1 ? "" : "s"}` : null);
-  return [part(c.scenes, "scene"), part(c.versions, "version")].filter(Boolean).join(" · ");
+  return [part(c.scenes, "shot"), part(c.versions, "take")].filter(Boolean).join(" · ");
 }
 
 export function FilmCard({ film, onReveal }: { film: FilmSummary; onReveal?: (slug: string) => void }) {
@@ -23,7 +23,7 @@ export function FilmCard({ film, onReveal }: { film: FilmSummary; onReveal?: (sl
   return (
     <article className="film-card2" aria-label={film.run}>
       <a className="film-card2__cover" href={filmHref(film.run)} tabIndex={-1} aria-hidden="true">
-        {film.cover?.kind === "video" && <video src={film.cover.url} preload="metadata" muted />}
+        {film.cover?.kind === "video" && <video src={`${film.cover.url}#t=1`} preload="metadata" muted playsInline />}
         {film.cover?.kind === "image" && <img src={film.cover.url} alt="" />}
         {finished && <span className="film-card2__badge">Finished</span>}
       </a>

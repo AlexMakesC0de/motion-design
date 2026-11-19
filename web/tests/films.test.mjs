@@ -34,12 +34,12 @@ before(async () => {
 after(() => app.closeAll());
 
 describe("GET /api/films", () => {
-  test("one card per run folder, with its newest video as the cover", async () => {
+  test("one card per run folder, with its newest export as the cover", async () => {
     const r = await req(port, "/api/films");
     assert.equal(r.status, 200);
     const card = r.json.find((f) => f.run === "film-demo");
     assert.equal(card.takes, 8, "core's count of media files");
-    assert.deepEqual(card.cover, { kind: "video", url: "/media/runs/film-demo/kinetic-type.mp4" });
+    assert.deepEqual(card.cover, { kind: "video", url: "/media/runs/film-demo/film.mp4" }, "the film itself, not the newest take or card");
   });
 
   test("a folder whose name is not a run slug is listed without a cover, and does not break the list", async () => {

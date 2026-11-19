@@ -40,11 +40,11 @@ describe("FilmWorkspace", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/films/boat/scenes"));
   });
 
-  test("the step bar is Idea, References, Scenes, Finish; every step is a link and the one you are on is marked", async () => {
+  test("the step bar is Idea, Cast, Shots, Edit; every step is a link and the one you are on is marked", async () => {
     vi.stubGlobal("fetch", vi.fn(routes(film())));
     render(<FilmWorkspace slug="boat" step="references" />);
     const bar = await screen.findByRole("list", { name: "Steps" });
-    expect(within(bar).getAllByRole("link").map((a) => a.textContent)).toEqual(["Idea", "Cast", "3Scenes", "4Finish"]);
+    expect(within(bar).getAllByRole("link").map((a) => a.textContent)).toEqual(["Idea", "Cast", "3Shots", "4Edit"]);
     expect(within(bar).getByRole("link", { name: /Idea/ })).toHaveAttribute("href", "#/films/boat/idea");
     expect(within(bar).getByRole("link", { name: /Cast/ })).toHaveAttribute("aria-current", "step");
   });
@@ -87,7 +87,7 @@ describe("FilmWorkspace", () => {
     const fetch = vi.fn(routes(film()));
     vi.stubGlobal("fetch", fetch);
     render(<FilmWorkspace slug="boat" step="references" />);
-    await screen.findByRole("heading", { name: "Cast & props" });
+    await screen.findByRole("heading", { name: "Library cast & props" });
     expect(progressCalls(fetch)).toBe(1);
 
     act(() => {
@@ -116,7 +116,7 @@ describe("FilmWorkspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Server hiccup.");
     fail = false;
     act(() => emitForTests({ event: "hello", data: { at: "2026-10-31T10:00:00.000Z" } }));
-    expect(await screen.findByRole("heading", { name: "Cast & props" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Library cast & props" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -124,7 +124,8 @@ describe("FilmWorkspace", () => {
     const answers: ((r: Response) => void)[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(() => new Promise<Response>((resolve) => answers.push(resolve))),
+      // Only the progress reads are answered by hand; the edit's own read waits forever.
+      vi.fn((url: string) => new Promise<Response>((resolve) => (String(url).includes("/progress") ? answers.push(resolve) : undefined))),
     );
     render(<FilmWorkspace slug="boat" step="references" />);
     await waitFor(() => expect(answers).toHaveLength(1));
@@ -141,7 +142,7 @@ describe("FilmWorkspace", () => {
     vi.stubGlobal("fetch", vi.fn(routes(film())));
     render(<FilmWorkspace slug="boat" step="references" />);
     expect(getRun()).toBe("old-film");
-    await screen.findByRole("heading", { name: "Cast & props" });
+    await screen.findByRole("heading", { name: "Library cast & props" });
     expect(getRun()).toBe("boat");
   });
 

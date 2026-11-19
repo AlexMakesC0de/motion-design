@@ -17,11 +17,15 @@ const paths: Record<string, string> = {
   // Small action icons in the same 20px line style.
   down: "M6 8l4 4 4-4",
   arrow: "M4 10h12M11 5l5 5-5 5",
+  star: "M10 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7z",
   check: "M4.5 10.5l3.5 3.5 7.5-8",
   plus: "M10 4v12M4 10h12",
   minus: "M4 10h12",
   more: "M5 10h.01M10 10h.01M15 10h.01",
   play: "M6.5 4.5v11l9-5.5z",
+  pause: "M7 4.5v11M13 4.5v11",
+  scissors: "M6 6.5a2 2 0 1 1 0-.01M6 15.5a2 2 0 1 1 0-.01M7.6 7.4L16 14M7.6 14.6L16 8",
+  text: "M5 5h10M10 5v11",
   upload: "M10 13V4M6 8l4-4 4 4M4 13v3h12v-3",
   download: "M10 4v9M6 9l4 4 4-4M4 13v3h12v-3",
   edit: "M12.5 5.5l2 2M4.5 15.5l.5-3 8-8 2.5 2.5-8 8z",
@@ -42,7 +46,7 @@ const paths: Record<string, string> = {
 export function Icon({ name, size = 20 }: { name: keyof typeof paths | string; size?: number }) {
   // The dots of "more" need a heavier pen to read as dots.
   return (
-    <svg className="icon" width={size} height={size} viewBox="0 0 20 20" fill={name === "play" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={name === "more" ? 2.6 : 1.5} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" focusable="false">
+    <svg className="icon" width={size} height={size} viewBox="0 0 20 20" fill={name === "play" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={name === "more" ? 2.6 : name === "pause" ? 2.4 : 1.5} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" focusable="false">
       <path d={paths[name] ?? ""} />
     </svg>
   );

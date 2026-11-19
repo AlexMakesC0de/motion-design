@@ -7,7 +7,12 @@ export type LogoRevealProps = BaseProps & {
   tagline?: string;
   /** Absolute path or URL. Falls back to a wordmark-only lockup when absent. */
   logo?: string | null;
-  background?: "solid" | "gradient";
+  /** "none" draws on transparency, to lay over video (render with an alpha codec). */
+  background?: "solid" | "gradient" | "none";
+  /** "white" redraws a one-colour mark in white, for a dark or busy picture behind it. */
+  markColor?: "original" | "white";
+  /** Fade out over the last half second (the default), or hold to the last frame. */
+  fadeOut?: boolean;
 };
 
 export const logoRevealDefaults: LogoRevealProps = {
@@ -27,7 +32,9 @@ export const logoRevealDefaults: LogoRevealProps = {
  * yours. Here the file you supply is composited unaltered.
  */
 export const LogoReveal: React.FC<LogoRevealProps> = (props) => {
-  const { wordmark, tagline, logo, background = "gradient" } = props;
+  const { wordmark, tagline, logo, background = "gradient", markColor = "original", fadeOut = true } = props;
+  // Over a picture, a soft shadow keeps white type readable on bright sky or cloud.
+  const shadow = background === "none" ? "drop-shadow(0 2px 18px rgba(0,0,0,0.35))" : undefined;
   const brand = withBrand(props.brand);
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
@@ -40,7 +47,7 @@ export const LogoReveal: React.FC<LogoRevealProps> = (props) => {
     config: { damping: 200, stiffness: 110, mass: 0.7 },
   });
 
-  const exit = interpolate(
+  const exit = !fadeOut ? 1 : interpolate(
     frame,
     [durationInFrames - fps * 0.5, durationInFrames],
     [1, 0],
@@ -55,9 +62,11 @@ export const LogoReveal: React.FC<LogoRevealProps> = (props) => {
     <AbsoluteFill
       style={{
         background:
-          background === "gradient"
-            ? `radial-gradient(120% 120% at 50% 30%, ${brand.colors.accent}22 0%, ${brand.colors.bg} 60%)`
-            : brand.colors.bg,
+          background === "none"
+            ? "transparent"
+            : background === "gradient"
+              ? `radial-gradient(120% 120% at 50% 30%, ${brand.colors.accent}22 0%, ${brand.colors.bg} 60%)`
+              : brand.colors.bg,
         fontFamily: brand.fontFamily,
         justifyContent: "center",
         alignItems: "center",
@@ -82,6 +91,7 @@ export const LogoReveal: React.FC<LogoRevealProps> = (props) => {
               marginBottom: unit * 0.05,
               opacity: enter,
               transform: `scale(${0.82 + enter * 0.18})`,
+              filter: [markColor === "white" ? "brightness(0) invert(1)" : "", shadow ?? ""].filter(Boolean).join(" ") || undefined,
             }}
           />
         ) : null}
@@ -93,6 +103,7 @@ export const LogoReveal: React.FC<LogoRevealProps> = (props) => {
             fontWeight: 800,
             letterSpacing: interpolate(wordEnter, [0, 1], [unit * 0.02, -unit * 0.003]),
             opacity: wordEnter,
+            filter: shadow,
           }}
         >
           {wordmark}

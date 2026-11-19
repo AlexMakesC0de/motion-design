@@ -86,7 +86,7 @@ describe("ProjectsScreen", () => {
     render(<ProjectsScreen />);
     const boat = await screen.findByRole("article", { name: "boat" });
     const steps = within(within(boat).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
-    expect(steps.map((li) => li.textContent)).toEqual(["Idea, done", "Cast, done", "Scenes, current", "Finish, not started"]);
+    expect(steps.map((li) => li.textContent)).toEqual(["Idea, done", "Cast, done", "Shots, current", "Edit, not started"]);
   });
 
   test("the Finder button's name starts with its visible text", async () => {
@@ -97,13 +97,13 @@ describe("ProjectsScreen", () => {
     expect(button).toHaveTextContent(/^Show in Finder$/);
   });
 
-  test("a card counts its scenes and versions, leaving out what is zero", async () => {
+  test("a card counts its shots and takes, leaving out what is zero", async () => {
     const fresh: FilmSummary = { ...films[0], run: "fresh", progress: prog({ counts: { scenes: 2, versions: 0, chosen: 0, outputs: 0 } }) };
     const empty: FilmSummary = { ...films[0], run: "empty", progress: prog({ counts: { scenes: 0, versions: 0, chosen: 0, outputs: 0 } }) };
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [...films, fresh, empty] })));
     render(<ProjectsScreen />);
-    expect(within(await screen.findByRole("article", { name: "boat" })).getByText("3 scenes · 1 version")).toBeInTheDocument();
-    expect(within(screen.getByRole("article", { name: "fresh" })).getByText("2 scenes")).toBeInTheDocument();
+    expect(within(await screen.findByRole("article", { name: "boat" })).getByText("3 shots · 1 take")).toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "fresh" })).getByText("2 shots")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: "empty" }).querySelector(".film-card2__counts")).toBeNull();
   });
 

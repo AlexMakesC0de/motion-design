@@ -21,8 +21,8 @@ export type Place = Exclude<Route, { redirect: string }>;
 export const STEPS: { id: FilmStep; label: string }[] = [
   { id: "idea", label: "Idea" },
   { id: "references", label: "Cast" },
-  { id: "scenes", label: "Scenes" },
-  { id: "finish", label: "Finish" },
+  { id: "scenes", label: "Shots" },
+  { id: "finish", label: "Edit" },
 ];
 
 /** The top bar: the making pages first (each opens a menu on hover), then the studio's places. */
