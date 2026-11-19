@@ -15,6 +15,10 @@ export interface Conversation {
   takes: JobView[];
   updatedAt: string;
   cover: string | null;
+  /** The small line under the title; "3 pictures" when left out. */
+  meta?: string;
+  /** No Archive or Delete on this row (takes only, no chat to archive). */
+  fixed?: boolean;
 }
 
 /** A fresh id for a conversation nothing has been made in yet (the server accepts c- and 4 to 32 of a-z0-9). */
@@ -50,7 +54,25 @@ export function ago(iso: string, now: number): string {
 
 const FOLDED = "image.conversations.folded";
 
-export function Conversations({ list, current, now, onPick, onNew }: { list: Conversation[]; current: string; now: number; onPick: (id: string) => void; onNew: () => void }) {
+export function Conversations({
+  list,
+  current,
+  now,
+  onPick,
+  onNew,
+  onArchive,
+  onDelete,
+}: {
+  list: Conversation[];
+  current: string;
+  now: number;
+  onPick: (id: string) => void;
+  onNew: () => void;
+  /** Hide one from the list (kept, and listed in Settings). The Studio page offers it; Image does not. */
+  onArchive?: (c: Conversation) => void;
+  /** Delete one for good, after asking. */
+  onDelete?: (c: Conversation) => void;
+}) {
   const [folded, setFolded] = useState(() => localStorage.getItem(FOLDED) === "1");
   const fold = (f: boolean) => {
     setFolded(f);
@@ -86,16 +108,30 @@ export function Conversations({ list, current, now, onPick, onNew }: { list: Con
       {list.length > 0 && (
         <ul className="convos__list">
           {list.map((c) => (
-            <li key={c.id}>
+            <li key={c.id} className="convos__item">
               <button type="button" className="convo" aria-current={c.id === current || undefined} onClick={() => onPick(c.id)}>
                 {c.cover ? <img className="convo__cover" src={c.cover} alt="" /> : <span className="convo__cover" aria-hidden="true" />}
                 <span className="convo__text">
                   <span className="convo__title">{c.title}</span>
                   <span className="convo__meta">
-                    {c.takes.length} {c.takes.length === 1 ? "picture" : "pictures"} · {ago(c.updatedAt, now)}
+                    {c.meta ?? `${c.takes.length} ${c.takes.length === 1 ? "picture" : "pictures"}`} · {ago(c.updatedAt, now)}
                   </span>
                 </span>
               </button>
+              {(onArchive || onDelete) && !c.fixed && (
+                <span className="convo__actions">
+                  {onArchive && (
+                    <button type="button" className="convos__icon" aria-label={`Archive “${c.title}”`} title="Archive" onClick={() => onArchive(c)}>
+                      <Icon name="archive" size={14} />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button type="button" className="convos__icon" aria-label={`Delete “${c.title}”`} title="Delete" onClick={() => onDelete(c)}>
+                      <Icon name="trash" size={14} />
+                    </button>
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>

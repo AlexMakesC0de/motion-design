@@ -1,15 +1,15 @@
 // One transcript shape for the chat, whichever backend answers. Entries:
 //   { id, kind: "user", at, text }
 //   { id, kind: "assistant", at, text, streaming }
-//   { id, kind: "tool", at, name, args, result, state: "running" | "done" | "failed", jobs? }
+//   { id, kind: "tool", at, name, args, result, state: "running" | "done" | "failed", jobs?, proposal? }
 //   { id, kind: "notice", at, text, tone: "error" | "info" }
 // A tool step's args and result are short lines for people, such as
 // "minimax-h3 4s 480p" and "$0.16". History lives in runs/<film>/chat.jsonl,
 // one JSON object per line, plus { kind: "codex-thread", threadId } lines the
-// page never sees.
-import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, realpathSync, writeSync } from "node:fs";
+// page never sees, and { kind: "reset" } lines that start a new conversation.
+import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readSync, realpathSync, writeSync } from "node:fs";
 import { join, sep } from "node:path";
-import { RUNS_DIR, runDir } from "../../../cli/lib/run.mjs";
+import { EXPLORE_RUN, RUNS_DIR, runDir } from "../../../cli/lib/run.mjs";
 import { EXIT, unknown } from "../../../cli/lib/errors.mjs";
 import { redact } from "../../../cli/lib/redact.mjs";
 
@@ -51,18 +51,38 @@ export const noticeEntry = (text, tone = "error") => ({ id: newId(), kind: "noti
  * write can never land outside the film.
  */
 export function chatPath(film, { create = false } = {}) {
-  const dir = runDir(film, { create: false });
-  const linked = (what) => unknown(`runs/${film}${what} is a link; the studio only writes plain files in a film.`);
-  const d = lstatSync(dir, { throwIfNoEntry: false });
-  if (d && (d.isSymbolicLink() || !d.isDirectory())) throw linked("");
-  if (!d && create) runDir(film, { create: true });
-  if (d || create) {
-    const root = realpathSync(RUNS_DIR);
-    if (!realpathSync(dir).startsWith(root + sep)) throw linked("");
-  }
-  const file = join(dir, CHAT_FILE);
-  if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) throw linked(`/${CHAT_FILE}`);
+  const convo = conversationOf(film);
+  const run = convo ? EXPLORE_RUN : film;
+  const dir = runDir(run, { create: false });
+  const linked = (what) => unknown(`runs/${run}${what} is a link; the studio only writes plain files in a film.`);
+  const real = (folder, what, make) => {
+    const d = lstatSync(folder, { throwIfNoEntry: false });
+    if (d && (d.isSymbolicLink() || !d.isDirectory())) throw linked(what);
+    if (!d && create) make();
+    if (d || create) {
+      const root = realpathSync(RUNS_DIR);
+      if (!realpathSync(folder).startsWith(root + sep)) throw linked(what);
+    }
+  };
+  real(dir, "", () => runDir(run, { create: true }));
+  const where = convo ? join(dir, CONVERSATIONS_DIR) : dir;
+  if (convo) real(where, `/${CONVERSATIONS_DIR}`, () => mkdirSync(where));
+  const name = convo ? `${convo}.jsonl` : CHAT_FILE;
+  const file = join(where, name);
+  if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) throw linked(`/${convo ? `${CONVERSATIONS_DIR}/` : ""}${name}`);
   return file;
+}
+
+/** The Studio page's conversations: each its own file, runs/explore/chats/<id>.jsonl, keyed "explore:<id>". */
+export const CONVERSATIONS_DIR = "chats";
+export const CONVERSATION_ID = /^c-[a-z0-9]{4,32}$/;
+export const conversationKey = (id) => `${EXPLORE_RUN}:${id}`;
+/** The conversation id in a chat key such as "explore:c-abc123"; null for a film's key. A malformed one is refused. */
+export function conversationOf(film) {
+  if (typeof film !== "string" || !film.startsWith(`${EXPLORE_RUN}:`)) return null;
+  const id = film.slice(EXPLORE_RUN.length + 1);
+  if (!CONVERSATION_ID.test(id)) throw unknown("No such conversation.");
+  return id;
 }
 
 /** What has been read of each chat file: up to `offset` (after its last whole line), and what that held. */
@@ -79,7 +99,11 @@ function takeLines(buf, into) {
     } catch {
       continue; // a line torn by a crash; the rest is still good
     }
-    if (rec?.kind === "codex-thread" && typeof rec.threadId === "string") into.codexThread = rec.threadId;
+    if (rec?.kind === "reset") {
+      // A new conversation (Explore's New chat): what came before stays in the file but is no longer read.
+      into.entries.length = 0;
+      into.codexThread = null;
+    } else if (rec?.kind === "codex-thread" && typeof rec.threadId === "string") into.codexThread = rec.threadId;
     else if (KINDS.has(rec?.kind) && typeof rec.id === "string") into.entries.push(rec);
   }
   return end;
@@ -229,6 +253,16 @@ export function budgetSentence(message) {
   return `${reason} I've stopped here: raise the limit in Settings, or ask me for something cheaper.`;
 }
 
+/**
+ * Explore's plan from a propose_take result: the bar's settings with the
+ * price of a take and of them all. The page fills the prompt bar from it.
+ */
+export function proposalOf(name, result) {
+  const sc = result?.structuredContent;
+  if (name !== "propose_take" || !sc?.proposal || typeof sc.proposal !== "object") return null;
+  return { ...sc.proposal, estimateUsd: sc.estimateUsd ?? null, totalUsd: sc.totalUsd ?? null, allowed: Boolean(sc.allowed), problems: Array.isArray(sc.problems) ? sc.problems : [] };
+}
+
 const JOB_ID = /\bj-\d{8}-[0-9a-f]{6}\b/g;
 
 /** The local job ids a tool result names: its structured data, its error's _meta, or (Codex may drop both) its text. */
@@ -304,6 +338,8 @@ export function createTurnLog(onEntry, { throttleMs = TEXT_THROTTLE_MS } = {}) {
       e.result = resultLine(name, result);
       const jobs = jobIds(result);
       if (jobs.length) e.jobs = jobs;
+      const plan = proposalOf(name, result);
+      if (plan && !f) e.proposal = plan;
       onEntry(e);
       return f;
     },

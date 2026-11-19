@@ -1,7 +1,7 @@
-// web/src/home/HomeScreen.test.tsx
+// web/src/home/NewFilmScreen.test.tsx
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
-import { HomeScreen } from "./HomeScreen";
+import { NewFilmScreen } from "./NewFilmScreen";
 import { errorResponse, routes } from "../test-fixtures";
 import type { FilmSummary } from "../api/types";
 
@@ -33,10 +33,10 @@ beforeEach(() => {
   window.location.hash = "";
 });
 
-describe("HomeScreen", () => {
+describe("NewFilmScreen", () => {
   test("shows the four newest films and a link to all projects", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => films, "/api/director/menu": () => menu })));
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     const recent = await screen.findByRole("region", { name: "Keep going" });
     await waitFor(() => expect(within(recent).getAllByRole("article")).toHaveLength(4));
     expect(within(recent).getAllByRole("article").map((a) => a.getAttribute("aria-label"))).toEqual(["film-e", "film-d", "film-c", "film-b"]);
@@ -47,7 +47,7 @@ describe("HomeScreen", () => {
     // The first four words are "rain on glass a", so that name is taken and the new film gets -2.
     const put = vi.fn(() => ({}));
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [film("rain-on-glass-a", "2026-10-31T10:00:00.000Z")], "/api/director/menu": () => menu, "/api/films/rain-on-glass-a-2/idea": put })));
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     await screen.findByRole("article", { name: "rain-on-glass-a" }); // the film list has loaded
     fireEvent.change(await screen.findByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass, a cup going cold" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Length" }), { target: { value: "8" } });
@@ -59,7 +59,7 @@ describe("HomeScreen", () => {
 
   test("Start film waits for the film list, which its name must not clash with", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/director/menu": () => menu }))); // /api/films never answers
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
     await new Promise((r) => setTimeout(r, 20)); // the list never answers
     expect(screen.getByRole("button", { name: "Plan my film" })).toBeDisabled();
@@ -67,7 +67,7 @@ describe("HomeScreen", () => {
 
   test("a film list that fails to load says so, and Start film stays off", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => errorResponse(500, "disk full"), "/api/director/menu": () => menu })));
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your films, so a new one can't be named yet: disk full");
     expect(screen.getByRole("button", { name: "Plan my film" })).toBeDisabled();
@@ -75,7 +75,7 @@ describe("HomeScreen", () => {
 
   test("Start film waits for words", async () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [], "/api/director/menu": () => menu })));
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     expect(await screen.findByRole("button", { name: "Plan my film" })).toBeDisabled();
   });
 
@@ -95,7 +95,7 @@ describe("HomeScreen", () => {
         }),
       ),
     );
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     const box = screen.getByRole("textbox", { name: "What is the film about?" });
     fireEvent.change(box, { target: { value: "Rain on glass" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Plan my film" })).toBeEnabled());
@@ -119,7 +119,7 @@ describe("HomeScreen", () => {
         }),
       ),
     );
-    render(<HomeScreen />);
+    render(<NewFilmScreen />);
     fireEvent.change(screen.getByRole("textbox", { name: "What is the film about?" }), { target: { value: "Rain on glass" } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Plan my film" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Plan my film" }));

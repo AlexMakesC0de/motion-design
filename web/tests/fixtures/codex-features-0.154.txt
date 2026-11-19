@@ -13,7 +13,7 @@ browser_use_full_cdp_access              stable             false
 chronicle                                under development  false
 code_mode                                under development  false
 code_mode_buffered_exec                  removed            false
-code_mode_host                           stable             false
+code_mode_host                           stable             true
 code_mode_interrupt                      under development  false
 code_mode_only                           under development  false
 code_mode_prewarm                        under development  false

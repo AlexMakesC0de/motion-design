@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { TopBar } from "./TopBar";
 import { navItemFor, parseRoute, replaceHash, type Place } from "./route";
 import { useRoute, useStudio } from "./useStudio";
-import { HomeScreen } from "../home/HomeScreen";
+import { ExploreScreen } from "../home/ExploreScreen";
+import { NewFilmScreen } from "../home/NewFilmScreen";
 import { ProjectsScreen } from "../projects/ProjectsScreen";
 import { FilmWorkspace } from "../film/FilmWorkspace";
 import { ImageScreen } from "../studio/ImageScreen";
@@ -18,7 +19,8 @@ import { SettingsScreen } from "../settings/SettingsScreen";
 import "./App.css";
 
 const TITLES: Record<Exclude<Place["screen"], "film">, string> = {
-  home: "Home",
+  home: "Studio",
+  newfilm: "New film",
   projects: "Films",
   image: "Image",
   video: "Video",
@@ -35,7 +37,9 @@ const TITLES: Record<Exclude<Place["screen"], "film">, string> = {
 function Screen({ place }: { place: Place }) {
   switch (place.screen) {
     case "home":
-      return <HomeScreen />;
+      return <ExploreScreen />;
+    case "newfilm":
+      return <NewFilmScreen />;
     case "projects":
       return <ProjectsScreen />;
     case "film":

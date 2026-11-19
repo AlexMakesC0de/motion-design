@@ -206,6 +206,10 @@
   background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer;
 }
 .convo:hover { background: var(--surface-2); }
+/* Archive and Delete (Studio): on the row's right, shown on hover or keyboard focus. */
+.convos__item { position: relative; }
+.convo__actions { position: absolute; top: 50%; right: 4px; display: none; gap: 2px; padding: 2px; border-radius: 10px; background: var(--surface-2); transform: translateY(-50%); }
+.convos__item:hover .convo__actions, .convos__item:focus-within .convo__actions { display: flex; }
 .convo[aria-current] { background: var(--surface-3); }
 .convo__cover { flex: none; width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: var(--surface-3); }
 .convo__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

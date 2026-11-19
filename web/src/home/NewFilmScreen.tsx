@@ -1,6 +1,7 @@
-// web/src/home/HomeScreen.tsx
-// Where you land: one box to start a film (its words become the film's idea
-// and its folder name), and your four most recent films.
+// web/src/home/NewFilmScreen.tsx
+// New film (#/newfilm, from Films' New film): one box to start a film (its
+// words become the film's idea and its folder name), and your four most
+// recent films. Explore, where you land, is the cinema studio (ExploreScreen).
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { RATIOS } from "../../../cli/director/scene-shape.mjs";
@@ -25,7 +26,7 @@ const IDEAS: { label: string; text: string }[] = [
   { label: "First skydive, POV", text: "A first skydive from the jumper's point of view: the door opens, the ground drops away, and the scream turns into a laugh." },
 ];
 
-export function HomeScreen() {
+export function NewFilmScreen() {
   // null until /api/films answers: the new film's folder name is made unique against this list.
   const [films, setFilms] = useState<FilmSummary[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);

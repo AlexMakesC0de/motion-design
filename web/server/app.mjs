@@ -25,6 +25,9 @@ import { registerInfluencers } from "./api/influencers.mjs";
 import { createTools } from "./chat/tools.mjs";
 import { createChat } from "./chat/session.mjs";
 import { openaiBackend } from "./chat/openai.mjs";
+import { anthropicBackend } from "./chat/anthropic.mjs";
+import { compatibleBackend } from "./chat/compatible.mjs";
+import { explorePrompt } from "./chat/prompt.mjs";
 import { createCodex } from "./chat/codex.mjs";
 import { loadCatalog } from "../../cli/lib/models.mjs";
 
@@ -40,8 +43,8 @@ const CHAT_CLOSE_WAIT_MS = 3_000;
  * the studio jobs a previous run of the server left unsettled (main.mjs).
  * `finish` replaces the finishing tools or their install check (tests):
  * { tools: { assemble, burnCaptions, makeVariants, render }, check }.
- * `chat.fetch` replaces fetch for the OpenAI backend (tests pass a fake
- * OpenAI); `chat.codex` replaces how `codex app-server` is started (tests run
+ * `chat.fetch` replaces fetch for the API-key backends (tests pass a fake
+ * service); `chat.codex` replaces how `codex app-server` is started (tests run
  * a fake: { command, prefixArgs, args }); `chat.closeWaitMs` is how long
  * shutdown waits for chat turns to save. The chat's MCP tools get the same
  * `deps` as everything else.
@@ -82,12 +85,23 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerFinish(router, { tasks, ...finish });
   director = registerDirector(router, { catalog, deps, follower, tasks });
   registerSettings(router, { catalog, deps });
-  const tools = createTools({ deps, catalog });
-  const openai = openaiBackend({ fetch: chatOptions.fetch ?? globalThis.fetch, tools });
+  // Two chats: a film's, with every tool, and Explore's, whose tools are free and only read (mcp/explore.mjs).
+  const fetch = chatOptions.fetch ?? globalThis.fetch;
+  const keyBackends = (t) => ({
+    openai: openaiBackend({ fetch, tools: t }),
+    anthropic: anthropicBackend({ fetch, tools: t }),
+    openrouter: compatibleBackend("openrouter", { fetch, tools: t }),
+    compatible: compatibleBackend("compatible", { fetch, tools: t }),
+  });
   const keyEnvs = Object.values(catalog.providers ?? {}).map((p) => p.keyEnv).filter(Boolean);
+  const tools = createTools({ deps, catalog });
+  const backends = keyBackends(tools);
   const codex = createCodex({ keyEnvs, ...chatOptions.codex });
-  const chat = createChat({ backends: { openai, codex }, tools, publish: (e) => events.publish(e) });
-  registerChat(router, { chat, openai, codex });
+  const chat = createChat({ backends: { ...backends, codex }, tools, publish: (e) => events.publish(e) });
+  const exploreTools = createTools({ deps, catalog, mode: "explore" });
+  const exploreCodex = createCodex({ keyEnvs, mode: "explore", ...chatOptions.codex });
+  const explore = createChat({ backends: { ...keyBackends(exploreTools), codex: exploreCodex }, tools: exploreTools, publish: (e) => events.publish(e), prompt: explorePrompt });
+  registerChat(router, { chat, backends, codex, explore });
 
   const server = createServer(createHandler({ key, router, distDir, media: serveMedia }));
   // A malformed request never reaches the handler; drop the socket quietly.
@@ -96,14 +110,17 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.closeAll = async () => {
     events.close();
     for (const film of chat.films()) chat.stop(film);
+    for (const film of explore.films()) explore.stop(film);
     const settled = async (ms) => {
       let timer;
-      await Promise.race([chat.idle(), new Promise((r) => (timer = setTimeout(r, ms)))]);
+      await Promise.race([Promise.all([chat.idle(), explore.idle()]), new Promise((r) => (timer = setTimeout(r, ms)))]);
       clearTimeout(timer);
     };
     await settled(chatOptions.closeWaitMs ?? CHAT_CLOSE_WAIT_MS);
     tools.close().catch(() => {});
+    exploreTools.close().catch(() => {});
     codex.close();
+    exploreCodex.close();
     await settled(500); // a Codex turn still waiting ends when its app-server exits
     await new Promise((r) => {
       server.closeAllConnections?.();
@@ -115,6 +132,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   server.follower = follower;
   server.tasks = tasks;
   server.chat = chat;
+  server.explore = explore;
   server.director = director;
   // Studio jobs a previous run left waiting. Safe beside a CLI or MCP waiter: core settles each job once.
   if (resume) follower.resume();

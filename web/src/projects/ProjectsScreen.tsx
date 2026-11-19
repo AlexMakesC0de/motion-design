@@ -77,7 +77,7 @@ export function ProjectsScreen() {
         <button type="button" className="button button--quiet" aria-pressed={layout === "list"} onClick={() => setLayout(layout === "grid" ? "list" : "grid")}>
           {layout === "grid" ? "List view" : "Grid view"}
         </button>
-        <a className="generate projects__new" href="#/">
+        <a className="generate projects__new" href="#/newfilm">
           + New film
         </a>
       </header>
@@ -88,7 +88,7 @@ export function ProjectsScreen() {
       )}
       {films && films.length === 0 && (
         <p className="projects__none">
-          No films yet. <a href="#/">Start a film</a>
+          No films yet. <a href="#/newfilm">Start a film</a>
         </p>
       )}
       {films && films.length > 0 && shown.length === 0 && <p className="projects__none">No films match.</p>}

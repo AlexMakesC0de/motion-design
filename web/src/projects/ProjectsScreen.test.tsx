@@ -78,7 +78,7 @@ describe("ProjectsScreen", () => {
     vi.stubGlobal("fetch", vi.fn(routes({ "/api/films": () => [] })));
     render(<ProjectsScreen />);
     expect(await screen.findByText(/No films yet/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Start a film" })).toHaveAttribute("href", "#/");
+    expect(screen.getByRole("link", { name: "Start a film" })).toHaveAttribute("href", "#/newfilm");
   });
 
   test("each step marker tells a screen reader its state", async () => {

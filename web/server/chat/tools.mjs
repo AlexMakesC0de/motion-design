@@ -35,11 +35,12 @@ const HIDDEN_TEXT = (name) =>
 const LOST = new Set([-32001, -32000]);
 const lost = (err) => LOST.has(err?.code) || err?.name === "AbortError";
 
-export function createTools({ deps = {}, catalog, timeoutMs = TOOL_TIMEOUT_MS } = {}) {
+/** `mode` "explore" connects to an MCP server with only Explore's free, read-only tools (mcp/explore.mjs). */
+export function createTools({ deps = {}, catalog, timeoutMs = TOOL_TIMEOUT_MS, mode = "full" } = {}) {
   let conn = null;
   const open = () =>
     (conn ??= import("../../../mcp/client.mjs")
-      .then((m) => m.connectInProcess({ deps, catalog }))
+      .then((m) => m.connectInProcess({ deps, catalog, mode }))
       .catch((err) => {
         conn = null;
         if (err?.code === "ERR_MODULE_NOT_FOUND") throw usage("The chat needs the MCP package. Run: npm --prefix mcp install");

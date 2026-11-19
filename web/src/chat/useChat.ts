@@ -18,7 +18,9 @@ export function upsert(entries: ChatEntry[], entry: ChatEntry): ChatEntry[] {
  * chat is not connected (or the connection stopped working): the panel then
  * shows the two ways to connect.
  */
-export function useChat(film: string | null) {
+export function useChat(film: string | null, path: string | null = null) {
+  // Explore's chat has its own routes (/api/explore/chat); a film's is /api/chat/<film>.
+  const base = path ?? (film ? `/api/chat/${encodeURIComponent(film)}` : null);
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +35,14 @@ export function useChat(film: string | null) {
     if (!film) return Promise.resolve();
     const mine = ++seq.current;
     const fresh = () => mine === seq.current && current.current === film;
-    return api<ChatView>(`/api/chat/${encodeURIComponent(film)}`)
+    return api<ChatView>(base!)
       .then((v) => {
         if (!fresh()) return;
-        setEntries(v.entries);
-        setBusy(v.busy);
+        setEntries(Array.isArray(v?.entries) ? v.entries : []);
+        setBusy(Boolean(v?.busy));
       })
       .catch((e) => fresh() && setError(e instanceof ApiError ? e.message : String(e)));
-  }, [film]);
+  }, [film, base]);
 
   useEffect(() => {
     setEntries([]);
@@ -56,18 +58,20 @@ export function useChat(film: string | null) {
         if (e.event === "hello") load();
         if (e.event !== "chat" || e.data.film !== film) return;
         setBusy(e.data.busy);
+        if (e.data.reset) setEntries([]);
         const entry = e.data.entry;
         if (entry) setEntries((list) => upsert(list, entry));
       }),
     [film, load],
   );
 
-  async function send(text: string): Promise<boolean> {
+  /** `extra` goes in the request body beside the text (Explore's prompt bar). */
+  async function send(text: string, extra: Record<string, unknown> = {}): Promise<boolean> {
     if (!film) return false;
     const sentFor = film;
     setError(null);
     try {
-      const r = await api<{ entry: ChatEntry }>(`/api/chat/${encodeURIComponent(film)}`, { method: "POST", body: { text } });
+      const r = await api<{ entry: ChatEntry }>(base!, { method: "POST", body: { text, ...extra } });
       if (current.current !== sentFor) return true; // sent to the film that was open; the chat now shows another
       setConnect(false);
       setBusy(true);
@@ -83,8 +87,19 @@ export function useChat(film: string | null) {
 
   async function stop() {
     if (!film) return;
-    await api(`/api/chat/${encodeURIComponent(film)}/stop`, { method: "POST" }).catch(() => {});
+    await api(`${base}/stop`, { method: "POST" }).catch(() => {});
   }
 
-  return { entries, busy, error, connect, setConnect, send, stop };
+  /** Explore's New chat: the server keeps the old lines unread; the reset event empties the list. */
+  async function clear() {
+    if (!path) return;
+    try {
+      await api(`${path}/new`, { method: "POST" });
+      setEntries([]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+
+  return { entries, busy, error, connect, setConnect, send, stop, clear };
 }
