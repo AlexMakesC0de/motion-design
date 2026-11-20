@@ -28,6 +28,13 @@ describe("sheetPrompt", () => {
     assert.match(sheetPrompt({ kind: "character", description: "Alex", photos: 1 }), /^Generate the final image based on my attached reference photo\./);
   });
 
+  test("a character's height sets the full-body proportions; without one nothing is said", () => {
+    const p = sheetPrompt({ kind: "character", description: "A man", heightCm: 183 });
+    assert.match(p, /HEIGHT: 183 cm \(6 ft 0 in\) tall, with the true proportions of an adult that height\./);
+    assert.ok(p.indexOf("OUTFIT:") < p.indexOf("HEIGHT:") && p.indexOf("HEIGHT:") < p.indexOf("LEFT PANEL"));
+    assert.doesNotMatch(sheetPrompt({ kind: "character", description: "A man" }), /HEIGHT/);
+  });
+
   test("an outfit left empty says to keep the one described", () => {
     assert.match(sheetPrompt({ kind: "character", description: "Alex" }), /OUTFIT: as described above/);
   });

@@ -33,6 +33,10 @@ Every path below already uses this layout. Don't write a different prompt.
 
 Sheets are made from the item's own photos (its face), never from a previous sheet: an old sheet would bring back its layout and a second copy of the face. The studio, MCP and CLI already do this.
 
+## Height
+
+A sheet is three panels on plain grey, with nothing to measure against, so a model given two sheets makes both people the same size, or the size of whoever they replace. Give every character its real height in whole centimetres: the **Height** field in the Library, `update_asset` with `heightCm` over MCP, or `kie asset height <name> <cm>`. It is said in the sheet prompt, on the character's line in a scene, and in every Openjutsu H3 swap. Never guess a real person's height; ask.
+
 ## Check before keeping
 
 Look at the result and keep it only if all of these hold:

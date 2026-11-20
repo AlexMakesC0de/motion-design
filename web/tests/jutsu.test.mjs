@@ -308,6 +308,67 @@ describe("a character from the Library", () => {
     assert.equal(calls.create.at(-1).input.input_urls.length, 1);
   });
 
+  test("H3 recasts several people at once: more pictures as more references, with the prompt saying who is whom", async () => {
+    const two = { model: "minimax-h3-swap", video: "dance-move.mp4", image: "zed.png", images: ["@zed#1"] };
+    const r = await post("/api/jutsu/generate", { ...two, prompt: "The man on the left becomes picture 1, the woman on the right picture 2." });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(calls.create.at(-1).input.reference_image_urls.length, 2);
+    assert.equal(calls.create.at(-1).input.reference_video_urls.length, 1);
+    // Without words H3 would not know which picture is whom; other models take one picture.
+    assert.match((await post("/api/jutsu/generate", two)).json.error.message, /say who each one replaces/);
+    assert.match((await post("/api/jutsu/generate", { ...two, detail: "the man on the left" })).json.error.message, /say who each one replaces/);
+    assert.equal((await post("/api/jutsu/generate", { ...two, detail: "the man on the left", replaces: [1] })).json.error.field, "replaces");
+    assert.match((await post("/api/jutsu/generate", { ...two, model: "wan-2-2-animate-replace", prompt: "x" })).json.error.message, /takes one picture/);
+    assert.equal((await post("/api/jutsu/generate", { ...two, images: Array(5).fill("zed.png"), prompt: "x" })).json.error.field, "images");
+  });
+
+  test("with who each character replaces, H3 gets swap-7's cast edit with no prompt typed", async () => {
+    const two = { model: "minimax-h3-swap", video: "dance-move.mp4", image: "zed.png", images: ["@zed#1"], target: "person", detail: "the man on the left", replaces: ["the woman on the right"] };
+    const est = await post("/api/jutsu/estimate", two);
+    assert.deepEqual(est.json.problems, []);
+    const r = await post("/api/jutsu/generate", two);
+    assert.equal(r.status, 200, r.text);
+    const sent = calls.create.at(-1).input.prompt;
+    assert.equal(sent, est.json.instruction);
+    assert.match(sent, /there are 2 reference pictures/);
+    assert.match(sent, /Replace the man on the left with the character in the first reference picture/);
+    assert.match(sent, /Replace the woman on the right with the character in the second reference picture/);
+    // Only the Library sheet is explained as a sheet; the upload is a plain picture.
+    assert.match(sent, /The second reference picture is a character sheet/);
+    assert.match(sent, /never smaller or slimmer/);
+    assert.match(sent, /look at the camera and at each other/);
+    assert.match(sent, /the original sound\.$/);
+  });
+
+  test("the default H3 swap is swap-7's recipe: own build, nothing carried over, lively eyes", async () => {
+    const est = await post("/api/jutsu/estimate", { model: "minimax-h3-swap", video: "dance-move.mp4", image: "zed.png", target: "person" });
+    assert.match(est.json.instruction, /keeps the full build of their picture, as tall and as broad, never smaller or slimmer/);
+    assert.match(est.json.instruction, /carries nothing of the person they replace/);
+    assert.match(est.json.instruction, /eyes are lively and focused/);
+    assert.match(est.json.instruction, /Keep the original sound\.$/);
+  });
+
+  test("Library characters' heights go into the H3 edit, once, typed or not", async () => {
+    const { openLibrary } = await import("../../cli/core/assets.mjs");
+    const pic = join(tmp, "tall.png");
+    writeFileSync(pic, png);
+    const lib = openLibrary();
+    lib.save({ name: "tall", kind: "character", description: "Tall", heightCm: 190, images: [{ path: pic, role: "sheet" }] }, { roots: [tmp] });
+    lib.save({ name: "short", kind: "character", description: "Short", heightCm: 160, images: [{ path: pic, role: "sheet" }] }, { roots: [tmp] });
+    const est = await post("/api/jutsu/estimate", { model: "minimax-h3-swap", video: "dance-move.mp4", image: "@tall#1", target: "person" });
+    assert.match(est.json.instruction, /Real heights: the person in the reference picture is 190 cm \(6 ft 3 in\) tall\./);
+    const two = { model: "minimax-h3-swap", video: "dance-move.mp4", image: "@short#1", images: ["@tall#1"], prompt: "Left man is picture 1, right woman picture 2." };
+    assert.equal((await post("/api/jutsu/generate", two)).status, 200);
+    const sent = calls.create.at(-1).input.prompt;
+    assert.match(sent, /^Left man is picture 1, right woman picture 2\. Real heights: the person in the first reference picture is 160 cm .*; the person in the second reference picture is 190 cm /);
+    // The page sends back the instruction it showed, heights and all: they are not said twice.
+    await post("/api/jutsu/generate", { ...two, prompt: sent });
+    assert.equal(calls.create.at(-1).input.prompt.split("Real heights:").length, 2);
+    // An upload has no height: nothing is added.
+    await post("/api/jutsu/generate", { model: "minimax-h3-swap", video: "dance-move.mp4", image: "zed.png", prompt: "Mine." });
+    assert.equal(calls.create.at(-1).input.prompt, "Mine.");
+  });
+
   test("a Library sheet sent to H3 is explained: one person, the face from the close-up, never the grey oval", async () => {
     const est = await post("/api/jutsu/estimate", { model: "minimax-h3-swap", video: "dance-move.mp4", image: "@zed#1", target: "person" });
     assert.match(est.json.instruction, /character sheet of one single person in three panels/);

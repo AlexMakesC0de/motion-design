@@ -35,6 +35,16 @@ const light = (id) => entry(loadMenu(), "lights", id).words;
 const lens = (id) => entry(loadMenu(), "lenses", id).words;
 
 describe("compileScene", () => {
+  test("a character's height is said on its reference line, so two people keep their sizes", () => {
+    library.update("alexandros", { heightCm: 188 });
+    try {
+      const { prompt } = compileScene(scene(), { film: "sky", library });
+      assert.match(prompt, /\[Image 1\] — character\. Preserve exact face and glasses\. This person is 188 cm \(6 ft 2 in\) tall\./);
+    } finally {
+      library.update("alexandros", { heightCm: null });
+    }
+  });
+
   test("Dan's sections, in order, with every mention as the model's token", () => {
     const { prompt, refs, problems } = compileScene(scene(), { film: "sky", library });
     assert.deepEqual(problems, []);

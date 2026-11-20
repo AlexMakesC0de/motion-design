@@ -21,7 +21,7 @@ import * as ledger from "./lib/ledger.mjs";
 import { openJobs, resolveUncertain, uncertainMessage } from "./core/jobs.mjs";
 import { readLimits, setDailyLimit, setPerJobLimit, limitsPath, dailyPosition } from "./core/spend.mjs";
 import { submitJob, waitJob, shouldFailOver } from "./core/generate.mjs";
-import { openLibrary, KINDS } from "./core/assets.mjs";
+import { openLibrary, KINDS, heightWords } from "./core/assets.mjs";
 import { expandRefs } from "./core/refs.mjs";
 import { VIDEO_PICKS, applyVideoPicks } from "./director/video-picks.mjs";
 import { loadLooks, lookView } from "./director/looks.mjs";
@@ -64,7 +64,8 @@ const HELP = `kie -- the Shard command line (generation, planning and finishing 
   kie doctor
   kie providers
   kie upload     <path>
-  kie asset      save <name> <image>... --kind K --description "..." [--replace]
+  kie asset      save <name> <image>... --kind K --description "..." [--height CM] [--replace]
+                 height <name> <cm|clear>  a character's real height, said wherever its sheet is used
                  list | show <name>      saved references; use as --ref zed:identity or --ref zed#2:first_frame
                  remove <name>           move it to library/.trash/ (move the folder back to undo)
   kie skill      list | show <name> [file]               your skill library (skills/); each runs as /<name>
@@ -159,6 +160,7 @@ const OPTS = {
   ref: { type: "string", multiple: true, default: [] },
   kind: { type: "string" },
   description: { type: "string" },
+  height: { type: "string" },
   replace: { type: "boolean", default: false },
   param: { type: "string", multiple: true, default: [] },
   pick: { type: "string", multiple: true, default: [] },
@@ -433,9 +435,9 @@ function cmdAsset(args, positionals) {
 
   if (action === "save") {
     if (!name || !images.length || !args.kind || !args.description) {
-      throw usage(`kie asset save <name> <image>... --kind ${KINDS.join("|")} --description "..." [--replace]`);
+      throw usage(`kie asset save <name> <image>... --kind ${KINDS.join("|")} --description "..." [--height CM] [--replace]`);
     }
-    const a = library.save({ name, kind: args.kind, description: args.description, images, replace: args.replace });
+    const a = library.save({ name, kind: args.kind, description: args.description, heightCm: args.height, images, replace: args.replace });
     say(`saved ${a.name} (${a.kind}), ${a.images.length} image(s) in ${join(library.dir, a.name)}`);
     for (const im of a.images) say(`  #${im.n}  ${im.file}  ${im.width ?? "?"}×${im.height ?? "?"}`);
     return EXIT.OK;
@@ -461,6 +463,7 @@ function cmdAsset(args, positionals) {
     }
     say(`${a.name}  (${a.kind})`);
     say(`  ${a.description}`);
+    if (a.heightCm) say(`  height ${heightWords(a.heightCm)}`);
     for (const im of a.images) {
       say(`  #${im.n}  ${im.path}  ${im.width ?? "?"}×${im.height ?? "?"}  ${im.upload ? `uploaded ${im.upload.at}` : "not uploaded"}`);
     }
@@ -475,7 +478,15 @@ function cmdAsset(args, positionals) {
     return EXIT.OK;
   }
 
-  throw usage("kie asset save|list|show|remove");
+  if (action === "height") {
+    const [value] = images;
+    if (!name || !value) throw usage("kie asset height <name> <cm|clear>");
+    const a = library.update(name, { heightCm: value === "clear" ? null : value });
+    say(a.heightCm ? `${a.name} is ${heightWords(a.heightCm)} tall` : `${a.name} has no height now`);
+    return EXIT.OK;
+  }
+
+  throw usage("kie asset save|list|show|height|remove");
 }
 
 // -------------------------------------------------------------- generation

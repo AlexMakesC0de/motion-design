@@ -57,7 +57,7 @@ describe("SheetMaker", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
     const post = fetchMock.mock.calls.find((c) => c[0] === "/api/library" && c[1]?.method === "POST");
     expect(JSON.parse(post![1]!.body as string)).toEqual({
-      name: "jumpsuit", kind: "product", description: "A neon green jumpsuit", keep: "the chest logo",
+      name: "jumpsuit", kind: "product", description: "A neon green jumpsuit", keep: "the chest logo", heightCm: null,
       images: [{ src: token, role: "sheet" }],
     });
   });
@@ -82,7 +82,7 @@ describe("SheetMaker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => {
       const p = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit" && c[1]?.method === "PATCH");
-      expect(JSON.parse(p![1]!.body as string)).toEqual({ kind: "product", description: "A neon green jumpsuit.", keep: "the logo and the black panels" });
+      expect(JSON.parse(p![1]!.body as string)).toEqual({ kind: "product", description: "A neon green jumpsuit.", keep: "the logo and the black panels", heightCm: null });
     });
     fireEvent.click(screen.getByRole("button", { name: /Replace the sheet/ }));
     fireEvent.drop(screen.getByLabelText("Drop the sheet here"), { dataTransfer: { files: [new File(["x"], "s.png", { type: "image/png" })] } });
@@ -90,6 +90,26 @@ describe("SheetMaker", () => {
       const s = fetchMock.mock.calls.find((c) => c[0] === "/api/library/jumpsuit/sheet");
       expect(JSON.parse(s![1]!.body as string)).toEqual({ image: token });
     });
+  });
+
+  test("a character's height shows in feet too and is saved with the item", async () => {
+    const alex: AssetDetail = { ...saved, name: "alex", kind: "character", description: "A man in a suit.", heightCm: 183 };
+    const fetchMock = stub({ "/api/library/alex": () => alex });
+    render(<SheetMaker asset={alex} onSaved={() => {}} onClose={() => {}} />);
+    expect(screen.getByLabelText("Height")).toHaveValue("183");
+    expect(screen.getByText(/6 ft 0 in/)).toBeInTheDocument();
+    fill("Height", "178");
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => {
+      const p = fetchMock.mock.calls.find((c) => c[0] === "/api/library/alex" && c[1]?.method === "PATCH");
+      expect(JSON.parse(p![1]!.body as string).heightCm).toBe("178");
+    });
+  });
+
+  test("a prop has no height field", () => {
+    stub();
+    render(<SheetMaker asset={saved} onSaved={() => {}} onClose={() => {}} />);
+    expect(screen.queryByLabelText("Height")).toBeNull();
   });
 
   test("the text boxes grow with their text instead of being dragged", () => {

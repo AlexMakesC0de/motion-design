@@ -166,6 +166,20 @@ describe("sheets and source photos", () => {
     assert.throws(() => l.update("zed", { kind: "vibe" }), /kind must be one of/);
     assert.throws(() => l.update("zed", { description: " " }), /needs a description/);
   });
+
+  test("a character's height is whole centimetres, survives a new sheet, and clears", () => {
+    const l = lib();
+    assert.equal(l.save({ ...zed, heightCm: "183" }).heightCm, 183);
+    // Adopting a sheet saves again without a height: the one given before stays.
+    assert.equal(l.save({ ...zed, images: [{ path: zed1, role: "sheet" }], replace: true }).heightCm, 183);
+    assert.equal(l.update("zed", { heightCm: 178 }).heightCm, 178);
+    assert.equal(l.update("zed", { heightCm: null }).heightCm, null);
+    for (const bad of [1.83, "6'0\"", 20, 300]) assert.throws(() => l.update("zed", { heightCm: bad }), /whole centimetres/);
+    // Only a character has one; turning it into a product drops it.
+    l.update("zed", { heightCm: 180 });
+    assert.equal(l.update("zed", { kind: "product" }).heightCm, null);
+    assert.throws(() => l.update("zed", { heightCm: 180 }), /Only a character/);
+  });
 });
 
 describe("removing an asset", () => {

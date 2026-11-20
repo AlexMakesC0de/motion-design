@@ -4,6 +4,8 @@ Generated from `sheetPrompt` in `cli/core/sheets.mjs`; `tests/skills-character-s
 
 Replace `{CHARACTER}` with the character's Library description (one sentence: age, look, hair, anything distinctive) and `{OUTFIT}` with the outfit, or write `as described above.` when the description already says what they wear.
 
+When the character has a height in the Library, add this line straight after the OUTFIT line (the code does the same): `HEIGHT: {CM} cm ({FT} ft {IN} in) tall, with the true proportions of an adult that height.`
+
 ## Without a reference photo
 
 ```text

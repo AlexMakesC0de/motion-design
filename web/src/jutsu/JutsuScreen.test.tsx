@@ -179,6 +179,32 @@ describe("JutsuScreen", () => {
     expect(lastBody(fetch, "/api/jutsu/generate")).not.toHaveProperty("image");
   });
 
+  test("H3 swaps several people at once: each extra character gets a picture and who it replaces, and no prompt is needed", async () => {
+    const h3: JutsuModel = { ...base, id: "minimax-h3-swap", label: "MiniMax H3", mode: "swap", tier: "pro", resolutions: ["768P", "2K"], defaultResolution: "768P", usdPerSecond: { "768P": 0.04, "2K": 0.065 }, prompt: true, promptMax: 7000, defaultPrompt: "Video edit. Replace the main person.", billsInput: true, targets: ["person", "outfit", "object", "background"], videoS: [2, 15], maxVideoBytes: 50_000_000, maxImageBytes: 30_000_000 };
+    const fetch = setup({ "/api/jutsu": () => view({ models: [...MODELS, h3] }), "/api/jutsu/generate": () => ({ localJobId: "j-1" }) });
+    await ready();
+    fireEvent.click(screen.getByRole("tab", { name: "Swap" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mode: Standard" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Mode" })).getByRole("menuitemradio", { name: /Pro · MiniMax H3/ }));
+    pickClip(/Use the motion of dance\.mp4/);
+    pickCharacter(/zed/);
+    fireEvent.click(await screen.findByRole("button", { name: "Add another character" }));
+    expect(await screen.findByText(/Pick a picture for each character/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add character 2" }));
+    const menu = screen.getByRole("menu", { name: "Choose a character" });
+    fireEvent.click(within(menu).getByRole("tab", { name: "Library" }));
+    fireEvent.click(within(menu).getAllByRole("menuitemradio")[0]);
+    expect(await screen.findByText("Say who each character replaces.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Who to replace" }), { target: { value: "the man on the left" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Who character 2 replaces" }), { target: { value: "the woman on the right" } });
+    await waitFor(() => expect(lastBody(fetch, "/api/jutsu/estimate")).toMatchObject({ images: ["@alex#1"], replaces: ["the woman on the right"] }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Generate · / }));
+    await waitFor(() =>
+      expect(lastBody(fetch, "/api/jutsu/generate")).toMatchObject({ image: "zed.png", detail: "the man on the left", images: ["@alex#1"], replaces: ["the woman on the right"] }),
+    );
+    expect(lastBody(fetch, "/api/jutsu/generate")).not.toHaveProperty("prompt");
+  });
+
   test("a clip longer than the model takes opens Part to use; Cut posts the part and picks the new clip", async () => {
     const long = { name: "long.mp4", media: "/media/runs/jutsu/clips/long.mp4", durationS: 40, width: 720, height: 1280, bytes: 3e6, addedAt: "2026-11-18T12:00:00.000Z", uses: 0 };
     const cut = { ...long, name: "long-5s-12s.mp4", durationS: 12, addedAt: "2026-11-18T13:00:00.000Z" };

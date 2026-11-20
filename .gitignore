@@ -37,3 +37,17 @@ node_modules/
 /.gstack/
 /.impeccable/hook.cache.json
 /transcript
+
+# Videos dropped into the repo to add to the Motion Library (Openjutsu). The
+# library's own copies live in runs/jutsu/clips/, already ignored above. Only the
+# product trailer in docs/ is part of the repository.
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.mkv
+*.avi
+!/docs/images/product/trailer.mp4
+
+# TypeScript incremental build cache
+*.tsbuildinfo

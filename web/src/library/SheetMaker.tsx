@@ -42,6 +42,14 @@ function useGrow(ref: RefObject<HTMLTextAreaElement | null>, value: string) {
   }, [ref, value]);
 }
 
+/** "183" → " · 6 ft 0 in"; nothing until it is a plausible height. */
+function feetInches(cm: string) {
+  const n = Number(cm.trim());
+  if (!Number.isInteger(n) || n < 50 || n > 250) return "";
+  const inches = Math.round(n / 2.54);
+  return ` · ${Math.floor(inches / 12)} ft ${inches % 12} in`;
+}
+
 function GrowField({ id, value, onChange, placeholder, label }: { id: string; value: string; onChange(v: string): void; placeholder?: string; label?: string }) {
   const box = useRef<HTMLTextAreaElement>(null);
   useGrow(box, value);
@@ -58,6 +66,7 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
   const [name, setName] = useState(asset?.name ?? initialName);
   const [description, setDescription] = useState(asset?.description ?? "");
   const [keep, setKeep] = useState(asset?.keep ?? "");
+  const [height, setHeight] = useState(asset?.heightCm ? String(asset.heightCm) : "");
   const [outfit, setOutfit] = useState("");
   const [view, setView] = useState("");
   const [sources, setSources] = useState<string[]>([]); // upload tokens, new items only
@@ -81,7 +90,9 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
   const photos = editing ? existingSources.length : sources.length;
   const kept = Boolean(asset?.sheetJobKept && job && asset.sheetJob?.id === job.id);
   const jobPhase = job && !kept ? phase(job) : null;
-  const dirty = editing && (kind !== asset.kind || description !== asset.description || keep !== (asset.keep ?? ""));
+  const dirty = editing && (kind !== asset.kind || description !== asset.description || keep !== (asset.keep ?? "") || height.trim() !== (asset.heightCm ? String(asset.heightCm) : ""));
+  // Sent as typed; the server says what is wrong with it. Empty clears it; only a character has one.
+  const heightCm = kind === "character" && height.trim() ? height.trim() : null;
   const noSheetKind = kind === "style";
   const shownWay: Way = noSheetKind && way === "make" ? "upload" : way;
 
@@ -108,7 +119,7 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
       setPrompt("");
       return;
     }
-    const q = new URLSearchParams({ kind, description, outfit, view, photos: String(photos) });
+    const q = new URLSearchParams({ kind, description, outfit, view, photos: String(photos), ...(heightCm && /^\d+$/.test(heightCm) ? { heightCm } : {}) });
     let live = true;
     const t = setTimeout(() => {
       api<{ prompt: string; makeSheet?: Offer }>(`/api/library/sheet-prompt?${q}`)
@@ -123,7 +134,7 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
       live = false;
       clearTimeout(t);
     };
-  }, [kind, description, outfit, view, photos, editingPrompt]);
+  }, [kind, description, outfit, view, photos, heightCm, editingPrompt]);
 
   async function run(work: () => Promise<void>) {
     setBusy(true);
@@ -142,7 +153,7 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
   /** A new item, saved with the sheet first (when there is one) and its photos after. */
   async function create(token: string | null) {
     const images = [...(token ? [{ src: token, role: "sheet" }] : []), ...sources.map((s) => ({ src: s, role: "source" }))];
-    return api<AssetDetail>("/api/library", { method: "POST", body: { name: name.trim(), kind, description, keep, images } });
+    return api<AssetDetail>("/api/library", { method: "POST", body: { name: name.trim(), kind, description, keep, heightCm, images } });
   }
 
   async function saveNew(token: string | null = sheetToken) {
@@ -200,7 +211,7 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
     job && asset && run(async () => onSaved(await api<AssetDetail>(`/api/library/${encodeURIComponent(asset.name)}/adopt`, { method: "POST", body: { job: job.id } })));
 
   const saveChanges = () =>
-    asset && run(async () => onSaved(await api<AssetDetail>(`/api/library/${encodeURIComponent(asset.name)}`, { method: "PATCH", body: { kind, description, keep } })));
+    asset && run(async () => onSaved(await api<AssetDetail>(`/api/library/${encodeURIComponent(asset.name)}`, { method: "PATCH", body: { kind, description, keep, heightCm } })));
 
   async function remove() {
     if (!asset) return;
@@ -453,6 +464,27 @@ export function SheetMaker({ asset, onSaved, onClose, onRemoved, initialName = "
               }}
             />
           </div>
+
+          {kind === "character" && (
+            <>
+              <label className="field__label" htmlFor={`${id}-height`}>Height</label>
+              <div className="sheet-maker__height">
+                <input
+                  id={`${id}-height`}
+                  className="field"
+                  inputMode="numeric"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  placeholder="183"
+                  aria-describedby={`${id}-height-hint`}
+                />
+                <span className="field__hint">cm{feetInches(height)}</span>
+              </div>
+              <p id={`${id}-height-hint`} className="field__hint">
+                Said wherever the sheet goes, so a swap or a scene draws this person at their real height next to others.
+              </p>
+            </>
+          )}
 
           <label className="field__label" htmlFor={`${id}-keep`}>When a scene uses it, keep</label>
           <GrowField id={`${id}-keep`} value={keep} onChange={setKeep} placeholder={kind === "character" ? "exact face, hair and glasses" : "colours, shape and markings"} />

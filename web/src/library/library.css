@@ -99,6 +99,8 @@
 .field.mono { font-family: var(--font-mono); }
 .field[readonly] { color: var(--text-2); }
 .field__hint { margin: 0; color: var(--text-3); font-size: var(--text-sm); line-height: 1.45; }
+.sheet-maker__height { display: flex; align-items: center; gap: var(--space-2); }
+.sheet-maker__height .field { width: 7em; font-family: var(--font-mono); }
 .sheet-maker__photos { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .sheet-maker__photos img, .sheet-maker__photo { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface-3); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); color: var(--text-2); }
 .sheet-maker__add { height: 48px; padding: 0 var(--space-3); border: 1px dashed var(--line); border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font-size: var(--text-sm); cursor: pointer; }
