@@ -22,6 +22,7 @@ import { dailyPosition } from "../../../cli/core/spend.mjs";
 import { mediaUrl } from "../media.mjs";
 import { createSubmitter } from "./generate.mjs";
 import { label, saveBody } from "./library.mjs";
+import { heightWords } from "../../../cli/core/assets.mjs";
 import * as f from "./fields.mjs";
 
 export { JUTSU_RUN };
@@ -37,15 +38,32 @@ const FOLDERS = { video: "clips", image: "cast" };
 const jutsuModels = (catalog) => catalog.list.filter((m) => m.capability === "jutsu" && m.jutsu);
 
 /**
+ * What made swap-7 the take to keep (red-square, 2026-11-20): each new person
+ * keeps the build of their own picture rather than the size of the person
+ * replaced, takes nothing of that person's, and has lively eyes. Without it a
+ * man swapped in for a small woman came out at her size, with a blank stare.
+ */
+export function swapHold(people) {
+  const each = people > 1 ? "Each new person" : "The new person";
+  return (
+    `${each} keeps the same face, hair and clothes in every frame, and wears and carries nothing of the person they replace that is not in their picture: no sunglasses, hat, coat or bag of theirs. ` +
+    `${each} keeps the full build of their picture, as tall and as broad, never smaller or slimmer, even when the person they replace is shorter or slighter: only that person's moves and place in the frame carry over, not their size. ` +
+    `Their eyes are lively and focused, fully open and alert: they look at the camera${people > 1 ? " and at each other" : ""} with intent, blink naturally, their eyes follow their head turns, and the light of the scene puts a bright catchlight in each eye. ` +
+    "Their expressions are engaged and match the energy of the performance, never a blank stare."
+  );
+}
+
+/**
  * H3 swaps by instruction, with no mask: this is what it is told when the user
  * writes nothing. It names the roles of the two references, says what to take
  * from the picture, and lists what must stay, as kie's H3 guide advises.
  */
-export const H3_SWAP_PROMPT =
-  "Video edit. The reference video is the source footage; the reference picture is the new character. " +
-  "Replace the main person in the video with the character from the picture: their face, hair, skin, build and clothes all come from the picture. " +
+const SWAP_INTRO = "Video edit. The reference video is the source footage; the reference picture is the new character. ";
+const SWAP_LINE = "Replace the main person in the video with the character from the picture: their face, hair, skin, build and clothes all come from the picture.";
+const SWAP_KEEP =
   "Keep everything else exactly as in the video: the performance, pose, gestures and timing, the camera movement and framing, the cuts, the background, the lighting, " +
   "and every other person and object. Keep the original sound.";
+export const H3_SWAP_PROMPT = `${SWAP_INTRO}${SWAP_LINE} ${swapHold(1)} ${SWAP_KEEP}`;
 
 /** What an H3 swap can change, and what the extra words mean for each. */
 export const H3_TARGETS = ["person", "outfit", "object", "background"];
@@ -84,8 +102,8 @@ export function h3Instruction(target, detail, hasPicture, { sheet = false } = {}
         `Keep ${KEEP_CAMERA} and the original sound.`
       );
     default: {
-      const base = d ? H3_SWAP_PROMPT.replace("the main person", d) : H3_SWAP_PROMPT;
-      return sheet ? `${base} ${SHEET_NOTE}` : base;
+      const line = d ? SWAP_LINE.replace("the main person", d) : SWAP_LINE;
+      return `${SWAP_INTRO}${line} ${sheet ? `${SHEET_NOTE} ` : ""}${swapHold(1)} ${SWAP_KEEP}`;
     }
   }
 }
@@ -98,6 +116,53 @@ export function h3Instruction(target, detail, hasPicture, { sheet = false } = {}
 export const SHEET_NOTE =
   "The reference picture is a character sheet of one single person in three panels: a close-up of the face on the left, the full body from the front in the middle, and from the back on the right. " +
   "Take the face from the close-up; the grey oval in the middle panel only hides the face there and must never appear. Make exactly one person, not three.";
+
+/**
+ * The edit for several characters at once, written the way swap-7's was: who
+ * each picture replaces, the sheets explained, then the build, eyes and what
+ * stays. `cast` is [{ who, sheet }] in the order H3 gets the pictures.
+ */
+export function castInstruction(cast) {
+  const n = cast.length;
+  const sheets = cast.map((c, i) => (c.sheet ? ORDINALS[i] : null)).filter(Boolean);
+  const sheetNote = !sheets.length
+    ? ""
+    : `${sheets.length === n ? "Each reference picture is" : `The ${listWords(sheets)} reference picture${sheets.length > 1 ? "s are each" : " is"}`} ` +
+      "a character sheet of one single person in three panels: a close-up of the face on the left, the full body from the front in the middle, and from the back on the right. " +
+      "Take each face from its close-up; the grey oval in the middle panel only hides the face there and must never appear. Make one person from each sheet, not three. ";
+  const lines = cast.map(
+    (c, i) => `Replace ${clean(c.who) || `the ${ORDINALS[i]} person from the left`} with the character in the ${ORDINALS[i]} reference picture: their face, hair, skin, build and clothes all come from that picture.`,
+  );
+  return (
+    `Video edit. The reference video is the source footage; there are ${n} reference pictures, one new character each. ${sheetNote}` +
+    `${lines.join(" ")} ${swapHold(n)} ` +
+    "Keep everything else exactly as in the video: every person's performance, poses, gestures and timing, the camera movement and framing, the cuts, the background, the lighting, every other person and object, and the original sound."
+  );
+}
+const clean = (words) => (words ?? "").replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+const listWords = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"];
+/** Opens the heights sentence; a prompt that already holds it is not given it twice. */
+const HEIGHTS_LEAD = "Real heights:";
+
+/**
+ * The heights of the Library characters among the pictures, in the order H3
+ * gets them. A sheet has nothing to measure against, so without this a swap
+ * keeps the size of the person replaced: a tall man swapped in for a short
+ * woman came out at her size (red-square, 2026-11-19).
+ */
+export function heightsNote(pictures) {
+  const known = pictures.map((p, i) => (p?.heightCm ? { i, cm: p.heightCm } : null)).filter(Boolean);
+  if (!known.length) return "";
+  const who = (i) => (pictures.length === 1 ? "the person in the reference picture" : `the person in the ${ORDINALS[i] ?? `#${i + 1}`} reference picture`);
+  const list = known.map(({ i, cm }) => `${who(i)} is ${heightWords(cm)} tall`).join("; ");
+  return `${HEIGHTS_LEAD} ${list}. Draw each at that height, with a build to match, whatever the size of the person they replace; keep the difference in height between people true.`;
+}
+const withHeights = (prompt, pictures) => {
+  const note = heightsNote(pictures);
+  return note && !prompt.includes(HEIGHTS_LEAD) ? `${prompt}${prompt ? " " : ""}${note}` : prompt;
+};
 
 /** The longest prompt each family takes. */
 const promptMax = (m) => (m.jutsu.prompt === "required" ? 7000 : 2500);
@@ -190,12 +255,14 @@ function imageIn(name) {
     }
     const im = record.images.find((x) => x.n === Number(m[2]));
     if (!im || !existsSync(im.path)) throw f.invalid("image", `${m[1]} has no picture #${m[2]}.`);
-    return { name, path: im.path, source: im.path, bytes: statSync(im.path).size, sheet: im.role === "sheet" };
+    return { name, path: im.path, source: im.path, bytes: statSync(im.path).size, sheet: im.role === "sheet", heightCm: record.kind === "character" ? record.heightCm ?? null : null };
   }
   return fileIn("image", name, "image");
 }
 
 const IMAGE_FILE = /\.(png|jpe?g|webp)$/i;
+/** H3 bills pictures after the fifth; one swap stays within the five it includes. */
+const MORE_PICTURES = 4;
 
 /** Pictures made in the studio, newest first, each file once (a later take may have replaced an earlier one's file). */
 function generationsView(limit = 60) {
@@ -374,11 +441,42 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const clip = { ...clipFile, ...clipInfo(clipFile.path), bytes: clipFile.bytes };
     if (target !== "person" && !body.image) {
       if (!detail) throw f.invalid("detail", `Describe the new ${target === "background" ? "place" : target}, or add a picture of it.`);
-      return { clip, image: null };
+      return { clip, image: null, more: [] };
     }
     const image = imageIn(body.image);
-    return { clip, image };
+    return { clip, image, more: morePictures(body) };
   }
+
+  /**
+   * More character pictures for one H3 swap, to recast several people at once
+   * (H3 takes up to 9 pictures; the prompt says which is whom). The page sends
+   * one; the API takes `images`, a list of names like `image`.
+   */
+  function morePictures(body) {
+    if (body.images == null) return [];
+    if (!Array.isArray(body.images) || body.images.length > MORE_PICTURES) throw f.invalid("images", `Send up to ${MORE_PICTURES} more pictures as a list.`);
+    return body.images.map((n) => imageIn(n));
+  }
+
+  /** Who each extra picture replaces, in words, one per picture; the first picture's is the person target's words. */
+  function replacesFor(body, more) {
+    const words = body.replaces ?? [];
+    if (!Array.isArray(words) || words.length > more.length || words.some((w) => typeof w !== "string" || w.length > DETAIL_MAX)) {
+      throw f.invalid("replaces", "Send who each extra picture replaces as a list of words, one per picture.");
+    }
+    return more.map((_, i) => words[i] ?? "");
+  }
+
+  /** The H3 edit for what was picked: several characters get swap-7's cast edit, one gets the target's. */
+  function h3Edit(aim, image, more, body, hasPicture) {
+    if (!more.length || aim.target !== "person") return h3Instruction(aim.target, aim.detail, hasPicture, { sheet: Boolean(image?.sheet) });
+    const words = replacesFor(body, more);
+    return castInstruction([{ who: aim.detail, sheet: Boolean(image?.sheet) }, ...more.map((p, i) => ({ who: words[i], sheet: Boolean(p.sheet) }))]);
+  }
+
+  /** With several characters and no prompt of the user's, H3 must be told who each one replaces. */
+  const unnamed = (aim, body, more) => more.length > 0 && aim.target === "person" && !(f.text(body, "prompt") ?? "").trim() && [aim.detail, ...replacesFor(body, more)].some((w) => !clean(w));
+  const UNNAMED = "With more than one character, say who each one replaces.";
 
   /** The price for a clip of `clipS` seconds: its length for motion control and Wan; H3's output plus the clip's whole seconds. */
   function price(m, resolution, clipS) {
@@ -547,6 +645,7 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const clipFile = body.video ? fileIn("video", body.video, "video") : null;
     const clip = clipFile ? { ...clipFile, ...clipInfo(clipFile.path), bytes: clipFile.bytes } : null;
     const image = body.image ? imageIn(body.image) : null;
+    const more = m.jutsu.prompt === "required" ? morePictures(body) : [];
     const problems = problemsFor(m, { clip, image, orientation });
     const est = clip?.durationS ? price(m, resolution, clip.durationS) : null;
     const usd = est?.usd ?? null;
@@ -556,7 +655,8 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const perJobUsd = limits?.perJobUsd ?? null;
     // What H3 would be told for what the user picked, shown and editable on the page.
     const aim = targetFor(m, body);
-    const instruction = m.jutsu.prompt === "required" ? h3Instruction(aim.target, aim.detail, Boolean(body.image), { sheet: Boolean(image?.sheet) }) : null;
+    const instruction = m.jutsu.prompt === "required" ? withHeights(h3Edit(aim, image, more, body, Boolean(body.image)), [image, ...more]) : null;
+    if (unnamed(aim, body, more)) problems.push(UNNAMED);
     return {
       usd,
       instruction,
@@ -579,14 +679,18 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const resolution = resolutionFor(m, body);
     const orientation = orientationFor(m, body);
     const aim = targetFor(m, body);
-    const { clip, image } = inputs(body, aim);
+    const { clip, image, more } = inputs(body, aim);
     const problems = problemsFor(m, { clip, image, orientation });
+    if (more.length && m.jutsu.prompt !== "required") problems.push(`${m.label} takes one picture; only MiniMax H3 takes more.`);
+    if (unnamed(aim, body, more)) problems.push(UNNAMED);
+    for (const p of more) problems.push(...problemsFor(m, { image: p }));
     if (problems.length) throw f.invalid("video", `Refused before submitting, nothing was spent. ${problems.join(" ")}`);
     const kling = m.id.startsWith("kling");
     const h3 = m.jutsu.prompt === "required";
     const typed = takesPrompt(m) ? (f.text(body, "prompt") ?? "").trim() : "";
     // A prompt the user wrote is sent as written; otherwise H3 gets the edit for what they picked.
-    const prompt = h3 ? typed || h3Instruction(aim.target, aim.detail, Boolean(image), { sheet: Boolean(image?.sheet) }) : typed;
+    // Library characters' heights are said either way, once.
+    const prompt = h3 ? withHeights(typed || h3Edit(aim, image, more, body, Boolean(image)), [image, ...more]) : typed;
     if (prompt.length > promptMax(m)) throw f.invalid("prompt", `The prompt is over ${promptMax(m).toLocaleString("en")} characters.`);
     const durationS = h3 ? outputSeconds(m, clip.durationS) : billedS(clip.durationS);
     const values = h3
@@ -597,12 +701,12 @@ export function registerJutsu(router, { catalog, deps = {}, follower }) {
     const a = {
       run: JUTSU_RUN,
       prompt,
-      refs: [...(image ? [{ source: image.source, role: "identity" }] : []), { source: clip.source, role: "motion" }],
+      refs: [...[image, ...more].filter(Boolean).map((p) => ({ source: p.source, role: "identity" })), { source: clip.source, role: "motion" }],
       params: {},
       budget_usd: f.amount(body, "budget_usd"),
       provider: null,
     };
-    const jutsu = { mode: m.jutsu.mode, video: clip.name, image: image?.name ?? null, ...(h3 ? { target: aim.target } : {}) };
+    const jutsu = { mode: m.jutsu.mode, video: clip.name, image: image?.name ?? null, ...(more.length ? { images: more.map((p) => p.name), ...(h3 ? { replaces: replacesFor(body, more) } : {}) } : {}), ...(h3 ? { target: aim.target } : {}) };
     return submit("jutsu", m, a, values, {
       promptFile: "jutsu-prompt.txt",
       inputsFile: "jutsu-inputs.json",

@@ -22,7 +22,10 @@ type Tier = "standard" | "pro";
 type Facing = "video" | "image";
 type Panel = "library" | "history";
 type Sort = "trending" | "latest";
-type MenuId = "tier" | "quality" | "facing" | "cast" | "clip";
+type MenuId = "tier" | "quality" | "facing" | "cast" | "clip" | `cast-${number}`;
+/** More characters for one H3 swap, beside the first (H3 takes up to 5 pictures here). */
+const MORE_CAST = 4;
+type Extra = { image: string | null; who: string };
 
 const VIDEO_ACCEPT = "video/mp4,video/quicktime";
 const IMAGE_ACCEPT = "image/png,image/jpeg,image/webp";
@@ -58,12 +61,15 @@ async function uploadFile(kind: "video" | "image", file: File) {
 
 /**
  * A menu that opens to the right of the form, beside the row that opened it. Escape or a click elsewhere closes it.
- * A setting's menu is placed by useSideMenu, so it stays level with its row but never runs off the window;
- * the wide pickers fill the form's height and stay in their CSS place.
+ * Both are placed by useSideMenu, fixed to the window so the scrolling form cannot clip them: a setting's
+ * menu stays level with its row but never runs off the window; the wide pickers fill the form's height.
  */
 function SideMenu({ label, onClose, children, wide }: { label: string; onClose(): void; children: ReactNode; wide?: boolean }) {
   const row = useRef<HTMLElement | null>(null);
-  const placed = useSideMenu<HTMLDivElement>(!wide, row);
+  const placed = useSideMenu<HTMLDivElement>(true, row, { fill: wide });
+  // Fixed, the picker's CSS width (a share of the space beside the form) no longer resolves; give it here.
+  const left = placed.style?.left;
+  const style = wide && typeof left === "number" ? { ...placed.style, width: `min(620px, calc(100vw - ${left}px - 12px))` } : placed.style;
   const box = placed.menu;
   useEffect(() => {
     const away = (e: MouseEvent) => {
@@ -87,7 +93,7 @@ function SideMenu({ label, onClose, children, wide }: { label: string; onClose()
       }}
       className="jutsu-menu"
       data-wide={wide || undefined}
-      style={wide ? undefined : placed.style}
+      style={style}
       role="menu"
       aria-label={label}
     >
@@ -554,6 +560,7 @@ export function JutsuScreen() {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState<Target>("person");
   const [detail, setDetail] = useState("");
+  const [extras, setExtras] = useState<Extra[]>([]);
   const [uploading, setUploading] = useState<"video" | "image" | null>(null);
   const [cutting, setCutting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -568,6 +575,8 @@ export function JutsuScreen() {
   const [shapes, setShapes] = useState<Record<string, number>>({});
   const videoInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
+  /** Which character an upload is for: null is the first, a number one of the extras. */
+  const uploadSlot = useRef<number | null>(null);
   const { jobs } = useJobs("jutsu");
   const closeMenu = useCallback(() => setMenu(null), []);
   const toggle = (id: MenuId) => setMenu((m) => (m === id ? null : id));
@@ -597,7 +606,11 @@ export function JutsuScreen() {
   const aim: Target = model?.targets?.includes(target) ? target : "person";
   const pictureOptional = aim !== "person";
   const aimFields = model?.targets ? { target: aim, detail: detail.trim() || undefined } : {};
-  const aimKey = model?.targets ? `${aim}|${detail.trim()}` : "";
+  // Several characters at once: H3 swaps of a person only.
+  const castMore = Boolean(model?.targets) && aim === "person";
+  const more = castMore ? extras : [];
+  const moreFields = more.length ? { images: more.map((e) => e.image), replaces: more.map((e) => e.who.trim()) } : {};
+  const aimKey = model?.targets ? `${aim}|${detail.trim()}|${JSON.stringify(moreFields)}` : "";
   // Keep the resolution valid for the model in use.
   useEffect(() => {
     if (model && !model.resolutions.includes(resolution)) setResolution(model.defaultResolution ?? model.resolutions[0]);
@@ -605,13 +618,14 @@ export function JutsuScreen() {
   const clip = view?.clips.find((c) => c.name === video) ?? null;
   const library = view?.library ?? [];
   const uploads = view?.cast ?? [];
-  const generated = view?.generations.find((g) => g.ref === image) ?? null;
-  const castMedia = image?.startsWith("@")
-    ? (library.find((p) => p.ref === image)?.media ?? null)
-    : generated
-      ? generated.media
-      : (uploads.find((c) => c.name === image)?.media ?? null);
-  const castName = image?.startsWith("@") ? image.slice(1).replace(/#(\d+)$/, " · $1") : generated ? `generated · ${generated.run}` : image;
+  /** The thumbnail and caption for a picked picture, wherever it came from. */
+  const pictureOf = (ref: string | null) => {
+    const gen = view?.generations.find((g) => g.ref === ref) ?? null;
+    const media = ref?.startsWith("@") ? (library.find((p) => p.ref === ref)?.media ?? null) : gen ? gen.media : (uploads.find((c) => c.name === ref)?.media ?? null);
+    const name = ref?.startsWith("@") ? ref.slice(1).replace(/#(\d+)$/, " · $1") : gen ? `generated · ${gen.run}` : ref;
+    return { media, name };
+  };
+  const { media: castMedia, name: castName } = pictureOf(image);
 
   // The price and what would refuse it, from the server, whenever an input changes.
   useEffect(() => {
@@ -620,7 +634,7 @@ export function JutsuScreen() {
     const t = setTimeout(() => {
       api<JutsuEstimate>("/api/jutsu/estimate", {
         method: "POST",
-        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video: video ?? undefined, image: image ?? undefined, ...aimFields },
+        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video: video ?? undefined, image: image ?? undefined, ...aimFields, ...(more.every((e) => e.image) ? moreFields : {}) },
       })
         .then((e) => ticket.live && setEstimate(e))
         .catch(() => ticket.live && setEstimate(null));
@@ -647,7 +661,9 @@ export function JutsuScreen() {
     try {
       const r = await uploadFile(kind, file);
       await load();
+      const slot = uploadSlot.current;
       if (kind === "video") setVideo(r.name);
+      else if (slot != null) setExtra(slot, { image: r.name });
       else setImage(r.name);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -655,6 +671,12 @@ export function JutsuScreen() {
       setUploading(null);
     }
   }
+
+  const setExtra = (i: number, change: Partial<Extra>) => setExtras((xs) => xs.map((x, j) => (j === i ? { ...x, ...change } : x)));
+  const pickUpload = (slot: number | null) => {
+    uploadSlot.current = slot;
+    imageInput.current?.click();
+  };
 
   async function cut(startS: number, lengthS: number) {
     if (!video) return;
@@ -678,7 +700,7 @@ export function JutsuScreen() {
     try {
       await api("/api/jutsu/generate", {
         method: "POST",
-        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video, image: image ?? undefined, ...aimFields, prompt: promptOn && model.prompt ? prompt : undefined },
+        body: { model: model.id, resolution, orientation: model.orientations ? facing : undefined, video, image: image ?? undefined, ...aimFields, ...moreFields, prompt: promptOn && model.prompt ? prompt : undefined },
       });
       setPanel("history");
     } catch (e) {
@@ -696,6 +718,10 @@ export function JutsuScreen() {
         ? "Add a reference video."
         : !image && !pictureOptional
           ? "Add your character."
+          : more.some((e) => !e.image)
+            ? "Pick a picture for each character, or remove the empty one."
+          : more.length && !promptOn && (!detail.trim() || more.some((e) => !e.who.trim()))
+            ? "Say who each character replaces."
           : !image && !detail.trim()
             ? `Describe the new ${aim === "background" ? "place" : aim}, or add a picture of it.`
           : estimate?.problems.length
@@ -815,7 +841,10 @@ export function JutsuScreen() {
               trigger
               caption={<span className="jutsu-tile__name">{castName}</span>}
               onOpen={() => toggle("cast")}
-              onFile={(f) => upload("image", f)}
+              onFile={(f) => {
+                uploadSlot.current = null;
+                void upload("image", f);
+              }}
               onClear={() => setImage(null)}
             />
             {menu === "cast" && (
@@ -829,12 +858,59 @@ export function JutsuScreen() {
                   setImage(ref);
                   setMenu(null);
                 }}
-                onUpload={() => imageInput.current?.click()}
+                onUpload={() => pickUpload(null)}
                 onClose={closeMenu}
               />
             )}
           </div>
         </div>
+        {castMore && image && (
+          <div className="jutsu-more" aria-label="More characters">
+            {extras.map((x, i) => {
+              const pic = pictureOf(x.image);
+              return (
+                <div key={i} className="jutsu-more__row">
+                  <button type="button" className="jutsu-more__pic" data-menu-trigger aria-label={x.image ? `Change character ${i + 2}` : `Add character ${i + 2}`} onClick={() => toggle(`cast-${i}`)}>
+                    {pic.media ? <img src={pic.media} alt="" /> : <Icon name="sheet" size={16} />}
+                  </button>
+                  <input
+                    className="jutsu-aim__detail"
+                    aria-label={`Who character ${i + 2} replaces`}
+                    placeholder="The woman on the right"
+                    maxLength={500}
+                    value={x.who}
+                    onChange={(e) => setExtra(i, { who: e.target.value })}
+                  />
+                  <button type="button" className="jutsu-more__remove" aria-label={`Remove character ${i + 2}`} onClick={() => setExtras((xs) => xs.filter((_, j) => j !== i))}>
+                    <Icon name="close" size={12} />
+                  </button>
+                  {menu === `cast-${i}` && (
+                    <CastPicker
+                      uploads={uploads}
+                      library={library}
+                      generations={view?.generations ?? []}
+                      current={x.image}
+                      busy={uploading === "image"}
+                      onPick={(ref) => {
+                        setExtra(i, { image: ref });
+                        setMenu(null);
+                      }}
+                      onUpload={() => pickUpload(i)}
+                      onClose={closeMenu}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {extras.length < MORE_CAST && (
+              <button type="button" className="jutsu-more__add" onClick={() => setExtras((xs) => [...xs, { image: null, who: "" }])}>
+                <Icon name="plus" size={14} />
+                Add another character
+              </button>
+            )}
+            {extras.length > 0 && <p className="jutsu-more__hint">Say who each one replaces; the box under Change is the first character's. Each keeps the build of their own picture.</p>}
+          </div>
+        )}
         <p className="jutsu-form__hint">
           {mode === "motion" ? "Both should show the head, shoulders and torso." : model?.targets ? TARGET_UI[aim].hint : MODE_HINT.swap}
           {model?.billsInput ? " H3 is asked in words, with no mask, and redraws the sound; billed for the clip's seconds and the new video's." : ""}
