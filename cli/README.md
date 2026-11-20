@@ -112,6 +112,12 @@ sends image 2. The CLI prints the mapping the prompt should use
 hours, since kie deletes them after 24. Saving over a name needs
 `--replace`; the previous version moves to `library/zed/.history/`.
 
+A character can carry a real height: `--height 183` on `kie asset save`, or
+`kie asset height zed 183` (`clear` removes it). It is said wherever the
+character goes (its sheet prompt, scene references and Openjutsu swaps), so a
+model draws them at the right size. The MCP `update_asset` tool takes it as
+`heightCm`.
+
 Every file is checked by its contents before it is sent: PNG, JPEG, WebP,
 MP4, MOV, WAV, MP3, AAC or OGG, under 30 MB (200 MB for video). Results are
 downloaded only from https URLs, only into the run directory.
