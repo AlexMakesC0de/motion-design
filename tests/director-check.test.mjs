@@ -46,7 +46,7 @@ describe("errors", () => {
       "look.palette is missing; say it in words.",
       "look.grade is missing; say it in words.",
       "look.filmLook is missing; say it in words.",
-      "look.lensFamily must be one of: spherical, anamorphic.",
+      "look.lensFamily must be one of: spherical, anamorphic, halation-vintage, warm-vintage, vintage-anamorphic.",
       "look.keyLightSide must be one of: left, right, front, back, top.",
     ]);
   });

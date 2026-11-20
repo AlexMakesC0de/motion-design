@@ -71,8 +71,9 @@ export function parseRoute(hash: string): Route {
     if (step === "scenes" && rest[2]) return { screen: "film", slug: decoded(rest[0]), step, scene: decoded(rest[2]) };
     return { screen: "film", slug: decoded(rest[0]), step };
   }
-  if (first === "library" && rest[1] && (rest[0] === "new" || rest[0] === "item")) {
-    return rest[0] === "new" ? { screen: "library", newName: decoded(rest[1]) } : { screen: "library", item: decoded(rest[1]) };
+  // #/library/new with no name opens New sheet empty.
+  if (first === "library" && (rest[0] === "new" || (rest[0] === "item" && rest[1]))) {
+    return rest[0] === "new" ? { screen: "library", newName: decoded(rest[1] ?? "") } : { screen: "library", item: decoded(rest[1]) };
   }
   if (first === "video") return rest[0] === "scenes" ? { screen: "video", tab: "scenes" } : { screen: "video" };
   if (first === "mcp") return rest[0] ? { screen: "mcp", host: decoded(rest[0]) } : { screen: "mcp" };

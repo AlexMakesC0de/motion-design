@@ -36,7 +36,8 @@ describe("parseRoute", () => {
     expect(parseRoute("#/library/new/maya")).toEqual({ screen: "library", newName: "maya" });
     expect(parseRoute("#/library/new/a%20b")).toEqual({ screen: "library", newName: "a b" });
     expect(parseRoute("#/library/item/maya")).toEqual({ screen: "library", item: "maya" });
-    expect(parseRoute("#/library/new")).toEqual({ screen: "library" });
+    // With no name, New sheet opens empty (the Studio prompt's + links here).
+    expect(parseRoute("#/library/new")).toEqual({ screen: "library", newName: "" });
   });
   test("old hashes redirect", () => {
     expect(parseRoute("#/studio")).toEqual({ redirect: "#/video" });

@@ -1,5 +1,5 @@
 import type { Cards, ScenePicks, StagePicks } from "./mentions.mjs";
-export type MenuEntry = { id: string; label: string; words: string; when: string; hailuo?: string };
+export type MenuEntry = { id: string; label: string; words: string; when: string; hailuo?: string | null; tag?: string };
 type Maybe = MenuEntry | null | undefined | false | "";
 export const STAGE_PICKS: Record<keyof StagePicks, string>;
 export const SCENE_PICKS: Record<keyof ScenePicks, string>;
@@ -9,3 +9,5 @@ export function stageWords(picks: StagePicks | null | undefined, pick: (group: s
 export function pickSentence(entry: MenuEntry | null | undefined): string;
 export function setPick<P extends StagePicks | ScenePicks>(picks: P | undefined, key: keyof P & string, id: string | undefined): P | undefined;
 export function hasPicks(cards: Cards): boolean;
+export function findMoveTags(text: string, ids: readonly (string | { id: string; tag?: string })[]): { start: number; end: number; id: string }[];
+export function expandMoveTags(text: string, moves: MenuEntry[]): string;

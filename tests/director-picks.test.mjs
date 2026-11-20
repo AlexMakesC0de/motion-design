@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { loadMenu, entry } from "../cli/director/menu.mjs";
-import { STAGE_PICKS, SCENE_PICKS, cameraWords, framingWords, stageWords, pickSentence, setPick, hasPicks } from "../cli/director/picks.mjs";
+import { STAGE_PICKS, SCENE_PICKS, cameraWords, framingWords, stageWords, pickSentence, setPick, hasPicks, findMoveTags, expandMoveTags } from "../cli/director/picks.mjs";
 
 const menu = loadMenu();
 const pick = (group, id) => entry(menu, group, id);
@@ -50,5 +50,34 @@ describe("picks", () => {
     assert.equal(hasPicks(cards), false);
     assert.equal(hasPicks({ ...cards, picks: { light: "neon" } }), true);
     assert.equal(hasPicks({ ...cards, stages: [{ ...cards.stages[0], picks: { move: "static" } }] }), true);
+  });
+});
+
+describe("#move tags", () => {
+  const moves = [
+    { id: "push-in", label: "Dolly in", tag: "dolly-in", words: "pushes in", when: "" },
+    { id: "static", label: "Static", words: "holds still", when: "" },
+    { id: "whip-pan", label: "Whip pan", words: "whips sideways in a fast blurred pan", when: "" },
+  ];
+  test("finds the tags that name a move, longest id first, never inside a word", () => {
+    assert.deepEqual(findMoveTags("#push-in-slow then C# and #nope, #whip-pan.", moves.map((m) => m.id)), [
+      { start: 0, end: 8, id: "push-in" },
+      { start: 33, end: 42, id: "whip-pan" },
+    ]);
+  });
+  test("a move answers to its tag and, for older prompts, its id; the hit gives the id", () => {
+    assert.deepEqual(findMoveTags("#dolly-in-slow, then #push-in.", moves), [
+      { start: 0, end: 9, id: "push-in" },
+      { start: 21, end: 29, id: "push-in" },
+    ]);
+    assert.equal(expandMoveTags("#dolly-in on her.", moves), "The camera pushes in on her.");
+  });
+  test("every move tag on the menu is unique and never another move's id", () => {
+    const menu = loadMenu();
+    const names = menu.moves.flatMap((m) => (m.tag ? [m.id, m.tag] : [m.id]));
+    assert.equal(new Set(names).size, names.length);
+  });
+  test("writes each tag out in order, capitalised at a sentence start", () => {
+    assert.equal(expandMoveTags("She turns, #whip-pan to the door. #push-in on the handle, then #static.", moves), "She turns, the camera whips sideways in a fast blurred pan to the door. The camera pushes in on the handle, then the camera holds still.");
   });
 });

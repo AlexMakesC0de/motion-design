@@ -6,8 +6,8 @@ import { loadMenu } from "../cli/director/menu.mjs";
 const all = { move: "push-in", speed: "slow", size: "close-up", angle: "low", lens: "85mm", light: "golden-hour" };
 
 describe("video picks", () => {
-  test("the six keys", () => {
-    assert.deepEqual(Object.keys(VIDEO_PICKS), ["move", "speed", "size", "angle", "lens", "light"]);
+  test("the ten keys: a stage's, a scene's, the camera setup and the colour palette", () => {
+    assert.deepEqual(Object.keys(VIDEO_PICKS), ["move", "speed", "size", "angle", "lens", "light", "camera", "lensLook", "depth", "palette"]);
   });
 
   test("clean: drops empties, null when nothing", () => {
@@ -18,7 +18,7 @@ describe("video picks", () => {
 
   test("clean: refuses bad picks with field picks", () => {
     const fails = (input, re) => assert.throws(() => cleanVideoPicks(input), (e) => re.test(e.message) && e.field === "picks");
-    fails({ zoom: "x" }, /The video has no "zoom" pick\. It takes: move, speed, size, angle, lens, light\./);
+    fails({ zoom: "x" }, /The video has no "zoom" pick\. It takes: move, speed, size, angle, lens, light, camera, lensLook, depth, palette\./);
     assert.throws(() => cleanVideoPicks({ light: "moonbeam" }), /not on the director's lights menu/);
     fails({ speed: "slow" }, /The video: a speed needs a move other than static\./);
     fails({ move: "static", speed: "slow" }, /a speed needs a move other than static/);
@@ -105,5 +105,20 @@ describe("looks", () => {
     const r = applyVideoPicks("A fox.", undefined, { id: "h", promptProfile: { family: "hailuo", maxChars: 2000 } }, { look: "neo-noir" });
     assert.doesNotMatch(r.prompt, /Sound:/);
     assert.throws(() => applyVideoPicks("A fox.", undefined, {}, { look: "nope" }), /No look "nope"\. Looks: golden-hour-drama/);
+  });
+});
+
+describe("video picks: the camera setup", () => {
+  test("camera body, lens look and aperture become one sentence after the camera line", () => {
+    const block = picksBlock({ move: "push-in", camera: "35mm-film", lensLook: "warm-vintage", depth: "shallow" }, "seedance");
+    assert.equal(block, "Camera: The camera pushes in.\nShot on 35mm film with fine grain and rich, natural colour, warm, soft-contrast vintage lenses, shallow depth of field.");
+  });
+});
+
+describe("video picks: the colour palette", () => {
+  test("a built-in palette is its own line after the light; an unknown one is refused", () => {
+    const block = picksBlock({ move: "static", palette: "blue-hour" }, "seedance");
+    assert.match(block, /\nColour palette: cold dusk blues and steel greys with a few warm window lights, quiet and melancholic\.$/);
+    assert.throws(() => picksBlock({ palette: "nope" }, "seedance"), /"nope" is not a colour palette/);
   });
 });

@@ -436,12 +436,12 @@ describe("SceneScreen", () => {
     render(<SceneScreen run="create" />);
     const picks = await screen.findByRole("group", { name: "Stage 1 camera picks" });
     fireEvent.click(within(picks).getByRole("button", { name: "Stage 1 move: none. Choose" }));
-    fireEvent.click(screen.getByRole("option", { name: /^Push in/ }));
+    fireEvent.click(screen.getByRole("option", { name: /^Dolly in/ }));
     fireEvent.click(within(screen.getByRole("group", { name: "Stage 1 move speed" })).getByRole("button", { name: "Slow" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
     fireEvent.click(within(picks).getByRole("button", { name: "Stage 1 shot size: none. Choose" }));
     fireEvent.click(screen.getByRole("option", { name: /^Close-up/ }));
-    expect(within(picks).getByRole("button", { name: "Stage 1 move: Push in · slow. Change" })).toBeInTheDocument();
+    expect(within(picks).getByRole("button", { name: "Stage 1 move: Dolly in · slow. Change" })).toBeInTheDocument();
     await waitFor(() => {
       const sent = JSON.parse(String(calls(fetchMock, `${BASE}/s1`, "PUT").at(-1)?.[1]?.body));
       expect(sent.cards.stages[0].picks).toEqual({ move: "push-in", speed: "slow", size: "close-up" });

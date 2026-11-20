@@ -395,7 +395,7 @@ describe("kie video --pick", () => {
   test("a bad pick is refused before anything is submitted", () => {
     const noEquals = video("--pick", "push-in", "--dry-run");
     assert.equal(noEquals.status, EXIT.USAGE);
-    assert.match(noEquals.stderr, /--pick takes key=id, got "push-in"\. The keys are: move, speed, size, angle, lens, light\./);
+    assert.match(noEquals.stderr, /--pick takes key=id, got "push-in"\. The keys are: move, speed, size, angle, lens, light, camera, lensLook, depth, palette\./);
     const unknownId = video("--pick", "light=moonbeam", "--dry-run");
     assert.equal(unknownId.status, EXIT.UNKNOWN);
     assert.match(unknownId.stderr, /not on the director's lights menu/);

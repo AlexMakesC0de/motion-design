@@ -393,8 +393,14 @@ field. A route with no captured contract refuses every param.
 
 `kie video --pick key=id` (repeatable) adds camera and look words after the
 prompt file's text, worded for the model (Hailuo gets its bracket command, for
-example `[Push in]`). The keys are `move`, `speed`, `size`, `angle`, `lens` and
-`light`; the ids are the director's menu (`kie plan --menu`, or `get_menu` over MCP).
+example `[Push in]`). The keys are `move`, `speed`, `size`, `angle`, `lens`,
+`light`, and the camera setup: `camera` (the body: `35mm-film`, `dv-camcorder`…),
+`lensLook` (`anamorphic`, `warm-vintage`…) and `depth` (the aperture), which are
+worded together as one "Shot on…" sentence, and `palette`, the colour palette
+the grade follows (`blue-hour`, `teal-amber`…, or an `own-…` palette made from a
+picture in the studio and kept in `library/palettes.json`), added as a
+"Colour palette: …" line. The ids are the director's menu
+(`kie plan --menu`, or `get_menu` over MCP).
 `speed` needs a move other than `static`. An id the menu lacks, or a prompt
 that goes past the model's `promptProfile.maxChars` only because of the added
 block, is refused with exit 3 before anything is uploaded or spent. A prompt

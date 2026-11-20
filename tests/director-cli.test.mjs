@@ -74,7 +74,7 @@ describe("kie brief and kie plan", () => {
     const r = kie("plan", "--run", "sea", "--wording", "--shot", "s1");
     assert.equal(r.code, 0, r.err);
     assert.match(r.out, /── s1 · seedance-2-5 · seedance · \d+\/6000 chars\n/);
-    assert.match(r.out, /Shot 1: The camera slowly trucks left, wide shot/);
+    assert.match(r.out, /Shot 1: The camera slowly trucks left after the subject, starting late as they turn and walk off in profile, and catching up until they are back in the centre, wide shot/);
     assert.match(r.out, /--param generate_audio=false/);
     assert.doesNotMatch(r.out, /── s2/);
   });

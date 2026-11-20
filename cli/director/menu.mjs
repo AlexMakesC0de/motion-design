@@ -8,7 +8,7 @@ export const MENU_PATH = join(HERE, "menu.json");
 
 /** The groups a plan picks from, in the order the menu is shown. */
 export const GROUPS = [
-  "sizes", "angles", "lenses", "lensLooks", "depths", "moves", "speeds",
+  "sizes", "angles", "lenses", "lensLooks", "cameras", "depths", "moves", "speeds",
   "lights", "cuts", "screenDirections", "keyLightSides", "jobs", "filmTypes",
 ];
 
