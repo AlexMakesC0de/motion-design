@@ -24,7 +24,30 @@ function refView(r: RefDraft, assets: AssetSummary[]) {
   return { cover, shown };
 }
 
-function RefPickerPanel({ assets, roles, refs, onClose, anchor }: { assets: AssetSummary[]; roles: string[]; refs: RefDraft[]; onClose(): void; anchor: RefObject<HTMLButtonElement | null> }) {
+/**
+ * Openjutsu's picker for a reference: AI influencers and the Library, the role
+ * as chips along the top. `onUpload` adds a tile that picks a picture from this
+ * computer; `className` places it (the Studio dock opens it upward).
+ */
+export function RefPickerPanel({
+  assets,
+  roles,
+  refs,
+  onClose,
+  anchor,
+  className,
+  onUpload,
+  uploading,
+}: {
+  assets: AssetSummary[];
+  roles: string[];
+  refs: RefDraft[];
+  onClose(): void;
+  anchor: RefObject<HTMLElement | null>;
+  className?: string;
+  onUpload?(role: string): void;
+  uploading?: boolean;
+}) {
   const influencers = assets.filter((a) => a.persona);
   const others = assets.filter((a) => !a.persona);
   const [tab, setTab] = useState<Tab>(influencers.length ? "influencers" : "library");
@@ -49,7 +72,7 @@ function RefPickerPanel({ assets, roles, refs, onClose, anchor }: { assets: Asse
   }, [onClose, menu, anchor]);
 
   return (
-    <div ref={menu} className="ref-pop" data-side={side} style={style} role="menu" aria-label="Add a reference">
+    <div ref={menu} className={`ref-pop${className ? ` ${className}` : ""}`} data-side={side} style={style} role="menu" aria-label="Add a reference">
       <div className="jutsu-picker__top">
         <div className="jutsu-picker__tabs" role="tablist" aria-label="Where the reference comes from">
           {(["influencers", "library"] as Tab[]).map((t) => (
@@ -81,8 +104,16 @@ function RefPickerPanel({ assets, roles, refs, onClose, anchor }: { assets: Asse
           </div>
         )}
         <div className="jutsu-picker__body">
-          {shown.length ? (
+          {shown.length || (onUpload && tab === "library") ? (
             <div className="jutsu-picker__grid">
+              {onUpload && tab === "library" && (
+                <button type="button" className="jutsu-picker__upload" disabled={uploading} onClick={() => onUpload(role)}>
+                  <span className="jutsu-picker__upload-icon" aria-hidden="true">
+                    <Icon name="upload" size={20} />
+                  </span>
+                  {uploading ? "Uploading…" : "From your computer"}
+                </button>
+              )}
               {shown.map((a) => (
                 <Pick
                   key={a.name}

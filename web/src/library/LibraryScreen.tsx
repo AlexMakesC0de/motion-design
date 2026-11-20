@@ -41,13 +41,13 @@ export function LibraryScreen({ newName, item }: { newName?: string; item?: stri
   );
 
   useEffect(() => {
-    if (newName) setOpen({ mode: "new", name: newName });
+    if (newName != null) setOpen({ mode: "new", name: newName });
     else if (item) edit(item);
   }, [newName, item, edit]);
 
   // Leave the deep link behind, or choosing the same mention again changes nothing.
   const settle = useCallback(() => {
-    if (newName || item) replaceHash("#/library");
+    if (newName != null || item) replaceHash("#/library");
   }, [newName, item]);
 
   const close = useCallback(() => {

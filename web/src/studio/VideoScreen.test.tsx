@@ -197,7 +197,7 @@ describe("Video, Create Video", () => {
     const fetchMock = page({ more: { "/api/generate/video": () => submitted } });
     const row = await screen.findByRole("group", { name: "Camera and look picks" });
     fireEvent.click(within(row).getByRole("button", { name: "Move: none. Choose" }));
-    fireEvent.click(screen.getByRole("option", { name: /^Push in/ }));
+    fireEvent.click(screen.getByRole("option", { name: /^Dolly in/ }));
     fireEvent.click(screen.getByRole("button", { name: "Slow" }));
     fireEvent.click(within(row).getByRole("button", { name: "Lighting: none. Choose" }));
     fireEvent.click(screen.getByRole("option", { name: /^Golden hour/ }));
@@ -207,7 +207,7 @@ describe("Video, Create Video", () => {
     const call = fetchMock.mock.calls.find((c) => c[0] === "/api/generate/video")!;
     expect(JSON.parse(call[1]!.body as string).picks).toEqual({ move: "push-in", speed: "slow", light: "golden-hour" });
 
-    fireEvent.click(within(row).getByRole("button", { name: "Move: Push in · slow. Change" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Move: Dolly in · slow. Change" }));
     fireEvent.click(screen.getByRole("option", { name: /^Static/ }));
     expect(getDraft().picks).toEqual({ move: "static", light: "golden-hour" });
   });
@@ -227,7 +227,7 @@ describe("Video, Create Video", () => {
     fireEvent.click((await within(feed).findAllByRole("button", { name: /^Open / }))[0]);
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Reuse" }));
     expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("A fox runs.");
-    expect(screen.getByRole("button", { name: "Move: Push in. Change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move: Dolly in. Change" })).toBeInTheDocument();
   });
 
   test("a refusal at submit is shown as an alert", async () => {

@@ -51,3 +51,42 @@ export function setPick(picks, key, id) {
 const some = (picks) => Boolean(picks && Object.keys(picks).length);
 /** Whether the cards hold any pick, on the scene or on a stage. */
 export const hasPicks = (cards) => some(cards.picks) || cards.stages.some((s) => some(s.picks));
+
+/**
+ * #move tags in a prompt: "She turns, #whip-pan to the door." Each tag names a
+ * move on the menu, so several moves can sit in one prompt, in order. `ids` is
+ * the menu's moves (or bare ids); a move answers to its tag and its id, and the
+ * longest name the tag starts with wins ("#dolly-in-slow" is #dolly-in followed
+ * by "-slow"). A # inside a word ("C#") is not a tag. Each hit gives the move id.
+ */
+export function findMoveTags(text, ids) {
+  // A move is typed by its tag (#arc-left) or, for older prompts, its id (#orbit-left).
+  const known = new Map();
+  for (const x of ids) {
+    if (typeof x === "string") known.set(x, x);
+    else for (const name of [x.id, x.tag]) if (name) known.set(name, x.id);
+  }
+  const out = [];
+  for (const m of text.matchAll(/(^|[^\w&#])#([a-z0-9][a-z0-9-]*)/gi)) {
+    let name = m[2].toLowerCase();
+    while (name && !known.has(name)) name = name.replace(/-?[^-]*$/, "");
+    if (!name) continue;
+    const start = m.index + m[1].length;
+    out.push({ start, end: start + 1 + name.length, id: known.get(name) });
+  }
+  return out;
+}
+
+/** The prompt with each #move tag written out: "#push-in on her" → "the camera pushes in on her". A tag that starts a sentence is capitalised. */
+export function expandMoveTags(text, moves) {
+  const tags = findMoveTags(text, moves);
+  let out = "";
+  let at = 0;
+  for (const t of tags) {
+    const before = text.slice(0, t.start);
+    const words = cameraWords(moves.find((m) => m.id === t.id));
+    out += text.slice(at, t.start) + (/(^|[.!?]\s+|\n\s*)$/.test(before) ? cap(words) : words);
+    at = t.end;
+  }
+  return out + text.slice(at);
+}

@@ -13,6 +13,7 @@ import { registerScenes } from "./api/scenes.mjs";
 import { registerFrames } from "./api/frames.mjs";
 import { registerLibrary } from "./api/library.mjs";
 import { registerPresets } from "./api/presets.mjs";
+import { registerPalettes } from "./api/palettes.mjs";
 import { registerSkills } from "./api/skills.mjs";
 import { registerMcp } from "./api/mcp.mjs";
 import { registerFilms } from "./api/films.mjs";
@@ -79,6 +80,7 @@ export function createApp({ key, deps = {}, catalog = loadCatalog(), distDir = j
   registerFrames(router);
   registerLibrary(router, { catalog, deps, follower, following });
   registerPresets(router, { catalog });
+  registerPalettes(router);
   registerSkills(router);
   registerMcp(router);
   registerFilms(router, { following, deps });

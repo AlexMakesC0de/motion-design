@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { listPresets } from "../../../cli/core/views.mjs";
 import { unknown } from "../../../cli/lib/errors.mjs";
-import { lookStillUrl, presetStills, stillUrl } from "../stills.mjs";
+import { lookStillUrl, moveClips, presetStills, stillUrl } from "../stills.mjs";
 import { loadLooks, lookView } from "../../../cli/director/looks.mjs";
 
 const card = (p, stills) => {
@@ -18,6 +18,9 @@ export function registerPresets(router, { catalog }) {
     const { categories, looks } = loadLooks();
     return { categories, looks: looks.map((l) => ({ ...lookView(l), still: lookStillUrl(l.id) })) };
   });
+
+  /** Camera moves that have an agreed preview clip (runs/camera-moves/): move id → URL. */
+  router.get("/api/camera-moves", () => ({ clips: moveClips() }));
 
   router.get("/api/presets", () => {
     const stills = presetStills();

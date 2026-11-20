@@ -202,6 +202,11 @@ export function buildInput(route, values = {}) {
     if (schema.enums && !(key in schema.enums)) continue;
   }
   if (!schema.enums?.aspect_ratio && !schema.defaults?.aspect_ratio) delete out.aspect_ratio;
+  // Some routes take the clip's shape from its first frame and refuse any
+  // other ratio once a frame is sent (Seedance 2.5 on kie).
+  if (schema.frameAspectRatio && values.refs?.some((r) => r.role === "first_frame" || r.role === "last_frame")) {
+    out.aspect_ratio = schema.frameAspectRatio;
+  }
 
   for (const [key, allowed] of Object.entries(schema.enums ?? {})) {
     if (out[key] == null) continue;

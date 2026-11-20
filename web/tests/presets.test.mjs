@@ -14,6 +14,12 @@ mkdirSync(fixtureStills, { recursive: true });
 writeFileSync(join(fixtureStills, "kinetic-typography.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 writeFileSync(join(fixtureStills, "sources.json"), JSON.stringify({ stills: [{ preset: "kinetic-typography", file: "kinetic-typography.png" }] }));
 process.env.SHARD_PRESET_STILLS_DIR = fixtureStills;
+// Agreed camera-move clips: one real move, one file that is not a move.
+const fixtureMoves = join(tmp, "fixture-moves");
+mkdirSync(fixtureMoves, { recursive: true });
+writeFileSync(join(fixtureMoves, "snorricam.mp4"), "0123456789");
+writeFileSync(join(fixtureMoves, "not-a-move.mp4"), "mp4");
+process.env.SHARD_MOVE_CLIPS_DIR = fixtureMoves;
 
 let app, port;
 before(async () => {
@@ -24,6 +30,7 @@ before(async () => {
 after(() => {
   app.closeAll();
   delete process.env.SHARD_PRESET_STILLS_DIR;
+  delete process.env.SHARD_MOVE_CLIPS_DIR;
 });
 
 describe("presetStills", () => {
@@ -117,5 +124,92 @@ describe("looks", () => {
     assert.equal(lookStill("missing", dir), null);
     assert.equal(lookStill("../secret", dir), null);
     assert.equal((await req(port, "/media/looks/not-a-look.jpg")).status, 404);
+  });
+});
+
+describe("camera move clips", () => {
+  test("GET /api/camera-moves lists only menu moves that have a clip", async () => {
+    const r = await req(port, "/api/camera-moves");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json, { clips: { snorricam: "/media/moves/snorricam.mp4" } });
+  });
+
+  test("the media route serves a move's clip, with ranges, and nothing that is not a move", async () => {
+    const whole = await req(port, "/media/moves/snorricam.mp4");
+    assert.equal(whole.status, 200);
+    assert.equal(whole.text, "0123456789");
+    const part = await req(port, "/media/moves/snorricam.mp4", { headers: { range: "bytes=2-4" } });
+    assert.equal(part.status, 206);
+    assert.equal(part.text, "234");
+    assert.equal((await req(port, "/media/moves/not-a-move.mp4")).status, 404);
+    assert.equal((await req(port, "/media/moves/whip-pan.mp4")).status, 404);
+  });
+});
+
+describe("colour palettes", () => {
+  const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString("base64")}`;
+
+  test("GET /api/palettes lists built-in stills and your own palettes (none yet)", async () => {
+    const r = await req(port, "/api/palettes");
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json, { stills: {}, own: [] });
+  });
+
+  test("a new palette is kept with its picture and words, is listed, can be picked for a video, and can be removed", async () => {
+    const made = await req(port, "/api/palettes", { method: "POST", body: { name: "  Rainy  window ", colors: ["#0A0A0A", "#1f7a7a", "#f1e6c8"], picture: jpeg } });
+    assert.equal(made.status, 200, made.text);
+    assert.equal(made.json.id, "own-rainy-window");
+    assert.equal(made.json.label, "Rainy window");
+    assert.deepEqual(made.json.colors, ["#0a0a0a", "#1f7a7a", "#f1e6c8"]);
+    assert.equal(made.json.words, "black, teal, cream");
+    assert.equal(made.json.still, "/media/library/palettes/own-rainy-window.jpg");
+    const pic = await req(port, made.json.still);
+    assert.equal(pic.status, 200);
+
+    // The same name again gets its own id.
+    const again = await req(port, "/api/palettes", { method: "POST", body: { name: "Rainy window", colors: ["#000000", "#ffffff"] } });
+    assert.equal(again.json.id, "own-rainy-window-2");
+    assert.equal(again.json.still, null);
+    const list = await req(port, "/api/palettes");
+    assert.deepEqual(list.json.own.map((p) => p.id), ["own-rainy-window-2", "own-rainy-window"]);
+
+    const { applyVideoPicks } = await import("../../cli/director/video-picks.mjs");
+    const r = applyVideoPicks("A fox.", { palette: "own-rainy-window" }, { id: "m", promptProfile: { family: "seedance" } });
+    assert.equal(r.prompt, "A fox.\n\nColour palette: black, teal, cream.");
+
+    assert.equal((await req(port, "/api/palettes/own-rainy-window", { method: "DELETE" })).status, 200);
+    assert.equal((await req(port, "/media/library/palettes/own-rainy-window.jpg")).status, 404);
+    await req(port, "/api/palettes/own-rainy-window-2", { method: "DELETE" });
+    assert.deepEqual((await req(port, "/api/palettes")).json.own, []);
+    assert.throws(() => applyVideoPicks("A fox.", { palette: "own-rainy-window" }, {}), /"own-rainy-window" is not a colour palette/);
+  });
+
+  test("a palette needs a name, 2 to 12 #rrggbb colours and at most a small JPEG", async () => {
+    for (const body of [
+      { name: "", colors: ["#000000", "#ffffff"] },
+      { name: "x", colors: ["#000000"] },
+      { name: "x", colors: ["#000000", "red"] },
+      { name: "x", colors: Array(13).fill("#000000") },
+      { name: "x", colors: ["#000000", "#ffffff"], picture: "data:image/png;base64,AAAA" },
+    ]) {
+      const r = await req(port, "/api/palettes", { method: "POST", body });
+      assert.equal(r.status, 400, `${JSON.stringify(body)} → ${r.text}`);
+    }
+    assert.equal((await req(port, "/api/palettes/own-nope", { method: "DELETE" })).status, 400);
+  });
+
+  test("a built-in palette's still is served from runs/palettes/ when it has one", async () => {
+    const dir = join(tmp, "fixture-palettes");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "blue-hour.jpg"), "jpg");
+    writeFileSync(join(dir, "not-a-palette.jpg"), "jpg");
+    process.env.SHARD_PALETTE_STILLS_DIR = dir;
+    try {
+      assert.deepEqual((await req(port, "/api/palettes")).json.stills, { "blue-hour": "/media/palettes/blue-hour.jpg" });
+      assert.equal((await req(port, "/media/palettes/blue-hour.jpg")).text, "jpg");
+      assert.equal((await req(port, "/media/palettes/not-a-palette.jpg")).status, 404);
+    } finally {
+      delete process.env.SHARD_PALETTE_STILLS_DIR;
+    }
   });
 });

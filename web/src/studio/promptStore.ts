@@ -3,6 +3,8 @@
 // store read with useSyncExternalStore, so the bar keeps its draft when you
 // switch tabs. The working film is kept here too, and remembered across reloads.
 import { useSyncExternalStore } from "react";
+import menu from "../../../cli/director/menu.json";
+import { expandMoveTags } from "../../../cli/director/picks.mjs";
 import type { JobView, ModelInfo, ScenePicks, StagePicks } from "../api/types";
 
 export interface RefDraft {
@@ -11,7 +13,7 @@ export interface RefDraft {
 }
 
 /** A video's camera and look, as director's-menu ids: what a stage and a scene take, in one. */
-export type VideoPicks = StagePicks & ScenePicks;
+export type VideoPicks = StagePicks & ScenePicks & { camera?: string; lensLook?: string; depth?: string; palette?: string };
 
 export interface Draft {
   prompt: string;
@@ -171,6 +173,12 @@ export function addRef(ref: RefDraft) {
   setDraft({ refs: [...refs, ref] });
 }
 
+/** Change what the model takes a reference as. */
+export function setRefRole(index: number, role: string) {
+  const refs = state.draft.refs.map((r, i) => (i === index ? { ...r, role } : r));
+  setDraft({ refs: refs.filter((r, i) => refs.findIndex((x) => x.source === r.source && x.role === r.role) === i) });
+}
+
 export function removeRef(index: number) {
   setDraft({ refs: state.draft.refs.filter((_, i) => i !== index) });
 }
@@ -198,10 +206,17 @@ const lookFields = (d: Draft) => ({
   picks: Object.keys(d.picks).length ? d.picks : d.look ? {} : undefined,
 });
 
+/**
+ * The prompt as the model reads it: an @name that is one of the references is
+ * written as the bare name, and each #move tag as its camera words.
+ */
+export const plainPrompt = (d: Draft) =>
+  expandMoveTags(d.prompt, menu.moves).replace(/@([a-z0-9][a-z0-9-]*)/gi, (whole, name: string) => (d.refs.some((r) => r.source.toLowerCase() === name.toLowerCase()) ? name : whole));
+
 export function generateBody(d: Draft, m: ModelInfo, run: string) {
   return {
     run,
-    prompt: d.prompt,
+    prompt: plainPrompt(d),
     model: d.model,
     ...(m.capability === "video" ? { duration_s: d.durationS ?? undefined, preset: d.preset ?? undefined, ...lookFields(d) } : {}),
     resolution: d.resolution ?? undefined,

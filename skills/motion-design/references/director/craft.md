@@ -80,19 +80,37 @@ Focal length changes how much of the world fits, how far apart near and far thin
 
 Pick one lens look for the whole film, in `look.lensFamily`. Mixing two reads as two films.
 
-**Clean spherical** `spherical`. A clean modern image with round bokeh. The default for tech, product, UI and anything that must feel precise.
+**Clean sharp** `spherical`. A clean modern image with round bokeh. The default for tech, product, UI and anything that must feel precise.
 
 **Anamorphic** `anamorphic`. A cinematic widescreen feel with oval bokeh and horizontal flares from bright lights. It suits night, neon and drama, and works best in 16:9 and 21:9. Not for vertical frames or films where clean UI is the star.
+
+**Halation vintage** `halation-vintage`. Old glass whose highlights glow and bloom into the dark around them. Dreamy and nostalgic: night streets, candlelight, skin in backlight. Too soft for UI or text.
+
+**Warm vintage** `warm-vintage`. More a colour grade than a lens, so the studio's Camera popup leaves it off the Lens wheel (it belongs with colour palettes); Looks and the AI can still use it. Warm, low-contrast vintage glass that forgives skin and softens edges. Memories, lifestyle and food. Not for crisp product detail.
+
+**Vintage anamorphic** `vintage-anamorphic`. Seventies anamorphic glass: blue streak flares, oval bokeh and soft corners. Period drama and music videos; like anamorphic, keep it to wide frames.
+
+## Camera bodies
+
+What the picture was recorded on sets its grain, colour and texture before any lens or light. A plain video can pick one (the `camera` pick in the studio and `kie video --pick`); a planned film keeps this in its look's film look.
+
+**DV camcorder** `dv-camcorder`. A 2000s consumer camcorder: soft detail, video noise and clipped highlights. Home video, found footage and Y2K nostalgia.
+
+**8mm film** `8mm-film`. Grainy Super 8 with gate weave and faded warm colour. Memories, travel diaries and dreamy montages; never for a product that must look sharp.
+
+**35mm film** `35mm-film`. Fine grain and rich natural colour: the default "this was filmed" look for drama and fashion.
+
+**Modern** `digital-cinema`. A modern digital cinema camera, clean and sharp. Commercials, tech and products.
 
 ## Depth of field
 
 Depth of field is how much of the picture is sharp. It follows from aperture, and also from lens and distance: a closer subject and a longer lens make focus thinner. Use it to decide what the viewer looks at.
 
-**Shallow (f/1.4-2)** `shallow`. One plane sharp, the rest soft. It isolates the subject and hides a messy background, which is also why models like it. Use it for close-ups, faces and product beauty. Avoid it on wides and on screens that must read: soft edges on a screen look like a mistake.
+**f/1.4 Wide open** `shallow`. Shallow depth of field. One plane sharp, the rest soft. It isolates the subject and hides a messy background, which is also why models like it. Use it for close-ups, faces and product beauty. Avoid it on wides and on screens that must read: soft edges on a screen look like a mistake.
 
-**Medium (f/4)** `medium`. The subject is sharp and the surroundings stay readable. The right default for a person in a place, because the place still tells the story.
+**f/4 Medium** `medium`. Medium depth of field. The subject is sharp and the surroundings stay readable. The right default for a person in a place, because the place still tells the story.
 
-**Deep (f/8-11)** `deep`. Everything sharp. Wide shots, graphic layouts, screens and flat lays. Avoid it on a portrait close-up unless you want a documentary feel. A deep shot shows everything, so check that everything in the still is worth showing.
+**f/11 Deep focus** `deep`. Deep focus, f/8 to f/11. Everything sharp. Wide shots, graphic layouts, screens and flat lays. Avoid it on a portrait close-up unless you want a documentary feel. A deep shot shows everything, so check that everything in the still is worth showing.
 
 ## Camera moves
 
@@ -100,37 +118,57 @@ A move earns its place when it reveals something, builds attention, follows some
 
 **Speeds.** **Creep** is barely perceptible: the frame seems to breathe. It suits product hero, tension and long holds, and it is the safest speed for a model, but on a short shot it can read as no move at all, so give it 5 seconds or more. **Slow** is calm, premium and the most reliable for video models. **Medium** is purposeful and neutral. **Fast** brings energy and urgency but needs room: in a shot of 4 seconds or less it rarely reads, because the viewer has no time to see where it lands. Give a fast move 5 seconds or more and a beat of rest at the end. The edit trims the first half second of every take, so keep the key moment out of it.
 
-**Static** `static`. The camera holds still. The right choice for a face, a reveal inside the frame, a held payoff and any shot with text coming on top. It still needs a strong frame.
+**Static shot** `static` (typed #static-shot). The camera holds still. The right choice for a face, a reveal inside the frame, a held payoff and any shot with text coming on top. It still needs a strong frame.
 
-**Push in** `push-in`. The camera moves toward the subject, so perspective and parallax change. It builds attention or a realisation. Land on something worth landing on, and use slow for emotion. Do not push in on nothing.
+**Dolly in** `push-in` (typed #dolly-in). The camera moves toward the subject, so perspective and parallax change. It builds attention or a realisation. Land on something worth landing on, and use slow for emotion. Do not push in on nothing.
 
-**Pull out** `pull-out`. The camera moves away to reveal context or close a scene. It works when the wider frame says something the tight one hid, such as that the character is alone.
+**Dolly out** `pull-out` (typed #dolly-out). The camera moves away to reveal context or close a scene. It works when the wider frame says something the tight one hid, such as that the character is alone.
 
-**Pan left** `pan-left` and **Pan right** `pan-right`. The camera turns on the spot, with no parallax. Use it to follow a subject or reveal what is off to the side, toward where the subject faces or moves so there is room to arrive. Do not end a pan on nothing.
+**Pan left** `pan-left` and **Pan right** `pan-right`. The camera stays fixed in one spot, straight across from the subject, and only rotates, with no travel and no parallax. A pan is named by the way it rotates: pan left starts turned to the right of the subject, where they are out of frame, and rotates left until they sit in the centre; pan right starts turned to their left and rotates right. Always end a pan on something. If the near and far objects shift against each other, the camera travelled: that is a slider or a truck, not a pan.
 
-**Tilt up** `tilt-up` and **Tilt down** `tilt-down`. The camera turns up or down on the spot. Tilt up reveals height or lifts the mood: a tower, a figure from boots to face, a stem rising to a bloom. Tilt down brings the eye to what matters. To lift the whole camera instead, use a pedestal.
+**Tilt up** `tilt-up` and **Tilt down** `tilt-down`. The camera turns up or down on the spot. Tilt up reveals height or lifts the mood: a tower, a figure from boots to face, a stem rising to a bloom. For a figure, set the camera below waist height pointing at the ground, with their feet just entering the top of the frame, then tilt up without the camera rising so they are revealed from below. Tilt down brings the eye to what matters. To lift the whole camera instead, use a pedestal.
 
-**Truck left** `truck-left` and **Truck right** `truck-right`. The camera slides sideways, and near and far things shift at different rates, which gives depth. Use it alongside walking action, past a row of products or along a surface. If the subject should stay put in frame while moving, that is a follow.
+**Truck left** `truck-left` and **Truck right** `truck-right`. The subject leads and the camera catches up. The subject faces the camera, turns to the side and starts walking while the camera still holds, drifting off centre; then the camera slides sideways after them, slowly catching up until they are back in the centre. Near and far things shift at different rates, which gives depth. If the camera moves with the subject from the first frame, dead centre, that is side tracking.
 
 **Pedestal up** `pedestal-up` and **Pedestal down** `pedestal-down`. The camera lifts or sinks straight, without tilting. Rise to reveal over an object or a wall; sink to land on a detail. Smaller and calmer than a crane.
 
-**Follow** `follow`. The camera stays with a moving subject at a constant distance, so the subject holds its place in the frame while the world streams past. Use it for a walk, an arrival or a chase, and give the subject a screen direction. Avoid pairing it with fast subject motion: models blur and warp.
+**Tracking** `follow` (typed #tracking). The camera stays with a moving subject at a constant distance, so the subject holds its place in the frame while the world streams past. Use it for a walk, an arrival or a chase, and give the subject a screen direction. Avoid pairing it with fast subject motion: models blur and warp.
 
-**Orbit left** `orbit-left` and **Orbit right** `orbit-right`. The camera circles the subject to show it in the round. Keep the arc under 45 degrees; wider arcs make some models rebuild the subject. For a full turn, let the subject rotate on a turntable with a static camera, or cut between two shots from different sides. Use slow.
+**Arc left** `orbit-left` and **Arc right** `orbit-right` (typed #arc-left, #arc-right). The camera circles the subject to show it in the round. Keep the arc under 45 degrees; wider arcs make some models rebuild the subject. For a full turn, let the subject rotate on a turntable with a static camera, or cut between two shots from different sides. Use slow.
 
-**Crane up** `crane-up` and **Crane down** `crane-down`. A big rising or descending move. Crane up suits openings and endings and shows scale. Crane down descends into a scene from above and delivers the viewer to the subject. It wants a wide lens, a big space and at least 4 seconds. Not for small rooms or short shots.
+**Crane up** `crane-up` and **Crane down** `crane-down`. A big rising or descending move. Crane up starts at the subject's waist height with their full body in frame, then rises steadily up and back along a curve, tilting down to keep them centred, until it looks down on them from far above; you should clearly see the camera pulling away. Crane down is the same path in reverse. Give it 6 seconds and a tall space with no ceiling in the way. Models handle the descent better from a high first frame, so one Crane down clip played backwards also makes the Crane up. It suits openings and endings and shows scale. Crane down descends into a scene from above and delivers the viewer to the subject. It wants a wide lens, a big space and at least 4 seconds. Not for small rooms or short shots.
 
 **Handheld** `handheld`. A slight natural shake. Immediacy: creator footage, documentary, a moment that feels caught. Models tend to overdo the shake, so keep the action simple. Not for premium products, UI, or any shot that should feel precise.
 
-**Zoom in** `zoom-in` and **Zoom out** `zoom-out`. The picture is magnified or shrunk without the camera moving, so perspective stays flat. A deliberate, graphic emphasis. On a flat screen it looks almost the same as a push in; on a three-dimensional scene a push in gives richer depth, so prefer it there.
+**Slow zoom in** `zoom-in` and **Slow zoom out** `zoom-out` (typed #slow-zoom-in, #slow-zoom-out). The picture is magnified or shrunk without the camera moving, so perspective stays flat. A deliberate, graphic emphasis. On a flat screen it looks almost the same as a push in; on a three-dimensional scene a push in gives richer depth, so prefer it there.
 
 **Dolly zoom** `dolly-zoom`. The camera pushes in while the lens zooms out, so the subject holds its size and the background stretches behind it. The classic "the floor drops away" moment of realisation or dread. Once per film at most, on a held subject with depth behind it. Models render it unreliably; if the still and take do not show the stretch, use a slow push in instead.
 
 **Aerial** `aerial`. The camera flies over the scene from high above, like a drone. Geography at scale: a coastline, a city, a route. Open or close a film with it, at slow or creep speed. Faces are invisible at this distance, so never ask an aerial to carry identity.
 
-**Rack focus** `rack-focus`. Focus shifts from the foreground to the background without the camera moving. Use it for a realisation or a link between two things. It needs shallow depth and two clear subjects at different distances. The still sets which plane is sharp, and the video has to change it, which models do unreliably. Keep a plan B: two shots cut together.
+**Rack focus** `rack-focus`. The camera holds still and the focus shifts between two planes: the subject on one side of the frame, and an object close to the lens on the other, such as a pillar, a wall edge or a stem of grass. The subject starts sharp, then the focus pulls to the near object, which sharpens as the subject melts into blur. Give the subject a little life, like a gentle sway, so the blur reads as focus and not as a frozen picture. It needs shallow depth and clearly separated planes. The video has to change which plane is sharp, which models do unreliably, so keep a plan B: two shots cut together.
 
-**Rack focus to foreground** `rack-focus-near`. The reverse: focus pulls from the background to something close to the lens. A hand reaching in, an object that suddenly matters. The same limits apply: shallow depth, two clear planes, a plan B.
+**Side tracking** `side-tracking`. The camera moves sideways exactly with a walking or running subject from the first moment, keeping them in profile dead centre while the background streams past. Give the subject a clear screen direction and keep the speed steady. If the camera starts late and catches up, that is a truck.
+
+**Slider left** `slider-left` and **Slider right** `slider-right`. The camera starts on the subject and glides smoothly sideways, slider right to the right and slider left to the left, so near pillars pass with parallax and the subject slides out of the other side of the frame. Smaller and smoother than a truck. Products, details, calm portraits or an exit; the parallax of a near object sells it. A clip that slides onto the subject can be played backwards to make one that slides away.
+
+**Snorricam** `snorricam`. The camera is strapped to the subject's waist, facing up at them, and frames them from the waist up as they walk. It is part of their body: each step jolts and shakes it, and when they turn to look left or right the camera pivots the same way, so the world lurches and swings behind them while they stay pinned in the frame. Use it for panic, drunkenness or determined resolve. Keep it short: over a long take models drift the face. A smooth camera gliding in front of them is a tracking shot, not a snorricam.
+
+**Robot arm** `robot-arm`. A motion-control rig moving in precise beats, close to the subject the whole time. It starts at their feet and swirls up and around them at a steady, unhurried pace, easing back a little as it goes, until it faces them, and pauses. Then it pivots up and over to look down on their head from above, and pauses again. Each move is smooth and exact, never rushed, and each pause is dead still: the stops make it read as a machine, and without them it is just an arc. Start from a close, feet-level frame, because the model cannot invent the low start. Give it 6 seconds or more for two moves and two holds. Use it for high-energy product and fashion hero moments, and keep the subject simple so it survives the moves.
+
+**POV** `pov`. The camera is the subject's own eyes. Puts the viewer inside the character: walking, reaching, looking around. Show their hands or feet so it reads as first person. (The POV angle frames a shot; this moves it.)
+
+**Whip pan** `whip-pan`. A fast blurred pan that snaps attention somewhere new. Energy and transitions; pairs with a whip cut to the next shot.
+
+**Crash zoom** `crash-zoom`. A sudden fast zoom from a wide view onto the subject's face that eases to a stop with their eyes dead centre, then holds. The stop on the eyes is the point. Comic or dramatic emphasis: a reaction, a reveal. Once is a joke; twice is a style.
+
+**Bullet time** `bullet-time`. The camera faces the subject as they jump, legs folding naturally, hair flying. At the top of the jump everything freezes in mid-air: hair, clothes and body hang still. Hold the frozen moment for a good second, then the camera circles around them, close, while nothing in the scene moves. Give it 6 seconds: a jump, a hold and a circle.
+
+**Drone orbit** `drone-orbit`. The camera circles from high above, showing a lone figure or a place inside its landscape. Slow or creep speed.
+
+**Helicopter shot** `helicopter`. High, fast flight over the landscape. Epic scale to open a film over a city, a coastline or mountains. Like aerial, it never carries a face.
+
+**Aerial pullback** `aerial-pullback`. The camera pulls back and rises into the sky, leaving the subject small below. Closes a film: the character alone in a big world.
 
 ## Lighting
 
@@ -230,8 +268,8 @@ The shots must add up to the brief's length within a second, end card included.
 
 ## Quick recipes
 
-- Calm, premium: `slow` Push in, 85mm portrait, Shallow (f/1.4-2), Soft high key.
+- Calm, premium: `slow` Dolly in, 85mm portrait, Shallow (f/1.4-2), Soft high key.
 - Heroic arrival: Low angle, 35mm, `slow` Tilt up, Backlit rim or Golden hour.
-- Intimate reaction: Close-up, Eye level, 85mm portrait, Rembrandt, Static, one expression change.
+- Intimate reaction: Close-up, Eye level, 85mm portrait, Rembrandt, Static shot, one expression change.
 - Establishing a place: Wide, 24mm wide, Deep (f/8-11), Crane down.
-- A detail to read: Insert, 100mm macro, Medium (f/4), Static.
+- A detail to read: Insert, 100mm macro, Medium (f/4), Static shot.

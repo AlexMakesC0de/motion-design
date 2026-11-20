@@ -5,9 +5,12 @@ import { unknown } from "../lib/errors.mjs";
 import { loadMenu, entry } from "./menu.mjs";
 import { STAGE_PICKS, SCENE_PICKS, stageWords, framingWords, pickSentence, cameraWords } from "./picks.mjs";
 import { findLook, lookLines } from "./looks.mjs";
+import { findPalette } from "./palettes.mjs";
 
+/** What only a plain video takes: the camera body, the lens look, the aperture and the colour palette. */
+export const SETUP_PICKS = { camera: "cameras", lensLook: "lensLooks", depth: "depths", palette: "palettes" };
 /** Every key a video takes → its menu group. */
-export const VIDEO_PICKS = { ...STAGE_PICKS, ...SCENE_PICKS };
+export const VIDEO_PICKS = { ...STAGE_PICKS, ...SCENE_PICKS, ...SETUP_PICKS };
 
 const bad = (field, message) => unknown(message, { field });
 
@@ -24,7 +27,8 @@ export function cleanPicks(input, groups, where, menu = loadMenu()) {
   for (const [key, id] of Object.entries(input)) {
     if (id == null || id === "") continue;
     if (!groups[key]) throw bad("picks", `${where} has no "${key}" pick. It takes: ${Object.keys(groups).join(", ")}.`);
-    entry(menu, groups[key], id); // refuses an unknown id, naming the menu's own
+    if (key === "palette") findPalette(id, menu); // a built-in palette or one of the person's own
+    else entry(menu, groups[key], id); // refuses an unknown id, naming the menu's own
     out[key] = id;
   }
   if (out.speed && (!out.move || out.move === "static")) throw bad("picks", `${where}: a speed needs a move other than static.`);
@@ -39,19 +43,23 @@ export function picksBlock(picks, family, { menu = loadMenu() } = {}) {
   if (!picks) return "";
   const pick = (group, id) => entry(menu, group, id);
   const lens = picks.lens ? pickSentence(pick("lenses", picks.lens)) : "";
+  // "Shot on 35mm film…, warm vintage glass…, shallow depth of field." One sentence for the camera setup.
+  const setupWords = [picks.camera && pick("cameras", picks.camera).words, picks.lensLook && `${pick("lensLooks", picks.lensLook).words} lenses`, picks.depth && pick("depths", picks.depth).words].filter(Boolean).join(", ");
+  const setup = setupWords ? pickSentence({ words: setupWords }) : "";
   const light = picks.light ? pickSentence(pick("lights", picks.light)) : "";
+  const palette = picks.palette ? `Colour palette: ${findPalette(picks.palette, menu).words}.` : "";
   const move = picks.move ? pick("moves", picks.move) : null;
   let lines;
   if (family === "hailuo" && move?.hailuo) {
     // A bracket command is the move; a speed has no bracket, so it is a short sentence after it.
     const speed = picks.speed ? pickSentence(pick("speeds", picks.speed)) : "";
     const framing = stageWords({ size: picks.size, angle: picks.angle }, pick);
-    lines = [[move.hailuo, speed].filter(Boolean).join(" "), framing, lens, light];
+    lines = [[move.hailuo, speed].filter(Boolean).join(" "), framing, setup, lens, light, palette];
   } else if (family === "hailuo") {
-    lines = [stageWords(picks, pick), lens, light];
+    lines = [stageWords(picks, pick), setup, lens, light, palette];
   } else {
     const camera = stageWords(picks, pick);
-    lines = [camera && `Camera: ${camera}`, lens, light];
+    lines = [camera && `Camera: ${camera}`, setup, lens, light, palette];
   }
   return lines.filter(Boolean).join("\n");
 }

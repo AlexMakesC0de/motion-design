@@ -6,7 +6,7 @@ import { extname, join, relative, sep } from "node:path";
 import { LIBRARY_DIR, RUNS_DIR, isInside } from "../../cli/lib/run.mjs";
 import { confinePath } from "../../cli/core/inputs.mjs";
 import { HARDENING, HttpError, streamFile } from "./http.mjs";
-import { lookStill, presetStills } from "./stills.mjs";
+import { lookStill, moveClip, paletteStill, presetStills } from "./stills.mjs";
 import { loadLooks } from "../../cli/director/looks.mjs";
 
 const TYPES = {
@@ -51,6 +51,19 @@ export async function serveMedia(req, res, pathname) {
     res.writeHead(200, { ...HARDENING, "content-type": "image/jpeg", "content-length": statSync(file).size, "cache-control": "no-cache" });
     return streamFile(res, file);
   }
+  const palettePic = pathname.match(/^\/media\/palettes\/([a-z0-9-]+)\.jpg$/);
+  if (palettePic) {
+    const file = paletteStill(palettePic[1]);
+    if (!file) throw new HttpError(404, "Not found.");
+    res.writeHead(200, { ...HARDENING, "content-type": "image/jpeg", "content-length": statSync(file).size, "cache-control": "no-cache" });
+    return streamFile(res, file);
+  }
+  const moveFile = pathname.match(/^\/media\/moves\/([a-z0-9-]+)\.mp4$/);
+  if (moveFile) {
+    const file = moveClip(moveFile[1]);
+    if (!file) throw new HttpError(404, "Not found.");
+    return sendFile(req, res, file);
+  }
   const m = pathname.match(/^\/media\/(runs|library)\/(.+)$/);
   if (!m) throw new HttpError(404, "Not found.");
   let rel;
@@ -67,9 +80,13 @@ export async function serveMedia(req, res, pathname) {
     throw new HttpError(404, "Not found."); // a missing file is a 404, not a refusal
   }
   const file = confinePath(joined, [root]); // code 3 outside the root, through a hidden segment, or missing
-  const st = statSync(file);
-  if (!st.isFile()) throw new HttpError(404, "Not found.");
+  if (!statSync(file).isFile()) throw new HttpError(404, "Not found.");
+  return sendFile(req, res, file);
+}
 
+/** One file, whole or the byte range asked for (video players seek with Range). */
+function sendFile(req, res, file) {
+  const st = statSync(file);
   const type = TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
   const range = (req.headers.range ?? "").match(/^bytes=(\d*)-(\d*)$/);
   const first = range?.[1] ?? "";

@@ -696,6 +696,8 @@
               },
               "note": "Frame-to-video and reference-to-video are separate modes; for strict frame matching use frames, not reference images."
             },
+            "frameAspectRatio": "adaptive",
+            "frameAspectNote": "kie refuses any other aspect_ratio when first_frame_url is set (422: first-frame and first-last-frame tasks only support adaptive aspect ratio, 2026-11-20); the clip takes the frame's shape.",
             "refLimits": {
               "maxCount": {
                 "reference_image_urls": 30,
