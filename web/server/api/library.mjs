@@ -183,6 +183,7 @@ export function assetDetail(name, following, catalog = null) {
     kind: a.kind,
     description: a.description,
     keep: a.keep,
+    heightCm: a.heightCm ?? null,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
     images: a.images.map((im) => ({ n: im.n, role: im.role, file: im.file, width: im.width ?? null, height: im.height ?? null, bytes: im.bytes, mime: im.mime ?? null, url: mediaUrl(im.path) })),
@@ -201,6 +202,15 @@ export function assetDetail(name, following, catalog = null) {
   };
 }
 
+/** A character's height from the page: whole centimetres, or null (or "") to clear it; left out, unchanged. */
+function heightOf(body) {
+  const v = body.heightCm;
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  if (typeof v !== "number" && typeof v !== "string") throw f.invalid("heightCm", "Height is a number of centimetres.");
+  return v;
+}
+
 export function registerLibrary(router, { catalog, deps = {}, follower = null, maxUploadBytes = MAX_UPLOAD, following } = {}) {
   const upload = deps.upload ?? ((path, opts) => uploadFile(catalog, path, opts));
   const detail = (name) => assetDetail(name, following, catalog);
@@ -210,7 +220,7 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
     const { library } = context();
     return library.list().map((s) => {
       const a = library.get(s.name);
-      return { ...s, keep: a.keep ?? "", cover: mediaUrl((sheetOf(a) ?? a.images[0])?.path), usedIn: a.usedIn ?? [] };
+      return { ...s, keep: a.keep ?? "", heightCm: a.heightCm ?? null, cover: mediaUrl((sheetOf(a) ?? a.images[0])?.path), usedIn: a.usedIn ?? [] };
     });
   });
 
@@ -222,6 +232,7 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
         description: query.get("description") ?? "",
         outfit: query.get("outfit") ?? "",
         view: query.get("view") ?? "",
+        heightCm: Number(query.get("heightCm")) || null,
         photos: Number.isInteger(photos) && photos > 0 ? photos : 0,
       }),
       // What making it here would cost, for a new item not saved yet.
@@ -276,12 +287,13 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
     const kind = f.text(body, "kind", { required: true });
     const description = f.text(body, "description", { required: true });
     const keep = f.text(body, "keep");
+    const heightCm = heightOf(body);
     const replace = f.flag(body, "replace");
     const { library, roots } = context();
     const incoming = incomingDir();
     const { images, uploads } = imageList(body, incoming);
     // incoming first: it sits inside library/ under a hidden name, which the library root would refuse.
-    library.save({ name, kind, description, keep, images, replace }, { roots: [incoming, ...roots] });
+    library.save({ name, kind, description, keep, heightCm, images, replace }, { roots: [incoming, ...roots] });
     for (const p of uploads) rmSync(p, { force: true });
     return detail(name);
   });
@@ -295,6 +307,8 @@ export function registerLibrary(router, { catalog, deps = {}, follower = null, m
       if (typeof v !== "string") throw f.invalid(field, `${field} must be text.`);
       changes[field] = v;
     }
+    const heightCm = heightOf(body);
+    if (heightCm !== undefined) changes.heightCm = heightCm;
     library.update(params.name, changes);
     return detail(params.name);
   });

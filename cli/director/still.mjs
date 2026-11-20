@@ -144,7 +144,7 @@ const SHEETS = {
   // The same three panels as the Library's ChatGPT prompt: close-up, front with the face covered, back.
   character: {
     model: "nano-banana-2",
-    words: (d, photos, { outfit = "" } = {}) => sheetPrompt({ kind: "character", description: d, outfit, photos }),
+    words: (d, photos, { outfit = "", heightCm = null } = {}) => sheetPrompt({ kind: "character", description: d, outfit, heightCm, photos }),
   },
   product: {
     model: "gpt-image-2-5",
@@ -161,7 +161,7 @@ const SHEETS = {
 export function sheetWording(asset, { photos = 0, outfit = "" } = {}) {
   const sheet = SHEETS[asset.kind];
   if (!sheet) throw usage(`${asset.name} is a ${asset.kind} asset; only characters, products and locations get a reference sheet.`);
-  return { prompt: sheet.words(trim(asset.description), photos, { outfit: trim(outfit ?? "") }), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
+  return { prompt: sheet.words(trim(asset.description), photos, { outfit: trim(outfit ?? ""), heightCm: asset.heightCm ?? null }), model: sheet.model, aspectRatio: asset.kind === "location" ? "16:9" : "3:2" };
 }
 
 /**

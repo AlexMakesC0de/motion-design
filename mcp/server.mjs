@@ -91,6 +91,7 @@ const Asset = {
   kind: z.string(),
   description: z.string(),
   keep: z.string().nullable(),
+  heightCm: z.number().int().nullable(),
   images: z.array(
     z.object({
       n: z.number().int(),
@@ -113,6 +114,7 @@ const assetView = (a) => ({
   kind: a.kind,
   description: a.description,
   keep: a.keep ?? null,
+  heightCm: a.heightCm ?? null,
   images: a.images.map((im) => ({
     n: im.n,
     role: im.role ?? "source",
@@ -507,12 +509,15 @@ export function createServer({ deps = {}, catalog = loadCatalog(), mode = proces
       "update_asset",
       {
         title: "Update asset",
-        description: "Change a Library item's kind, description or keep (what a scene preserves from it) without touching its images. Free.",
+        description:
+          "Change a Library item's kind, description, keep (what a scene preserves from it) or a character's height without touching its images. Free. " +
+          "Height is said in every prompt the character's sheet goes into, so two characters keep their real sizes.",
         inputSchema: {
           name: z.string(),
           kind: z.enum(KINDS).optional(),
           description: z.string().min(1).optional(),
           keep: z.string().optional().describe("Empty text clears it."),
+          heightCm: z.number().int().min(50).max(250).nullable().optional().describe("A character's real height in whole centimetres (183); null clears it."),
         },
         outputSchema: Asset,
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },

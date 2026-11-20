@@ -3,7 +3,7 @@
 // a character is a three-panel sheet on 18% grey, a location a view with no
 // people, a prop a front and top-down view on mid-grey (white overexposes).
 import { unknown } from "../lib/errors.mjs";
-import { KINDS } from "./assets.mjs";
+import { KINDS, heightWords } from "./assets.mjs";
 
 const lead = (photos) => (photos > 0 ? `Generate the final image based on my attached reference photo${photos === 1 ? "" : "s"}.\n\n` : "");
 const end = (s) => s.trim().replace(/[.\s]+$/, "");
@@ -11,7 +11,7 @@ const end = (s) => s.trim().replace(/[.\s]+$/, "");
 // The face appears once, in the close-up. The full-body front view covers it
 // with a flat grey oval, so a model given the sheet has one face to copy, not
 // three slightly different ones (Alex's rule; library/korean-girl-student).
-const character = ({ description, outfit, photos }) =>
+const character = ({ description, outfit, heightCm, photos }) =>
   [
     "A three-panel character reference sheet composed as one horizontal image, divided into three equal vertical panels side by side with thin clean separations. The same person in the same outfit in all three panels. No text, no labels, no numbering anywhere in the image.",
     photos > 0
@@ -19,6 +19,7 @@ const character = ({ description, outfit, photos }) =>
       : null,
     `CHARACTER: ${end(description)}.`,
     `OUTFIT: ${outfit?.trim() ? `${end(outfit)}.` : "as described above."}`,
+    heightCm ? `HEIGHT: ${heightWords(heightCm)} tall, with the true proportions of an adult that height.` : null,
     "LEFT PANEL — tight chest-up face close-up. Framed from just above the head down to the upper chest, the face filling the panel, looking straight at camera, neutral relaxed expression, lips closed. Maximum facial detail. This is the only panel that shows the face.",
     "CENTER PANEL — full body front view. The figure stands squared to the camera, framed from above the head down to the shoes, arms relaxed at the sides, weight even on both feet. The full outfit is clearly readable. The face is completely covered by a flat, solid mid-grey oval with soft edges, so no facial features show; the hair around it stays visible.\n" +
       "RIGHT PANEL — full body back view. The complete figure from above the head down to the shoes, seen directly from behind, standing straight. Hair, back of the outfit and shoes are clearly readable.",
@@ -41,9 +42,9 @@ const style = ({ description }) => `${end(description)}. No text.`;
 
 const BUILD = { character, location, product, style };
 
-/** { kind, description, outfit?, view?, photos? } → the prompt text. */
-export function sheetPrompt({ kind, description, outfit = "", view = "", photos = 0 }) {
+/** { kind, description, outfit?, view?, heightCm?, photos? } → the prompt text. */
+export function sheetPrompt({ kind, description, outfit = "", view = "", heightCm = null, photos = 0 }) {
   if (!KINDS.includes(kind)) throw unknown(`kind must be one of ${KINDS.join(", ")}, got "${kind}".`, { field: "kind" });
   if (!description?.trim()) throw unknown("Say what it is (the description) first.", { field: "description" });
-  return lead(photos) + BUILD[kind]({ description, outfit, view, photos });
+  return lead(photos) + BUILD[kind]({ description, outfit, view, heightCm, photos });
 }

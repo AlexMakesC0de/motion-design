@@ -1,7 +1,7 @@
 // One scene → the prompt Seedance 2.5 gets, in Dan Kieft's sections, plus its
 // reference images in order. Image N in the prompt is refs[N-1].
 import { join } from "node:path";
-import { sheetOf } from "../core/assets.mjs";
+import { heightWords, sheetOf } from "../core/assets.mjs";
 import { IMAGE, LIBRARY, STORED, attachLibraryMentions, refLabel, speakerIds, scriptLines, stageLines, MAX_REFS } from "./mentions.mjs";
 import { CARD_MAX_S } from "../lib/ffmpeg.mjs";
 import { stageTimes } from "./scenes.mjs";
@@ -74,9 +74,12 @@ export function compileScene(input, { film, library, refToken = DEFAULT_REF_TOKE
       if (tooBig) return problems.push(tooBig) && null;
       // Never a person's name: models drift on names, and may write them on screen.
       const what = a.kind === "character" ? "character" : `${name}, ${KIND_WORD[a.kind] ?? a.kind}`;
+      const keep = r.keep ?? a.keep ?? a.description;
+      // Sheets have nothing to measure against; the real height keeps two characters' sizes apart.
+      const tall = a.kind === "character" && a.heightCm ? ` This person is ${heightWords(a.heightCm)} tall.` : "";
       return {
         send: { source: `${name}#${sheet.n}`, role: "identity" },
-        line: `${token(i)} — ${what}. Preserve ${r.keep ?? a.keep ?? a.description}${/[.!?]$/.test(r.keep ?? a.keep ?? a.description) ? "" : "."}`,
+        line: `${token(i)} — ${what}. Preserve ${keep}${/[.!?]$/.test(keep) ? "" : "."}${tall}`,
       };
     }
     const rel = r.source.slice("file:".length);

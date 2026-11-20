@@ -20,6 +20,27 @@ function checkDescription(description) {
   if (!description?.trim()) throw unknown("An asset needs a description; it is reused word for word in prompts.");
 }
 const cleanKeep = (keep) => (typeof keep === "string" && keep.trim() ? keep.trim() : null);
+
+/**
+ * A character's real height, in whole centimetres. A sheet is three panels on
+ * flat grey with nothing to measure against, so a model given two sheets makes
+ * both people the same size; the height is said in words wherever the sheet goes.
+ */
+export const HEIGHT_CM = [50, 250];
+export function cleanHeight(value, kind) {
+  if (value == null || value === "") return null;
+  const n = typeof value === "string" ? Number(value.trim()) : value;
+  if (!Number.isInteger(n) || n < HEIGHT_CM[0] || n > HEIGHT_CM[1]) {
+    throw unknown(`Height is whole centimetres, ${HEIGHT_CM[0]} to ${HEIGHT_CM[1]} (183, not 1.83 or 6'0").`, { field: "heightCm" });
+  }
+  if (kind && kind !== "character") throw unknown("Only a character has a height.", { field: "heightCm" });
+  return n;
+}
+/** 183 → "183 cm (6 ft 0 in)". */
+export function heightWords(cm) {
+  const inches = Math.round(cm / 2.54);
+  return `${cm} cm (${Math.floor(inches / 12)} ft ${inches % 12} in)`;
+}
 // kie deletes uploads after 24 hours (docs.kie.ai file-upload quickstart, read
 // 2026-10-30). Reusing one for 20 leaves a margin for a long job.
 const REUSE_UPLOAD_MS = 20 * 3_600_000;
@@ -64,6 +85,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     return {
       ...r,
       keep: r.keep ?? null,
+      heightCm: r.heightCm ?? null,
       persona: r.persona ?? null,
       images: r.images.map((im) => ({ ...im, role: roleOf(im), path: join(assetDir(name), im.file) })),
       voice: r.voice
@@ -83,10 +105,11 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
    * null. Left out on a replace, the earlier version's persona is kept, so
    * adopting a sheet never turns an influencer back into a plain character.
    */
-  function save({ name, kind, description, keep, images, replace = false, persona }, { roots = null } = {}) {
+  function save({ name, kind, description, keep, heightCm, images, replace = false, persona }, { roots = null } = {}) {
     const target = assetDir(name);
     checkKind(kind);
     checkDescription(description);
+    let height = heightCm === undefined ? undefined : cleanHeight(heightCm, kind);
     if (!Array.isArray(images) || images.length < 1 || images.length > 4) throw unknown("An asset holds 1 to 4 images.");
     const wanted = images.map((im) => (typeof im === "string" ? { path: im, role: "source" } : { path: im?.path, role: im?.role ?? "source" }));
     for (const w of wanted) if (!IMAGE_ROLES.includes(w.role)) throw unknown(`An image's role must be sheet or source, got "${w.role}".`);
@@ -116,6 +139,8 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       createdAt = prev.createdAt;
       usedIn = prev.usedIn ?? [];
       if (persona === undefined) keptPersona = prev.persona ?? null;
+      // A new sheet keeps the height it was given before, unless the item stops being a character.
+      if (height === undefined && kind === "character") height = prev.heightCm ?? null;
       voiceFields = { ...(prev.voice ? { voice: prev.voice } : {}), ...(prev.voiceProfile ? { voiceProfile: prev.voiceProfile } : {}) };
       const history = join(target, ".history", at.replace(/[:.]/g, "-"));
       mkdirSync(history, { recursive: true });
@@ -141,7 +166,7 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
         upload: null,
       };
     });
-    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), ...(keptPersona ? { persona: keptPersona } : {}), images: stored, ...voiceFields, createdAt, updatedAt: at, usedIn });
+    return write({ name, kind, description: description.trim(), keep: cleanKeep(keep), ...(height ? { heightCm: height } : {}), ...(keptPersona ? { persona: keptPersona } : {}), images: stored, ...voiceFields, createdAt, updatedAt: at, usedIn });
   }
 
   /** Move the current voice file and a copy of the record into .history/<stamp>/. */
@@ -317,8 +342,8 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
     return url;
   }
 
-  /** Change an asset's kind, description or keep. Images are untouched. */
-  function update(name, { kind, description, keep } = {}) {
+  /** Change an asset's kind, description, keep or height. Images are untouched. */
+  function update(name, { kind, description, keep, heightCm } = {}) {
     if (!existsSync(recordPath(name))) throw unknown(`No asset "${name}".`);
     const record = read(name);
     if (kind !== undefined) {
@@ -330,6 +355,11 @@ export function openLibrary(dir = LIBRARY_DIR, { now = () => new Date() } = {}) 
       record.description = description.trim();
     }
     if (keep !== undefined) record.keep = cleanKeep(keep);
+    if (heightCm !== undefined) {
+      const h = cleanHeight(heightCm, record.kind);
+      if (h) record.heightCm = h;
+      else delete record.heightCm;
+    } else if (record.kind !== "character") delete record.heightCm;
     record.updatedAt = now().toISOString();
     write(record);
     return get(name);

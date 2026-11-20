@@ -73,6 +73,8 @@ export interface AssetDetail {
   kind: string;
   description: string;
   keep: string | null;
+  /** A character's real height in centimetres. */
+  heightCm?: number | null;
   createdAt: string;
   updatedAt: string;
   images: { n: number; role: "sheet" | "source"; file: string; width: number | null; height: number | null; bytes: number; mime: string | null; url: string | null }[];
